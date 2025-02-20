@@ -152,7 +152,7 @@ if ($conn->connect_error) {
         </a>
         <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
           <li>
-            <a class="dropdown-item" href="#">Corporates</a>
+            <a class="dropdown-item" href="#">Hotel</a>
           </li>
           <li>
             <a class="dropdown-item" href="">Agents</a>

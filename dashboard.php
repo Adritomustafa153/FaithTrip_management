@@ -186,13 +186,13 @@ $counter_sales = ($result_counter->num_rows > 0) ? $result_counter->fetch_assoc(
         </a>
         <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
           <li>
-            <a class="dropdown-item" href="#">Corporates</a>
+            <a class="dropdown-item" href="hotel_sales.php">Hote</a>
           </li>
           <li>
-            <a class="dropdown-item" href="">Agents</a>
+            <a class="dropdown-item" href="">Visa Processing</a>
           </li>
           <li>
-            <a class="dropdown-item" href="">Counter Sell</a>
+            <a class="dropdown-item" href="">Tour Package</a>
           </li>
         </ul>
       </li>

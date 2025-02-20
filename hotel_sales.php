@@ -5,33 +5,33 @@ if ($conn->connect_error) {
 }
 
 // Fetch company names for dropdown
-$companyQuery = "SELECT DISTINCT PartyName FROM sales";
+$companyQuery = "SELECT DISTINCT partyName FROM hotel";
 $companyResult = $conn->query($companyQuery);
 
 // Fetch sales records
 $where = "";
 if (isset($_GET['company']) && !empty($_GET['company'])) {
     $company = $conn->real_escape_string($_GET['company']);
-    $where .= " WHERE PartyName = '$company'";
+    $where .= " WHERE partyName = '$company'";
 }
 if (isset($_GET['invoice']) && !empty($_GET['invoice'])) {
     $invoice = $conn->real_escape_string($_GET['invoice']);
     $where .= ($where ? " AND" : " WHERE") . " invoice_number LIKE '%$invoice%'";
 }
-if (isset($_GET['pnr']) && !empty($_GET['pnr'])) {
-    $pnr_ = $conn->real_escape_string($_GET['pnr']);
-    $where .= ($where ? " AND" : " WHERE") . " PNR LIKE '%$pnr_%'";
+if (isset($_GET['booking_id']) && !empty($_GET['booking_id'])) {
+    $pnr_ = $conn->real_escape_string($_GET['booking_id']);
+    $where .= ($where ? " AND" : " WHERE") . " reference_number LIKE '%$pnr_%'";
 }
 
-$salesQuery = "SELECT * FROM sales" . $where;
+$salesQuery = "SELECT * FROM hotel" . $where;
 $salesResult = $conn->query($salesQuery);
 
 // Delete record
 if (isset($_GET['delete'])) {
     $id = intval($_GET['delete']);
-    $deleteQuery = "DELETE FROM sales WHERE SaleID=$id";
+    $deleteQuery = "DELETE FROM hotel WHERE id=$id";
     if ($conn->query($deleteQuery) === TRUE) {
-        echo "<script>alert('Record deleted successfully!'); window.location='invoice_list.php';</script>";
+        echo "<script>alert('Record deleted successfully!'); window.location='hotel_sales.php';</script>";
     } else {
         echo "Error deleting record: " . $conn->error;
     }
@@ -78,7 +78,7 @@ if (isset($_GET['delete'])) {
 
  <!-- Start your project here-->
 <!-- Navbar -->
-<nav class="navbar navbar-expand-lg navbar-light bg-body-tertiary">
+<nav class="navbar navbar-expand-lg navbar-light bg-body-tertiary" style="background-color: #e3f2fd";>
   <!-- Container wrapper -->
   <div class="container-fluid">
     <!-- Toggle button -->
@@ -184,7 +184,7 @@ if (isset($_GET['delete'])) {
             <a class="dropdown-item" href="hotel_sales.php">Hotel</a>
           </li>
           <li>
-            <a class="dropdown-item" href="">Visa</a>
+            <a class="dropdown-item" href="">Visa Processing</a>
           </li>
           <li>
             <a class="dropdown-item" href="">Tour Package</a>
@@ -291,9 +291,9 @@ if (isset($_GET['delete'])) {
     <select name="company">
         <option value="">Select All</option>
         <?php while ($row = $companyResult->fetch_assoc()) : ?>
-            <option value="<?= htmlspecialchars($row['PartyName']) ?>" 
-                <?= (isset($_GET['company']) && $_GET['company'] == $row['PartyName']) ? 'selected' : '' ?>>
-                <?= htmlspecialchars($row['PartyName']) ?>
+            <option value="<?= htmlspecialchars($row['partyName']) ?>" 
+                <?= (isset($_GET['company']) && $_GET['company'] == $row['partyName']) ? 'selected' : '' ?>>
+                <?= htmlspecialchars($row['partyName']) ?>
             </option>
         <?php endwhile; ?>
     </select>
@@ -301,21 +301,25 @@ if (isset($_GET['delete'])) {
     <input type="text" name="invoice" placeholder="Search Invoice Number" 
         value="<?= isset($_GET['invoice']) ? htmlspecialchars($_GET['invoice']) : '' ?>">
 
-    <input type="text" name="pnr" placeholder="Search PNR" 
-        value="<?= isset($_GET['PNR']) ? htmlspecialchars($_GET['PNR']) : '' ?>">
-    <button type="submit">Search</button>
+    <input type="text" name="booking_id" placeholder="Search Booking ID" 
+        value="<?= isset($_GET['booking_id']) ? htmlspecialchars($_GET['booking_id']) : '' ?>">
+    <button type="submit">Search</button><br>
+    <button type="button" onclick="location.href='add_sales_corporate.php'">Add Sales (Corporate)</button>
+    <button type="button" onclick="location.href='add_sales_agents.php'">Add Sales (Agents)</button>
+    <button type="button" onclick="location.href='add_sales_counter.php'">Add Sales (Counter Sales)</button>
 </form>
+
 </div>
 <!-- Sales Records Table -->
  <div class="result">
 <table>
     <tr>
         <th style="font-size: 12px;">Company Name</th>
-        <th style="font-size: 12px;">Pessenger Name</th>
+        <th style="font-size: 12px;">Hotel Name</th>
         <th style="font-size: 12px;">Invoice Number</th>
-        <th style="font-size: 12px;">Route</th>
-        <th style="font-size: 12px;">PNR</th>
-        <th style="font-size: 12px;">Ticket Number</th>
+        <th style="font-size: 12px;">Pessenger Number</th>
+        <th style="font-size: 12px;">Check-In Date</th>
+        <th style="font-size: 12px;">Check-Out Date</th>
         <th style="font-size: 12px;">Issue Date</th>
         <th style="font-size: 12px;">Day Passes</th>
         <th style="font-size: 12px;">Payment Status</th>
@@ -324,29 +328,29 @@ if (isset($_GET['delete'])) {
         <th style="font-size: 12px;">Modify</th>
     </tr>
     <?php while ($row = $salesResult->fetch_assoc()) : 
-        $issue_date = new DateTime($row['IssueDate']);
+        $issue_date = new DateTime($row['issue_date']);
         $today = new DateTime();
         $interval = $issue_date->diff($today);
         $day_passes = $interval->days;
         ?>
         <tr>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['PartyName']) ?></td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['PassengerName']) ?></td>
+            <td style="font-size: 12px;"><?= htmlspecialchars($row['partyName']) ?></td>
+            <td style="font-size: 12px;"><?= htmlspecialchars($row['hotelName']) ?></td>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['invoice_number']) ?></td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['TicketRoute']) ?></td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['PNR']) ?></td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['TicketNumber']) ?></td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['IssueDate']) ?></td>
+            <td style="font-size: 12px;"><?= htmlspecialchars($row['pessengerName']) ?></td>
+            <td style="font-size: 12px;"><?= htmlspecialchars($row['checkin_date']) ?></td>
+            <td style="font-size: 12px;"><?= htmlspecialchars($row['checkout_date']) ?></td>
+            <td style="font-size: 12px;"><?= htmlspecialchars($row['issue_date']) ?></td>
             <td style="font-size: 12px;"><?= $day_passes ?> days</td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['PaymentStatus']) ?></td>
-            <td style="font-size: 12px;">BDT<?= number_format($row['BillAmount'], 2) ?></td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['SalesPersonName']) ?></td>
+            <td style="font-size: 12px;"><?= htmlspecialchars($row['payment_status']) ?></td>
+            <td style="font-size: 12px;">BDT<?= number_format($row['selling_price'], 2) ?></td>
+            <td style="font-size: 12px;"><?= htmlspecialchars($row['issued_by']) ?></td>
             <td>
-    <?php if (isset($row['SaleID'])): ?>
-        <a href="edit.php?id=<?php echo htmlspecialchars($row['SaleID']); ?>" class="btn edit-btn" >
+    <?php if (isset($row['id'])): ?>
+        <a href="edit.php?id=<?php echo htmlspecialchars($row['id']); ?>" class="btn edit-btn" >
             <i class="fas fa-edit"></i> Edit
         </a><br>
-        <a href="invoice_list.php?delete=<?php echo htmlspecialchars($row['SaleID']); ?>" class="btn delete-btn" 
+        <a href="invoice_list.php?delete=<?php echo htmlspecialchars($row['id']); ?>" class="btn delete-btn" 
            onclick="return confirm('Are you sure you want to delete this record?')">
             <i class="fas fa-trash"></i> Delete
             
