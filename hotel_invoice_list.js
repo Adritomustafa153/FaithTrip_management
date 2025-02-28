@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", function () {
     const companyDropdown = document.querySelector("select[name='company']");
     const searchInput = document.querySelector("input[name='invoice']");
-    const searchPNR = document.querySelector("input[name='pnr']");
+    const searchPNR = document.querySelector("input[name='booking_id']");
     const deleteButtons = document.querySelectorAll(".delete-btn");
 
     // Auto-submit when company dropdown changes

@@ -305,8 +305,8 @@ if (isset($_GET['delete'])) {
         value="<?= isset($_GET['booking_id']) ? htmlspecialchars($_GET['booking_id']) : '' ?>">
     <button type="submit">Search</button><br>
     <button type="button" onclick="location.href='add_sales_corporate.php'">Add Sales (Corporate)</button>
-    <button type="button" onclick="location.href='add_sales_agents.php'">Add Sales (Agents)</button>
-    <button type="button" onclick="location.href='add_sales_counter.php'">Add Sales (Counter Sales)</button>
+    <button type="button" onclick="location.href='add_hotel_sales_agents.php'">Add Sales (Agents)</button>
+    <button type="button" onclick="location.href='add_hotel_sales_counter.php'">Add Sales (Counter Sales)</button>
 </form>
 
 </div>
@@ -350,7 +350,7 @@ if (isset($_GET['delete'])) {
         <a href="edit.php?id=<?php echo htmlspecialchars($row['id']); ?>" class="btn edit-btn" >
             <i class="fas fa-edit"></i> Edit
         </a><br>
-        <a href="invoice_list.php?delete=<?php echo htmlspecialchars($row['id']); ?>" class="btn delete-btn" 
+        <a href="hotel_sales.php?delete=<?php echo htmlspecialchars($row['id']); ?>" class="btn delete-btn" 
            onclick="return confirm('Are you sure you want to delete this record?')">
             <i class="fas fa-trash"></i> Delete
             
