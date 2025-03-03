@@ -46,7 +46,7 @@ if (isset($_GET['delete'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales Records</title>
-    <style>
+    <!-- <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; border-radius: 20px;border-collapse: collapse;box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);}
         th, td { padding: 10px; border: 1px solid #ddd; text-align: left; border-radius: 20px;}
@@ -57,8 +57,76 @@ if (isset($_GET['delete'])) {
         .edit-btn { background-color:rgb(7, 147, 32); color: white; }
         .delete-btn { background-color: #d9534f; color: white; }
         .btn:hover { opacity: 0.8; }
+        .hr-lines:before{
+         content:" ";
+         display: block;
+         height: 2px;
+         width: 100%;
+         position: absolute;
+         top: 50%;
+         left: 0;
+         background: grey;
+}
 
-    </style>
+    </style> -->
+    <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    table { 
+        width: 100%; 
+        border-collapse: collapse; 
+        margin-top: 20px; 
+        border-radius: 20px;
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+    }
+    th, td { 
+        padding: 10px; 
+        border-radius: 5px;
+        text-align: left; 
+    }
+    th { 
+        background-color: rgb(74, 113, 255); 
+        color: white; 
+    }
+    .search-container { 
+        display: flex; 
+        gap: 10px; 
+        margin-bottom: 20px; 
+        border-radius: 15px;
+    }
+    .search-container select, .search-container input { 
+        padding: 8px; 
+        width: 200px; 
+    }
+    .btn { 
+        padding: 5px 10px; 
+        border: none; 
+        cursor: pointer; 
+        text-decoration: none; 
+        font-size: 12px; 
+        padding: 4px 8px 
+    }
+    .edit-btn { background-color: rgb(7, 147, 32); color: white; }
+    .delete-btn { background-color: #d9534f; color: white; }
+    .btn:hover { opacity: 0.8; }
+
+    /* Alternating row colors */
+    tr:nth-child(odd) {
+        background-color:rgb(238, 241, 255); /* Light grey */
+    }
+    tr:nth-child(even) {
+        background-color: #ffffff; /* White */
+    }
+
+    /* Soft line separator between rows */
+    tr {
+        border-bottom: 1px solid #ddd;
+    }
+
+    tr:last-child {
+        border-bottom: none;
+    }
+
+</style>
  <!-- MDB icon -->
  <link rel="icon" href="img/mdb-favicon.ico" type="image/x-icon" />
     <!-- Font Awesome -->
@@ -351,12 +419,15 @@ if (isset($_GET['delete'])) {
             <i class="fas fa-trash"></i> Delete
             
         </a>
+
     <?php else: ?>
         <span style="color: red;">Error: No ID Found</span>
     <?php endif; ?>
+    
 </td>
 
         </tr>
+       
     <?php endwhile; ?>
 </table>
 <script type="text/javascript" src="js/mdb.umd.min.js"></script>
