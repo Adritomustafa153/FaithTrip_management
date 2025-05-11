@@ -1,0 +1,2 @@
+        $mail->Username = 'info@faithtrip.net';
+        $mail->Password = 'kbjtsnmotgbwhwvw';
