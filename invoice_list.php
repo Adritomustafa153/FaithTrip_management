@@ -142,6 +142,42 @@ if (isset($_GET['delete'])) {
     <!-- MDB -->
     <link rel="stylesheet" href="css/mdb.min.css" />
 </head>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+      let cart = JSON.parse(localStorage.getItem("cart")) || [];
+
+      function updateCartCount() {
+          document.getElementById("cart-count").textContent = cart.length;
+      }
+
+      function addToCart(item) {
+          cart.push(item);
+          localStorage.setItem("cart", JSON.stringify(cart));
+          updateCartCount();
+      }
+
+      document.querySelectorAll(".add-to-cart").forEach(button => {
+          button.addEventListener("click", function () {
+              let passenger = {
+                  name: this.dataset.name,
+                  price: this.dataset.price,
+                  route: this.dataset.route,
+                  journey: this.dataset.journey,
+                  return: this.dataset.return,
+                  pnr: this.dataset.pnr,
+                  ticket: this.dataset.ticket,
+                  paid: this.dataset.paid,
+                  due: this.dataset.due
+              };
+              addToCart(passenger);
+              alert("Added to Cart!");
+          });
+      });
+
+      updateCartCount();
+  });
+</script>
+
 <body>
 
  <!-- Start your project here-->
@@ -271,6 +307,29 @@ if (isset($_GET['delete'])) {
         <li class="nav-item">
           <a class="nav-link" href="">Accounts</a>
         </li>
+
+                    <li class="nav-item dropdown">
+        <a
+          data-mdb-dropdown-init
+          class="nav-link dropdown-toggle"
+          href="#"
+          id="navbarDropdownMenuLink"
+          role="button"
+          aria-expanded="false"
+        >
+          Add
+        </a>
+
+        <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+          <li>
+            <a class="dropdown-item" href="add_passenger.php">Add Counter Passenger</a>
+          </li>
+          <li>
+            <a class="dropdown-item" href="#">Add Corporate Passenger</a>
+          </li>
+        </ul>
+      </li>
+
       </ul>
       <!-- Left links -->
     </div>
@@ -279,9 +338,11 @@ if (isset($_GET['delete'])) {
     <!-- Right elements -->
     <div class="d-flex align-items-center">
       <!-- Icon -->
-      <a class="text-reset me-3" href="#">
-        <i class="fas fa-shopping-cart"></i>
-      </a>
+      <a class="text-reset me-3" href="cart.php">
+  <i class="fas fa-shopping-cart"></i>
+  <span id="cart-count" class="badge bg-danger">0</span>
+</a>
+
 
       <!-- Notifications -->
       <div class="dropdown">
@@ -396,6 +457,13 @@ if (isset($_GET['delete'])) {
         $today = new DateTime();
         $interval = $issue_date->diff($today);
         $day_passes = $interval->days;
+        $deperture_date = new DateTime($row['FlightDate']);
+        $return_date = new DateTime($row['ReturnDate']);
+        $paidAmount = (float) $row['PaidAmount']; // Ensure it's a float
+        // $paid = number_format($paidAmount, 2, '.', ''); // Format as decimal(10,2)
+        // $due = number_format($row['BillAmount'], 2) - $paid;
+        $paid = isset($row['PaidAmount']) ? (float) $row['PaidAmount'] : 0.00; // Convert safely to float
+        $due = number_format($paid, 2, '.', ''); // Format as decimal(10,2)
         ?>
         <tr>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['PartyName']) ?></td>
@@ -419,6 +487,28 @@ if (isset($_GET['delete'])) {
             <i class="fas fa-trash"></i> Delete
             
         </a>
+        <button class="add-to-cart" 
+        data-name="<?php $row['PassengerName'] ?>" 
+        data-price="<?php $row['BillAmount'] ?>"
+        data-route="<?php $row['TicketRoute'] ?>"
+        data-journey="<?php $row['FlightDate'] ?>"
+        data-return="<?php $row['ReturnDate'] ?>"
+        data-pnr="<?php $row['PNR'] ?>"
+        data-ticket="<?php $row['TicketNumber'] ?>"
+        data-paid="<?php echo $paid ?>"
+        data-due="<?php echo $due ?>">
+  Add to Cart
+</button>
+<!-- 
+        <a href="cart.php?id=<?php echo htmlspecialchars($row['SaleID']); ?>" class="btn edit-btn" >
+        <i class="fas fa-cart-plus"> Invoice</i>        
+        </a> -->
+        <!-- <a href="cart.php">
+        <button onclick="addToCart(<?php echo $product_id; ?>, '<?php echo $product_name; ?>', <?php echo $price; ?>)">
+    Add to Invoice
+        </button>
+
+        </a> -->
 
     <?php else: ?>
         <span style="color: red;">Error: No ID Found</span>

@@ -1,65 +1,57 @@
-<?php
-$conn = new mysqli("localhost", "root", "", "faithtrip_accounts");
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
-
-// Fetch company names for dropdown
-$companyQuery = "SELECT DISTINCT partyName FROM hotel";
-$companyResult = $conn->query($companyQuery);
-
-// Fetch sales records
-$where = "";
-if (isset($_GET['company']) && !empty($_GET['company'])) {
-    $company = $conn->real_escape_string($_GET['company']);
-    $where .= " WHERE partyName = '$company'";
-}
-if (isset($_GET['invoice']) && !empty($_GET['invoice'])) {
-    $invoice = $conn->real_escape_string($_GET['invoice']);
-    $where .= ($where ? " AND" : " WHERE") . " invoice_number LIKE '%$invoice%'";
-}
-if (isset($_GET['booking_id']) && !empty($_GET['booking_id'])) {
-    $pnr_ = $conn->real_escape_string($_GET['booking_id']);
-    $where .= ($where ? " AND" : " WHERE") . " reference_number LIKE '%$pnr_%'";
-}
-
-$salesQuery = "SELECT * FROM hotel" . $where;
-$salesResult = $conn->query($salesQuery);
-
-// Delete record
-if (isset($_GET['delete'])) {
-    $id = intval($_GET['delete']);
-    $deleteQuery = "DELETE FROM hotel WHERE id=$id";
-    if ($conn->query($deleteQuery) === TRUE) {
-        echo "<script>alert('Record deleted successfully!'); window.location='hotel_sales.php';</script>";
-    } else {
-        echo "Error deleting record: " . $conn->error;
-    }
-}
-
-
-?>
-
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sales Records</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; border-radius: 20px;border-collapse: collapse;box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);}
-        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; border-radius: 20px;}
-        th { background-color:rgb(74, 113, 255); color: white; border-radius: 5px; }
-        .search-container { display: flex; gap: 10px; margin-bottom: 20px; border-radius: 15px;}
-        .search-container select, .search-container input { padding: 8px; width: 200px; }
-        .btn { padding: 5px 10px; border: none; cursor: pointer; text-decoration: none; font-size: 12px; padding: 4px 8px }
-        .edit-btn { background-color:rgb(7, 147, 32); color: white; }
-        .delete-btn { background-color: #d9534f; color: white; }
-        .btn:hover { opacity: 0.8; }
+  <title>Add Passenger</title>
+   <!-- Bootstrap CSS CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&display=swap" rel="stylesheet">
 
-    </style>
- <!-- MDB icon -->
+  <style>
+    /* body { font-family: Arial; background: #f4f4f4; padding: 20px; }
+    form { background: white; padding: 20px; border-radius: 10px; max-width: 400px; margin: auto; }
+    input, button { width: 100%; padding: 10px; margin: 10px 0; } */
+
+    body {
+      background: linear-gradient(to right, #83a4d4, #b6fbff);
+      font-family: 'Poppins', sans-serif;
+      min-height: 100vh;
+      /* display: flex;
+      align-items: center;
+      justify-content: center; */
+    }
+
+    .card {
+      margin-top: 20px;
+      border-radius: 1rem;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    }
+
+    .form-control:focus {
+      box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    }
+
+    .form-label {
+      font-weight: 500;
+    }
+
+    h2 {
+      font-weight: 700;
+      color: #2c3e50;
+    }
+
+    .btn-custom {
+      background-color: #2c3e50;
+      color: #fff;
+    }
+
+    .btn-custom:hover {
+      background-color: #1a252f;
+    }
+
+  </style>
+   <!-- MDB icon -->
  <link rel="icon" href="img/mdb-favicon.ico" type="image/x-icon" />
     <!-- Font Awesome -->
     <link
@@ -76,9 +68,8 @@ if (isset($_GET['delete'])) {
 </head>
 <body>
 
- <!-- Start your project here-->
 <!-- Navbar -->
-<nav class="navbar navbar-expand-lg navbar-light bg-body-tertiary" style="background-color: #e3f2fd";>
+<nav class="navbar navbar-expand-lg navbar-light bg-body-tertiary">
   <!-- Container wrapper -->
   <div class="container-fluid">
     <!-- Toggle button -->
@@ -304,94 +295,84 @@ if (isset($_GET['delete'])) {
   </div>
   <!-- Container wrapper -->
 </nav>
-<!-- Navbar -->
+  <!-- <h2>Add Passenger</h2>
+  <form method="POST" action="add_passenger.php">
+    <input type="text" name="pname" placeholder="Passenger Name" required>
+    <input type="email" name="email" placeholder="Email" required>
+    <input type="date" name="dob" placeholder="Date of Birth" required>
+    <input type="text" name="passport_number" placeholder="Passport Number" required>
+    <input type="date" name="passport_expiry" required>
+    <button type="submit">Save</button>
+  </form> -->
 
 
-<h2 style="margin-top: 10px; text-align:center">Sales Records</h2>
-<div style="display:flex; justify-content: center;">
-<!-- Search Form -->
-<form method="GET" class="search-container" >
-    <select name="company">
-        <option value="">Select All</option>
-        <?php while ($row = $companyResult->fetch_assoc()) : ?>
-            <option value="<?= htmlspecialchars($row['partyName']) ?>" 
-                <?= (isset($_GET['company']) && $_GET['company'] == $row['partyName']) ? 'selected' : '' ?>>
-                <?= htmlspecialchars($row['partyName']) ?>
-            </option>
-        <?php endwhile; ?>
-    </select>
-    
-    <input type="text" name="invoice" placeholder="Search Invoice Number" 
-        value="<?= isset($_GET['invoice']) ? htmlspecialchars($_GET['invoice']) : '' ?>">
-
-    <input type="text" name="booking_id" placeholder="Search Booking ID" 
-        value="<?= isset($_GET['booking_id']) ? htmlspecialchars($_GET['booking_id']) : '' ?>">
-    <button type="submit">Search</button><br>
-    <button type="button" onclick="location.href='add_sales_corporate.php'">Add Sales (Corporate)</button>
-    <button type="button" onclick="location.href='add_hotel_sales_agents.php'">Add Sales (Agents)</button>
-    <button type="button" onclick="location.href='add_hotel_sales_counter.php'">Add Sales (Counter Sales)</button>
-</form>
-
-</div>
-<!-- Sales Records Table -->
- <div class="result">
-<table>
-    <tr>
-        <th style="font-size: 12px;">Company Name</th>
-        <th style="font-size: 12px;">Hotel Name</th>
-        <th style="font-size: 12px;">Invoice Number</th>
-        <th style="font-size: 12px;">Pessenger Number</th>
-        <th style="font-size: 12px;">Check-In Date</th>
-        <th style="font-size: 12px;">Check-Out Date</th>
-        <th style="font-size: 12px;">Issue Date</th>
-        <th style="font-size: 12px;">Day Passes</th>
-        <th style="font-size: 12px;">Payment Status</th>
-        <th style="font-size: 12px;">Selling Price</th>
-        <th style="font-size: 12px;">Sells Person</th>
-        <th style="font-size: 12px;">Modify</th>
-    </tr>
-    <?php while ($row = $salesResult->fetch_assoc()) : 
-        $issue_date = new DateTime($row['issue_date']);
-        $today = new DateTime();
-        $interval = $issue_date->diff($today);
-        $day_passes = $interval->days;
-        ?>
-        <tr>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['partyName']) ?></td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['hotelName']) ?></td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['invoice_number']) ?></td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['pessengerName']) ?></td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['checkin_date']) ?></td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['checkout_date']) ?></td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['issue_date']) ?></td>
-            <td style="font-size: 12px;"><?= $day_passes ?> days</td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['payment_status']) ?></td>
-            <td style="font-size: 12px;">BDT<?= number_format($row['selling_price'], 2) ?></td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['issued_by']) ?></td>
-            <td>
-    <?php if (isset($row['id'])): ?>
-        <a href="edit.php?id=<?php echo htmlspecialchars($row['id']); ?>" class="btn edit-btn" >
-            <i class="fas fa-edit"></i> Edit
-        </a><br>
-        <a href="hotel_sales.php?delete=<?php echo htmlspecialchars($row['id']); ?>" class="btn delete-btn" 
-           onclick="return confirm('Are you sure you want to delete this record?')">
-            <i class="fas fa-trash"></i> Delete
+    <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-8 col-lg-6">
+        <div class="card p-4">
+          <h2 class="text-center mb-4">Add Passenger Details</h2>
+          <form action="your_process_file.php" method="POST">
             
-        </a>
-    <?php else: ?>
-        <span style="color: red;">Error: No ID Found</span>
-    <?php endif; ?>
-</td>
+            <div class="mb-3">
+              <label for="name" class="form-label">Passenger Name</label>
+              <input type="text" class="form-control" id="name" name="name" required>
+            </div>
 
-        </tr>
-    <?php endwhile; ?>
-</table>
-<script type="text/javascript" src="js/mdb.umd.min.js"></script>
-    <!-- Custom scripts -->
-    <script type="text/javascript"></script>
+            <div class="mb-3">
+              <label for="dob" class="form-label">Date of Birth</label>
+              <input type="date" class="form-control" id="dob" name="dob" required>
+            </div>
+
+            <div class="mb-3">
+              <label for="passport" class="form-label">Passport Number</label>
+              <input type="text" class="form-control" id="passport" name="passport" required>
+            </div>
+
+            <div class="mb-3">
+              <label for="expiry" class="form-label">Passport Expiry Date</label>
+              <input type="date" class="form-control" id="expiry" name="expiry" required>
+            </div>
+
+            <div class="mb-3">
+              <label for="email" class="form-label">Email Address</label>
+              <input type="email" class="form-control" id="email" name="email">
+            </div>
+
+            <div class="d-flex justify-content-between mt-4">
+              <button type="submit" class="btn btn-custom px-4">Submit</button>
+              <button type="reset" class="btn btn-outline-secondary px-4">Reset</button>
+            </div>
+
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
-<script src="invoice_list.js"></script>
-
 </html>
 
-<?php $conn->close(); ?>
+
+<?php
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $conn = new mysqli("localhost", "root", "", "passport_db");
+    if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
+
+    // Use null coalescing operator to avoid notices (if needed)
+    $name = $_POST['pname'] ?? '';
+    $email = $_POST['email'] ?? '';
+    $dob = $_POST['dob'] ?? '';
+    $passport = $_POST['passport_number'] ?? '';
+    $expiry = $_POST['passport_expiry'] ?? '';
+
+    $stmt = $conn->prepare("INSERT INTO passengers (name, email, date_of_birth, passport_number, passport_expiry) VALUES (?, ?, ?, ?, ?)");
+    $stmt->bind_param("sssss", $name, $email, $dob, $passport, $expiry);
+    $stmt->execute();
+    $stmt->close();
+    $conn->close();
+
+    echo "Passenger added successfully. <a href='add_passenger.php'>Go Back</a>";
+}
+?>
