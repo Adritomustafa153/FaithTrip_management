@@ -307,29 +307,6 @@ if (isset($_GET['delete'])) {
         <li class="nav-item">
           <a class="nav-link" href="">Accounts</a>
         </li>
-
-                    <li class="nav-item dropdown">
-        <a
-          data-mdb-dropdown-init
-          class="nav-link dropdown-toggle"
-          href="#"
-          id="navbarDropdownMenuLink"
-          role="button"
-          aria-expanded="false"
-        >
-          Add
-        </a>
-
-        <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
-          <li>
-            <a class="dropdown-item" href="add_passenger.php">Add Counter Passenger</a>
-          </li>
-          <li>
-            <a class="dropdown-item" href="#">Add Corporate Passenger</a>
-          </li>
-        </ul>
-      </li>
-
       </ul>
       <!-- Left links -->
     </div>

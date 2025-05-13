@@ -1,54 +1,55 @@
 <?php
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "faithtrip_accounts";
+$host = 'localhost';
+$user = 'root'; // change if needed
+$password = ''; // change if needed
+$db = 'faithtrip_accounts';
 
-// Create connection
-$conn = new mysqli($servername, $username, $password, $dbname);
+$conn = new mysqli($host, $user, $password, $db);
 
-// Check connection
 if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+  die("Connection failed: " . $conn->connect_error);
 }
 
-// Fetch Corporate Sales
-$sql_corporate = "SELECT SUM(s.BillAmount) AS CorporateSales FROM sales s INNER JOIN companyprofile c ON s.PartyName = c.CompanyName";
-$result_corporate = $conn->query($sql_corporate);
-$corporate_sales = ($result_corporate->num_rows > 0) ? $result_corporate->fetch_assoc()['CorporateSales'] : 0;
+if (!isset($_GET['id'])) {
+  die("No ID provided.");
+}
 
-// Fetch Agent Sales - Fixing Query
-$sql_agents = "SELECT SUM(s.BillAmount) AS AgentSales FROM sales s INNER JOIN agents a ON s.PartyName = a.AgentName";
-$result_agents = $conn->query($sql_agents);
-$agent_sales = ($result_agents->num_rows > 0) ? $result_agents->fetch_assoc()['AgentSales'] : 0;
+$id = intval($_GET['id']);
+$sql = "SELECT * FROM passengers WHERE id = $id";
+$result = $conn->query($sql);
 
-// Fetch Counter Sales
-$sql_counter = "SELECT SUM(BillAmount) AS CounterSales FROM sales WHERE PartyName NOT IN (SELECT CompanyName FROM companyprofile UNION SELECT AgentName FROM agents)";
-$result_counter = $conn->query($sql_counter);
-$counter_sales = ($result_counter->num_rows > 0) ? $result_counter->fetch_assoc()['CounterSales'] : 0;
+if ($result->num_rows === 0) {
+  die("Passenger not found.");
+}
 
-// $conn->close();
+$row = $result->fetch_assoc();
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sales Records</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; border-radius: 20px;border-collapse: collapse;box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);}
-        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; border-radius: 20px;}
-        th { background-color:rgb(74, 113, 255); color: white; border-radius: 5px; }
-        .search-container { display: flex; gap: 10px; margin-bottom: 20px; border-radius: 15px;}
-        .search-container select, .search-container input { padding: 8px; width: 200px; }
-        .btn { padding: 5px 10px; border: none; cursor: pointer; text-decoration: none; font-size: 12px; padding: 4px 8px }
-        .edit-btn { background-color:rgb(7, 147, 32); color: white; }
-        .delete-btn { background-color: #d9534f; color: white; }
-        .btn:hover { opacity: 0.8; }
-
-    </style>
- <!-- MDB icon -->
+  <meta charset="UTF-8">
+  <title>Edit Passenger</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(to right, #83a4d4, #b6fbff);
+      font-family: 'Poppins', sans-serif;
+      min-height: 100vh;
+      /* display: flex;
+      align-items: center;
+      justify-content: center; */
+    }
+    .card { border-radius: 1rem; box-shadow: 0 8px 16px rgba(0,0,0,0.15); margin-top: 50px; }
+    .form-control:focus { box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25); }
+    .form-label { font-weight: 500; }
+    h2 { font-weight: 700; color: #2c3e50; }
+    .btn-custom { background-color:rgb(155, 155, 156); color: #fff; }
+    .btn-custom:hover { background-color:rgb(100, 100, 100); }
+  </style>
+   <!-- MDB icon -->
  <link rel="icon" href="img/mdb-favicon.ico" type="image/x-icon" />
     <!-- Font Awesome -->
     <link
@@ -63,25 +64,10 @@ $counter_sales = ($result_counter->num_rows > 0) ? $result_counter->fetch_assoc(
     <!-- MDB -->
     <link rel="stylesheet" href="css/mdb.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        .chart-container {
-            display: flex;
-            /* justify-content: space-around; */
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 20px;
-            padding: 20px;
-            justify-content: center;
-        }
-        canvas {
-            width: 300px !important;
-            height: 300px !important;
-        }
-    </style>
 </head>
 <body>
 
- <!-- Start your project here-->
+
 <!-- Navbar -->
 <nav class="navbar navbar-expand-lg navbar-light bg-body-tertiary">
   <!-- Container wrapper -->
@@ -319,41 +305,53 @@ $counter_sales = ($result_counter->num_rows > 0) ? $result_counter->fetch_assoc(
 </nav>
 <!-- Navbar -->
 
+<div class="container">
+  <div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+      <div class="card p-4">
+        <h2 class="text-center mb-4">Edit Passenger Information</h2>
+        <form action="update_passenger.php" method="POST">
+          <input type="hidden" name="id" value="<?= $row['id'] ?>">
 
+          <div class="mb-3">
+            <label class="form-label">Passenger Name</label>
+            <input type="text" class="form-control" name="name" value="<?= htmlspecialchars($row['name']) ?>" required>
+          </div>
 
-<!-- Diagram Part starts here -->
+          <div class="mb-3">
+            <label class="form-label">Date of Birth</label>
+            <input type="date" class="form-control" name="date_of_birth" value="<?= $row['date_of_birth'] ?>" required>
+          </div>
 
-<div class="chart-container">
-        <div>
-            <h2>Sales Distribution</h2>
-            <canvas id="salesDistributionChart"></canvas>
-        </div>
+          <div class="mb-3">
+            <label class="form-label">Passport Number</label>
+            <input type="text" class="form-control" name="passport" value="<?= htmlspecialchars($row['passport_number']) ?>" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Passport Expiry Date</label>
+            <input type="date" class="form-control" name="expiry" value="<?= $row['passport_expiry'] ?>" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Email Address</label>
+            <input type="email" class="form-control" name="email" value="<?= htmlspecialchars($row['email']) ?>">
+          </div>
+
+          <div class="d-flex justify-content-between mt-4">
+            <button type="submit" class="btn btn-custom px-4">Update</button>
+            <a href="add_passenger.php" class="btn btn-outline-secondary px-4">Cancel</a>
+          </div>
+        </form>
+      </div>
     </div>
-    
-    <script>
-        // Sales Distribution (Pie Chart)
-        const salesDistributionCtx = document.getElementById('salesDistributionChart').getContext('2d');
-        new Chart(salesDistributionCtx, {
-            type: 'pie',
-            data: {
-                labels: ['Corporate Sales', 'Agent Sales', 'Counter Sales'],
-                datasets: [{
-                    data: [<?php echo $corporate_sales; ?>, <?php echo $agent_sales; ?>, <?php echo $counter_sales; ?>],
-                    backgroundColor: ['red', 'blue', 'green']
-                }]
-            }
-        });
-    </script>
-<!-- Diagram part ends here -->
+  </div>
+</div>
 
-
-
-
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script type="text/javascript" src="js/mdb.umd.min.js"></script>
     <!-- Custom scripts -->
     <script type="text/javascript"></script>
 </body>
 </html>
-
-<?php $conn->close(); ?>

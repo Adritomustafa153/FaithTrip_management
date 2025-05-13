@@ -311,11 +311,11 @@
       <div class="col-md-8 col-lg-6">
         <div class="card p-4">
           <h2 class="text-center mb-4">Add Passenger Details</h2>
-          <form action="your_process_file.php" method="POST">
+          <form action="add_passenger.php" method="POST">
             
             <div class="mb-3">
               <label for="name" class="form-label">Passenger Name</label>
-              <input type="text" class="form-control" id="name" name="name" required>
+              <input type="text" class="form-control" id="name" name="pname" required>
             </div>
 
             <div class="mb-3">
@@ -340,8 +340,11 @@
 
             <div class="d-flex justify-content-between mt-4">
               <button type="submit" class="btn btn-custom px-4">Submit</button>
+              <a href="edit_passenger.php" class="btn btn-outline-primary">Edit Passenger</a>
               <button type="reset" class="btn btn-outline-secondary px-4">Reset</button>
             </div>
+
+
 
           </form>
         </div>
@@ -357,15 +360,15 @@
 
 <?php
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $conn = new mysqli("localhost", "root", "", "passport_db");
+    $conn = new mysqli("localhost", "root", "", "faithtrip_accounts");
     if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
 
     // Use null coalescing operator to avoid notices (if needed)
     $name = $_POST['pname'] ?? '';
     $email = $_POST['email'] ?? '';
     $dob = $_POST['dob'] ?? '';
-    $passport = $_POST['passport_number'] ?? '';
-    $expiry = $_POST['passport_expiry'] ?? '';
+    $passport = $_POST['passport'] ?? '';
+    $expiry = $_POST['expiry'] ?? '';
 
     $stmt = $conn->prepare("INSERT INTO passengers (name, email, date_of_birth, passport_number, passport_expiry) VALUES (?, ?, ?, ?, ?)");
     $stmt->bind_param("sssss", $name, $email, $dob, $passport, $expiry);
