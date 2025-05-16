@@ -175,7 +175,7 @@ if ($conn->connect_error) {
           <a class="nav-link" href="">Accounts</a>
         </li>
 
-                        <li class="nav-item dropdown">
+                <li class="nav-item dropdown">
         <a
           data-mdb-dropdown-init
           class="nav-link dropdown-toggle"
@@ -184,15 +184,18 @@ if ($conn->connect_error) {
           role="button"
           aria-expanded="false"
         >
-          Add
+          Add Passengers
         </a>
 
         <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
           <li>
-            <a class="dropdown-item" href="add_passenger.php">Add Counter Passenger</a>
+            <a class="dropdown-item" href="add_passenger.php">Counter</a>
           </li>
           <li>
-            <a class="dropdown-item" href="#">Add Corporate Passenger</a>
+            <a class="dropdown-item" href="#">Corporate</a>
+          </li>
+                    <li>
+            <a class="dropdown-item" href="passenger_list.php">Passenger List</a>
           </li>
         </ul>
       </li>

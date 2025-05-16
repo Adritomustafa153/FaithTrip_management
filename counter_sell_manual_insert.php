@@ -184,15 +184,18 @@ if ($conn->connect_error) {
           role="button"
           aria-expanded="false"
         >
-          Add
+          Add Passengers
         </a>
 
         <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
           <li>
-            <a class="dropdown-item" href="add_passenger.php">Add Counter Passenger</a>
+            <a class="dropdown-item" href="add_passenger.php">Counter</a>
           </li>
           <li>
-            <a class="dropdown-item" href="#">Add Corporate Passenger</a>
+            <a class="dropdown-item" href="#">Corporate</a>
+          </li>
+                    <li>
+            <a class="dropdown-item" href="passenger_list.php">Passenger List</a>
           </li>
         </ul>
       </li>

@@ -307,6 +307,34 @@ if (isset($_GET['delete'])) {
         <li class="nav-item">
           <a class="nav-link" href="">Accounts</a>
         </li>
+
+                <li class="nav-item dropdown">
+        <a
+          data-mdb-dropdown-init
+          class="nav-link dropdown-toggle"
+          href="#"
+          id="navbarDropdownMenuLink"
+          role="button"
+          aria-expanded="false"
+        >
+          Add Passengers
+        </a>
+
+        <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+          <li>
+            <a class="dropdown-item" href="add_passenger.php">Counter</a>
+          </li>
+          <li>
+            <a class="dropdown-item" href="#">Corporate</a>
+          </li>
+                    <li>
+            <a class="dropdown-item" href="passenger_list.php">Passenger List</a>
+          </li>
+        </ul>
+      </li>
+
+
+
       </ul>
       <!-- Left links -->
     </div>
@@ -315,7 +343,7 @@ if (isset($_GET['delete'])) {
     <!-- Right elements -->
     <div class="d-flex align-items-center">
       <!-- Icon -->
-      <a class="text-reset me-3" href="cart.php">
+      <a class="text-reset me-3" href="invoice_cart2.php">
   <i class="fas fa-shopping-cart"></i>
   <span id="cart-count" class="badge bg-danger">0</span>
 </a>
@@ -420,6 +448,7 @@ if (isset($_GET['delete'])) {
         <th style="font-size: 12px;">Pessenger Name</th>
         <th style="font-size: 12px;">Invoice Number</th>
         <th style="font-size: 12px;">Route</th>
+        <th style="font-size: 12px;">Airlines name</th>
         <th style="font-size: 12px;">PNR</th>
         <th style="font-size: 12px;">Ticket Number</th>
         <th style="font-size: 12px;">Issue Date</th>
@@ -447,6 +476,7 @@ if (isset($_GET['delete'])) {
             <td style="font-size: 12px;"><?= htmlspecialchars($row['PassengerName']) ?></td>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['invoice_number']) ?></td>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['TicketRoute']) ?></td>
+            <td style="font-size: 12px;"><?= htmlspecialchars($row['airlines']) ?></td>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['PNR']) ?></td>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['TicketNumber']) ?></td>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['IssueDate']) ?></td>
@@ -464,7 +494,7 @@ if (isset($_GET['delete'])) {
             <i class="fas fa-trash"></i> Delete
             
         </a>
-        <button class="add-to-cart" 
+        <!-- <button class="add-to-cart" 
         data-name="<?php $row['PassengerName'] ?>" 
         data-price="<?php $row['BillAmount'] ?>"
         data-route="<?php $row['TicketRoute'] ?>"
@@ -475,7 +505,12 @@ if (isset($_GET['delete'])) {
         data-paid="<?php echo $paid ?>"
         data-due="<?php echo $due ?>">
   Add to Cart
-</button>
+</button> -->
+<form action="invoice_cart2.php" method="POST">
+    <input type="hidden" name="sell_id" value="<?= $row['SaleID'] ?>">
+    <button style="margin-top: 10px;" type="submit" class="btn btn-primary btn-sm">Add to Invoice</button>
+</form>
+
 <!-- 
         <a href="cart.php?id=<?php echo htmlspecialchars($row['SaleID']); ?>" class="btn edit-btn" >
         <i class="fas fa-cart-plus"> Invoice</i>        

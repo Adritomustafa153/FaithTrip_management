@@ -2,11 +2,7 @@
 <html>
 <head>
   <title>Add Passenger</title>
-   <!-- Bootstrap CSS CDN -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  
-  <!-- Google Font -->
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&display=swap" rel="stylesheet">
+
 
   <style>
     /* body { font-family: Arial; background: #f4f4f4; padding: 20px; }
@@ -195,7 +191,7 @@
           <a class="nav-link" href="">Accounts</a>
         </li>
 
-                        <li class="nav-item dropdown">
+                <li class="nav-item dropdown">
         <a
           data-mdb-dropdown-init
           class="nav-link dropdown-toggle"
@@ -204,15 +200,18 @@
           role="button"
           aria-expanded="false"
         >
-          Add
+          Add Passengers
         </a>
 
         <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
           <li>
-            <a class="dropdown-item" href="add_passenger.php">Add Counter Passenger</a>
+            <a class="dropdown-item" href="add_passenger.php">Counter</a>
           </li>
           <li>
-            <a class="dropdown-item" href="#">Add Corporate Passenger</a>
+            <a class="dropdown-item" href="#">Corporate</a>
+          </li>
+                    <li>
+            <a class="dropdown-item" href="passenger_list.php">Passenger List</a>
           </li>
         </ul>
       </li>
@@ -352,6 +351,10 @@
     </div>
   </div>
 
+  
+<script type="text/javascript" src="js/mdb.umd.min.js"></script>
+    <!-- Custom scripts -->
+    <script type="text/javascript"></script>
   <!-- Bootstrap JS CDN -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
