@@ -54,6 +54,33 @@ if (!empty($_SESSION['invoice_cart'])) {
     <div class="container mt-5">
         <h2 class="mb-4">Invoice Cart</h2>
 
+        <div class="card p-3 mb-3">
+    <form id="clientForm" method="post" action="generate_invoice.php">
+        <div class="row">
+            <div class="col-md-4">
+                <label>Type</label>
+                <select id="clientType" class="form-select" name="clientType" required>
+                    <option value="">Select Type</option>
+                    <option value="company">Company</option>
+                    <option value="agent">Agent</option>
+                    <option value="passenger">Counter Sell</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label>Name</label>
+                <select id="clientName" class="form-select" required></select>
+            </div>
+            <div class="col-md-4">
+                <label>
+                    Address <input type="checkbox" id="manualAddress" onchange="toggleManualAddress()"> Add Manually
+                </label>
+                <input type="text" id="address" name="address" class="form-control" required>
+            </div>
+        </div>
+    </form>
+</div>
+
+
         <?php if (!empty($sales)): ?>
             <table class="table table-bordered table-striped">
                 <thead class="bg-warning text-white">
@@ -114,12 +141,39 @@ if (!empty($_SESSION['invoice_cart'])) {
             <div class="d-flex justify-content-between mt-3">
                 <a href="invoice_cart2.php?clear_cart=1" class="btn btn-warning" onclick="return confirm('Clear the entire cart?')">Clear Cart</a>
                 <a href="invoice_list.php"><button type="button" style="font-size: 14px;border-radius: 8px;padding: 10px 20px;background-color:rgb(5, 200, 50);box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2), 0 6px 20px 0 rgba(0,0,0,0.19);">Home</button></a>
-                <button onclick="confirmInvoice()" class="btn btn-primary">Generate Invoice</button>
+                <button type="submit" onclick="confirmInvoice()" class="btn btn-primary">Generate Invoice</button>
+            
             </div>
         <?php else: ?>
             <div class="alert alert-info">No items in the invoice cart.</div>
         <?php endif; ?>
     </div>
+
+    <script>
+function toggleManualAddress() {
+    document.getElementById('address').readOnly = !document.getElementById('manualAddress').checked;
+}
+
+document.getElementById('clientType').addEventListener('change', function () {
+    let type = this.value;
+    fetch(`fetch_names.php?type=${type}`)
+        .then(res => res.json())
+        .then(data => {
+            let options = '<option value="">Select</option>';
+            data.forEach(item => {
+                options += `<option value="${item.id}" data-address="${item.address}">${item.name}</option>`;
+            });
+            document.getElementById('clientName').innerHTML = options;
+        });
+});
+
+document.getElementById('clientName').addEventListener('change', function () {
+    let address = this.options[this.selectedIndex].getAttribute('data-address');
+    if (!document.getElementById('manualAddress').checked) {
+        document.getElementById('address').value = address;
+    }
+});
+</script>
 
     <script>
         function confirmInvoice() {
@@ -128,5 +182,6 @@ if (!empty($_SESSION['invoice_cart'])) {
             }
         }
     </script>
+
 </body>
 </html>

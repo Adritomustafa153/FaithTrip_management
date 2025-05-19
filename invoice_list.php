@@ -474,7 +474,17 @@ if (isset($_GET['delete'])) {
         <tr>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['PartyName']) ?></td>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['PassengerName']) ?></td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['invoice_number']) ?></td>
+            <td style="font-size: 12px;">
+  <?= htmlspecialchars($row['invoice_number']) ?>
+  <?php if (!empty($row['invoice_number'])): ?>
+    <div>
+      <a href="generate_invoice.php?id=<?= $row['SaleID'] ?>" class="btn btn-success btn-sm mt-1">Download</a>
+      <a href="edit_invoice.php?id=<?= $row['SaleID'] ?>" class="btn btn-warning btn-sm mt-1">Edit</a>
+      <div><small style="color: green;">✔ Invoice generated</small></div>
+    </div>
+  <?php endif; ?>
+</td>
+
             <td style="font-size: 12px;"><?= htmlspecialchars($row['TicketRoute']) ?></td>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['airlines']) ?></td>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['PNR']) ?></td>

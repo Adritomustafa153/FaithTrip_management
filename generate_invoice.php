@@ -9,12 +9,56 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-$formatter = new \NumberFormatter("en", \NumberFormatter::SPELLOUT);
+function convertNumberToWordsIndian($number) {
+    $number = round($number);
+    $words = [
+        0 => '', 1 => 'One', 2 => 'Two', 3 => 'Three', 4 => 'Four',
+        5 => 'Five', 6 => 'Six', 7 => 'Seven', 8 => 'Eight', 9 => 'Nine',
+        10 => 'Ten', 11 => 'Eleven', 12 => 'Twelve', 13 => 'Thirteen',
+        14 => 'Fourteen', 15 => 'Fifteen', 16 => 'Sixteen', 17 => 'Seventeen',
+        18 => 'Eighteen', 19 => 'Nineteen', 20 => 'Twenty',
+        30 => 'Thirty', 40 => 'Forty', 50 => 'Fifty', 60 => 'Sixty',
+        70 => 'Seventy', 80 => 'Eighty', 90 => 'Ninety'
+    ];
 
-// Generate unique 6-digit invoice number ONCE
+    $digits = ['', 'Hundred', 'Thousand', 'Lac', 'Crore'];
+    $result = '';
+
+    if ($number == 0) return 'Zero';
+
+    $crore = floor($number / 10000000);
+    $number %= 10000000;
+    $lac = floor($number / 100000);
+    $number %= 100000;
+    $thousand = floor($number / 1000);
+    $number %= 1000;
+    $hundred = floor($number / 100);
+    $number %= 100;
+    $ten = $number;
+
+    if ($crore) $result .= convertTwoDigits($crore, $words) . ' Crore ';
+    if ($lac) $result .= convertTwoDigits($lac, $words) . ' Lac ';
+    if ($thousand) $result .= convertTwoDigits($thousand, $words) . ' Thousand ';
+    if ($hundred) $result .= $words[$hundred] . ' Hundred ';
+    if ($ten) {
+        if ($result != '') $result .= 'and ';
+        $result .= convertTwoDigits($ten, $words);
+    }
+
+    return trim($result);
+}
+
+function convertTwoDigits($number, $words) {
+    if ($number < 21) return $words[$number];
+    $tens = floor($number / 10) * 10;
+    $units = $number % 10;
+    return $words[$tens] . ($units ? ' ' . $words[$units] : '');
+}
+
+
+
 $invoiceNumber = 'INV-' . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
 
-// Save invoice number to database
 try {
     $pdo = new PDO("mysql:host=localhost;dbname=faithtrip_accounts", "root", "");
     $stmt = $pdo->prepare("INSERT INTO invoices (Invoice_number, date) VALUES (?, NOW())");
@@ -23,7 +67,6 @@ try {
     die("Database error: " . $e->getMessage());
 }
 
-// Get cart data
 $sales = [];
 $total = 0;
 $ait = 0;
@@ -36,7 +79,7 @@ if (!empty($_SESSION['invoice_cart'])) {
     $result = $pdo->query($query);
     while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
         if (empty($pnr)) {
-            $pnr = $row['PNR']; // Set once from first row
+            $pnr = $row['PNR'];
         }
         $sales[] = $row;
         $total += $row['BillAmount'];
@@ -45,7 +88,9 @@ if (!empty($_SESSION['invoice_cart'])) {
     $gt = $total + $ait;
 }
 
-// Create PDF
+$clientName = $_SESSION['invoice_cart']['clientName'] ;
+$clientAddress = $_SESSION['invoice_cart']['address'] ;
+
 $pdf = new TCPDF();
 $pdf->SetPrintHeader(false);
 $pdf->AddPage();
@@ -83,13 +128,17 @@ $pdf->SetXY(150, 45);
 $today = date('d M Y');
 $pdf->MultiCell(50, 0, "Date: $today\nInvoice: $invoiceNumber", 0, 'R');
 
+// Modify the clientInfo section to include box shadow styling:
 $clientInfo = <<<EOD
-<b>Client Name:</b> John Doe<br>
-<b>Client Address:</b> 123 Client Road, City, Country
+<div style="border: 1px solid #ddd; padding: 10px; box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);">
+    <b>Client Name:</b> $clientName<br>
+    <b>Client Address:</b> $clientAddress
+</div>
 EOD;
+
 $pdf->SetY(40);
 $pdf->Ln(20);
-$pdf->MultiCell(0, 0, $clientInfo, 1, 'L');
+$pdf->writeHTML($clientInfo, true, false, true, false, '');
 
 $html = '<style>
 tr {border-bottom: 1px solid #ccc;}
@@ -110,12 +159,12 @@ $html .= '<table cellpadding="4" cellspacing="0" width="100%" style="border-coll
 $serial = 1;
 foreach ($sales as $row) {
     $html .= '<tr>';
-    $html .= '<td>' . $serial++ . '</td>';
-    $html .= '<td>' . htmlspecialchars($row['PassengerName']) . '</td>';
-    $html .= '<td>Route: <b>' . htmlspecialchars($row['TicketRoute']) . '</b><br>Airlines: <b>' . htmlspecialchars($row['airlines']) . '</b><br>Departure: <b>' . htmlspecialchars($row['FlightDate']) . '</b><br>Return: <b>' . htmlspecialchars($row['ReturnDate']) . '</b></td>';
-    $html .= '<td>Ticket No: <b>' . htmlspecialchars($row['TicketNumber']) . '</b><br>PNR: <b>' . htmlspecialchars($row['PNR']) . '</b><br>Issued: <b>' . htmlspecialchars($row['IssueDate']) . '</b><br>Seat Class: <b>' . htmlspecialchars($row['PNR']) . '</b></td>';
-    $html .= '<td>. .</td>';
-    $html .= '<td>' . number_format($row['BillAmount'], 2) . '</td>';
+    $html .= '<td width="5%">' . $serial++ . '</td>';
+    $html .= '<td width="20%">' . htmlspecialchars($row['PassengerName']) . '</td>';
+    $html .= '<td width="25%">Route: <b>' . htmlspecialchars($row['TicketRoute']) . '</b><br>Airlines: <b>' . htmlspecialchars($row['airlines']) . '</b><br>Departure: <b>' . htmlspecialchars($row['FlightDate']) . '</b><br>Return: <b>' . htmlspecialchars($row['ReturnDate']) . '</b></td>';
+    $html .= '<td width="25%">Ticket No: <b>' . htmlspecialchars($row['TicketNumber']) . '</b><br>PNR: <b>' . htmlspecialchars($row['PNR']) . '</b><br>Issued: <b>' . htmlspecialchars($row['IssueDate']) . '</b><br>Seat Class: <b>' . htmlspecialchars($row['PNR']) . '</b></td>';
+    $html .= '<td width="15%"> </td>';
+    $html .= '<td width="10%">' . number_format($row['BillAmount'], 2) . '</td>';
     $html .= '</tr>';
 }
 
@@ -127,7 +176,7 @@ $html .= '</tbody></table>';
 $pdf->Ln(10);
 $pdf->writeHTML($html, true, false, true, false, '');
 
-$amountWords = ucwords($formatter->format($gt)) . ' Bangladeshi Taka Only';
+$amountWords = convertNumberToWordsIndian($gt) . ' Bangladeshi Taka Only';
 $pdf->Ln(10);
 $pdf->SetFont('helvetica', 'B', 10);
 $pdf->Write(0, "Amount in Words: $amountWords", '', 0, 'L', true);
@@ -152,13 +201,11 @@ foreach ($logos as $logo) {
     $x += 20;
 }
 
-// Save to file
 ob_end_clean();
 $fileName = "{$pnr}_{$invoiceNumber}.pdf";
 $filePath = __DIR__ . "/invoices/" . $fileName;
-$pdf->Output($filePath, 'F');
+$pdf->Output($filePath, 'I');
 
-// Email the invoice
 // $mail = new PHPMailer\PHPMailer\PHPMailer();
 // $mail->isSMTP();
 // $mail->Host = 'smtp.gmail.com';
