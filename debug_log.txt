@@ -1,0 +1,42 @@
+Request received at 2025-05-19 18:08:21 with client_name: NOT SET
+Request received at 2025-05-19 18:08:21 with client_name: NOT SET
+⚠️ Blocked request at 2025-05-19 18:14:37
+Method: POST
+User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0
+Referer: http://127.0.0.1/faithtrip/accounts/invoice_cart2.php?delete_id=4
+----------------------
+⚠️ Blocked request at 2025-05-19 18:14:37
+Method: GET
+User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0
+Referer: http://127.0.0.1/faithtrip/accounts/invoice_cart2.php?delete_id=4
+----------------------
+⚠️ Blocked request at 2025-05-19 18:23:28
+Method: POST
+User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0
+Referer: http://127.0.0.1/faithtrip/accounts/invoice_cart2.php
+----------------------
+⚠️ Blocked request at 2025-05-19 18:25:45
+Method: POST
+User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0
+Referer: http://127.0.0.1/faithtrip/accounts/invoice_cart2.php?delete_id=13
+----------------------
+⚠️ Blocked request at 2025-05-19 18:29:30
+Method: POST
+User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0
+Referer: http://127.0.0.1/faithtrip/accounts/invoice_cart2.php?delete_id=15
+----------------------
+⚠️ Blocked request at 2025-05-19 19:02:47
+Method: POST
+User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0
+Referer: http://127.0.0.1/faithtrip/accounts/invoice_cart2.php?delete_id=16
+----------------------
+⚠️ Blocked request at 2025-05-19 19:30:36
+Method: POST
+User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0
+Referer: http://127.0.0.1/faithtrip/accounts/invoice_cart2.php
+----------------------
+⚠️ Blocked request at 2025-05-19 19:34:35
+Method: POST
+User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0
+Referer: http://127.0.0.1/faithtrip/accounts/invoice_cart2.php
+----------------------

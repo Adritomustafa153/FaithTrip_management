@@ -335,7 +335,7 @@ $row = $result->fetch_assoc();
 
           <div class="mb-3">
             <label class="form-label">Email Address</label>
-            <input type="email" class="form-control" name="email" value="<?= htmlspecialchars($row['email']) ?>">
+            <input type="email" class="form-control" name="email" value="<?= htmlspecialchars($row['PassengerEmail']) ?>">
           </div>
 
           <div class="d-flex justify-content-between mt-4">

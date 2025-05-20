@@ -55,7 +55,7 @@ if (!empty($_SESSION['invoice_cart'])) {
         <h2 class="mb-4">Invoice Cart</h2>
 
         <div class="card p-3 mb-3">
-    <form id="clientForm" method="post" action="generate_invoice.php">
+<form method="POST" action="generate_invoice.php">
         <div class="row">
             <div class="col-md-4">
                 <label>Type</label>
@@ -68,7 +68,7 @@ if (!empty($_SESSION['invoice_cart'])) {
             </div>
             <div class="col-md-4">
                 <label>Name</label>
-                <select id="clientName" class="form-select" required></select>
+                <select id="clientName" class="form-select" name="ClientName" required></select>
             </div>
             <div class="col-md-4">
                 <label>
@@ -76,8 +76,13 @@ if (!empty($_SESSION['invoice_cart'])) {
                 </label>
                 <input type="text" id="address" name="address" class="form-control" required>
             </div>
+            <div class="col-md-4" style="margin-top: 10px;">
+                <label>
+                    Email : <input type="text" id="email" name="client_email" readonly> <!-- Add this -->
+                </label>
+            </div>
         </div>
-    </form>
+   
 </div>
 
 
@@ -108,7 +113,7 @@ if (!empty($_SESSION['invoice_cart'])) {
                             <td>Ticket Number : <b><?= htmlspecialchars($row['TicketNumber']) ?><br></b>
                             PNR : <b><?= htmlspecialchars($row['PNR']) ?><br></b>
                             Ticket issue Date : <b><?= htmlspecialchars($row['IssueDate']) ?><br></b>
-                            Seat Class : <b><?= htmlspecialchars($row['PNR']) ?></b>
+                            Seat Class : <b><?= htmlspecialchars($row['Class']) ?></b>
 
                         </td>
                             <td><?= number_format($row['BillAmount'], 2) ?></td>
@@ -141,7 +146,7 @@ if (!empty($_SESSION['invoice_cart'])) {
             <div class="d-flex justify-content-between mt-3">
                 <a href="invoice_cart2.php?clear_cart=1" class="btn btn-warning" onclick="return confirm('Clear the entire cart?')">Clear Cart</a>
                 <a href="invoice_list.php"><button type="button" style="font-size: 14px;border-radius: 8px;padding: 10px 20px;background-color:rgb(5, 200, 50);box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2), 0 6px 20px 0 rgba(0,0,0,0.19);">Home</button></a>
-                <button type="submit" onclick="confirmInvoice()" class="btn btn-primary">Generate Invoice</button>
+                <button type="submit" onclick="return confirm('Are you sure you want to generate the invoice?')" class="btn btn-primary">Generate Invoice</button>
             
             </div>
         <?php else: ?>
@@ -149,7 +154,7 @@ if (!empty($_SESSION['invoice_cart'])) {
         <?php endif; ?>
     </div>
 
-    <script>
+<script>
 function toggleManualAddress() {
     document.getElementById('address').readOnly = !document.getElementById('manualAddress').checked;
 }
@@ -161,27 +166,23 @@ document.getElementById('clientType').addEventListener('change', function () {
         .then(data => {
             let options = '<option value="">Select</option>';
             data.forEach(item => {
-                options += `<option value="${item.id}" data-address="${item.address}">${item.name}</option>`;
+                options += `<option value="${item.name}" data-address="${item.address}" data-email="${item.email}">${item.name}</option>`;
             });
             document.getElementById('clientName').innerHTML = options;
         });
 });
 
 document.getElementById('clientName').addEventListener('change', function () {
-    let address = this.options[this.selectedIndex].getAttribute('data-address');
+    let selected = this.options[this.selectedIndex];
+    let address = selected.getAttribute('data-address');
+    let email = selected.getAttribute('data-email');
+
     if (!document.getElementById('manualAddress').checked) {
         document.getElementById('address').value = address;
     }
+    document.getElementById('email').value = email || '';
 });
 </script>
-
-    <script>
-        function confirmInvoice() {
-            if (confirm("Are you sure you want to generate the invoice?")) {
-                window.location.href = "generate_invoice.php";
-            }
-        }
-    </script>
-
+ </form>
 </body>
 </html>

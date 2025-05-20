@@ -335,7 +335,7 @@ $result = $conn->query($sql);
           <div class="col-md-2"><span class="row-label">DOB:</span> <?= $row['date_of_birth'] ?></div>
           <div class="col-md-2"><span class="row-label">Passport:</span> <?= htmlspecialchars($row['passport_number']) ?></div>
           <div class="col-md-2"><span class="row-label">Expiry:</span> <?= $row['passport_expiry'] ?></div>
-          <div class="col-md-2"><span class="row-label">Email:</span> <?= htmlspecialchars($row['email']) ?></div>
+          <div class="col-md-2"><span class="row-label">Email:</span> <?= htmlspecialchars($row['PassengerEmail']) ?></div>
           <div class="col-md-2 text-end">
             <a href="edit_passenger.php?id=<?= $row['id'] ?>" class="btn edit-btn btn-sm">Edit</a>
           </div>

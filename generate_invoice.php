@@ -1,4 +1,13 @@
+
 <?php
+file_put_contents('debug_log.txt', 
+    "⚠️ Blocked request at " . date('Y-m-d H:i:s') . "\n" .
+    "Method: " . $_SERVER['REQUEST_METHOD'] . "\n" .
+    "User Agent: " . ($_SERVER['HTTP_USER_AGENT'] ?? 'N/A') . "\n" .
+    "Referer: " . ($_SERVER['HTTP_REFERER'] ?? 'N/A') . "\n" .
+    "----------------------\n", FILE_APPEND);
+
+
 ob_clean();
 ob_start();
 
@@ -73,6 +82,9 @@ $ait = 0;
 $gt = 0;
 $pnr = '';
 
+$client_name = isset($_POST['client_name']) ? $_POST['client_name'] : 'Unknown Client';
+$client_address = isset($_POST['client_address']) ? $_POST['client_address'] : 'Unknown Address';
+
 if (!empty($_SESSION['invoice_cart'])) {
     $id_list = implode(",", array_map('intval', $_SESSION['invoice_cart']));
     $query = "SELECT * FROM sales WHERE SaleID IN ($id_list)";
@@ -88,8 +100,10 @@ if (!empty($_SESSION['invoice_cart'])) {
     $gt = $total + $ait;
 }
 
-$clientName = $_SESSION['invoice_cart']['clientName'] ;
-$clientAddress = $_SESSION['invoice_cart']['address'] ;
+
+$client_name = $_POST['ClientName'] ?? 'Unknown Client';
+$client_address = $_POST['address'] ?? 'Unknown Address';
+$client_email = $_POST['client_email'] ?? 'No Email';
 
 $pdf = new TCPDF();
 $pdf->SetPrintHeader(false);
@@ -130,9 +144,9 @@ $pdf->MultiCell(50, 0, "Date: $today\nInvoice: $invoiceNumber", 0, 'R');
 
 // Modify the clientInfo section to include box shadow styling:
 $clientInfo = <<<EOD
-<div style="border: 1px solid #ddd; padding: 10px; box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);">
-    <b>Client Name:</b> $clientName<br>
-    <b>Client Address:</b> $clientAddress
+<div style="padding: 0px;margin-top: 0px;margin-bottom: 2px; background-color:rgb(248, 246, 246);">
+    <p><b>Client Name: </b>{$client_name}</p>
+        <p><b>Client Address: </b>{$client_address}</p>
 </div>
 EOD;
 
@@ -151,8 +165,8 @@ $html .= '<table cellpadding="4" cellspacing="0" width="100%" style="border-coll
     <th width="20%">Travelers</th>
     <th width="25%">Flight Info</th>
     <th width="25%">Ticket Info</th>
-    <th width="15%">Remarks</th>
-    <th width="10%">Price</th>
+    <th width="12%">Remarks</th>
+    <th width="13%">Price</th>
 </tr>
 </thead><tbody>';
 
@@ -162,9 +176,9 @@ foreach ($sales as $row) {
     $html .= '<td width="5%">' . $serial++ . '</td>';
     $html .= '<td width="20%">' . htmlspecialchars($row['PassengerName']) . '</td>';
     $html .= '<td width="25%">Route: <b>' . htmlspecialchars($row['TicketRoute']) . '</b><br>Airlines: <b>' . htmlspecialchars($row['airlines']) . '</b><br>Departure: <b>' . htmlspecialchars($row['FlightDate']) . '</b><br>Return: <b>' . htmlspecialchars($row['ReturnDate']) . '</b></td>';
-    $html .= '<td width="25%">Ticket No: <b>' . htmlspecialchars($row['TicketNumber']) . '</b><br>PNR: <b>' . htmlspecialchars($row['PNR']) . '</b><br>Issued: <b>' . htmlspecialchars($row['IssueDate']) . '</b><br>Seat Class: <b>' . htmlspecialchars($row['PNR']) . '</b></td>';
-    $html .= '<td width="15%"> </td>';
-    $html .= '<td width="10%">' . number_format($row['BillAmount'], 2) . '</td>';
+    $html .= '<td width="25%">Ticket No: <b>' . htmlspecialchars($row['TicketNumber']) . '</b><br>PNR: <b>' . htmlspecialchars($row['PNR']) . '</b><br>Issued: <b>' . htmlspecialchars($row['IssueDate']) . '</b><br>Seat Class: <b>' . htmlspecialchars($row['Class']) . '</b></td>';
+    $html .= '<td width="12%"> </td>';
+    $html .= '<td width="13%">' . number_format($row['BillAmount'], 2) . '</td>';
     $html .= '</tr>';
 }
 
@@ -194,36 +208,41 @@ $pdf->writeHTMLCell(0, 0, '', '', $notes, 0, 1, 0, true, 'L', true);
 $pdf->Ln(10);
 $pdf->SetFont('helvetica', 'B', 10);
 $pdf->Write(0, "We Accept:", '', 0, 'L', true);
-$logos = ['visa.png', 'master.png', 'amex.jpg', 'unionpay.png', 'diners', 'npsb.jpeg'];
+$logos = ['visa.png', 'master.png', 'amex.png', 'unionpay.png', 'diners.jpg', 'npsb.jpeg', 'discover.jpg'];
 $x = 25;
 foreach ($logos as $logo) {
     $pdf->Image(__DIR__ . "/payment_icons/$logo", $x, $pdf->GetY() + 2, 15);
     $x += 20;
 }
-
-ob_end_clean();
 $fileName = "{$pnr}_{$invoiceNumber}.pdf";
 $filePath = __DIR__ . "/invoices/" . $fileName;
-$pdf->Output($filePath, 'I');
 
-// $mail = new PHPMailer\PHPMailer\PHPMailer();
-// $mail->isSMTP();
-// $mail->Host = 'smtp.gmail.com';
-// $mail->SMTPAuth = true;
-// $mail->Username = 'info@faithtrip.net';
-// $mail->Password = 'kbjtsnmotgbwhwvw';
-// $mail->SMTPSecure = 'tls';
-// $mail->Port = 587;
-// $mail->setFrom('info@faithtrip.net', 'Faith Travels and Tours LTD');
-// $mail->addAddress('director@faithtrip.net');
-// $mail->Subject = 'Your Invoice - ' . $invoiceNumber;
-// $mail->Body = 'Dear Sir/Mam, Please find your invoice attached.';
-// $mail->addAttachment($filePath);
+ob_end_clean();
+$pdf->Output($filePath, 'F');
 
-// if (!$mail->send()) {
-//     echo 'Mailer Error: ' . $mail->ErrorInfo;
-//     exit;
-// }
+$mail = new PHPMailer\PHPMailer\PHPMailer();
+$mail->isSMTP();
+$mail->Host = 'smtp.gmail.com';
+$mail->SMTPAuth = true;
+$mail->Username = 'info@faithtrip.net';
+$mail->Password = 'kbjtsnmotgbwhwvw';
+$mail->SMTPSecure = 'tls';
+$mail->Port = 587;
+$mail->setFrom('info@faithtrip.net', 'Faith Travels and Tours LTD');
+$mail->addAddress($client_email);
+$mail->Subject = 'Your Invoice - ' . $invoiceNumber;
+$mail->Body = 'Dear Sir/Mam, 
+
+Greetings From Faith Travels and Tours LTD. Thank You for being with faith Travels and Tours LTD. 
+
+If you have any confussion please feel free to reach us.Please find your invoice attached.';
+
+$mail->addAttachment($filePath);
+
+if (!$mail->send()) {
+    echo 'Mailer Error: ' . $mail->ErrorInfo;
+    exit;
+}
 
 header("Location: invoice_list.php");
 exit;
