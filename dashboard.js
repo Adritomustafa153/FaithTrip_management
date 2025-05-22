@@ -6,3 +6,11 @@ function updateDateTime() {
 
 setInterval(updateDateTime, 1000);
 updateDateTime();
+
+document.querySelectorAll('.dropdown-submenu .dropdown-toggle').forEach(function(el) {
+  el.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    el.nextElementSibling.classList.toggle('show');
+  });
+});

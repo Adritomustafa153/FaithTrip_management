@@ -428,6 +428,15 @@ if ($conn->connect_error) {
                     <option value="">Select Salesperson</option>
                 </select>
             </div>
+                <div class="form-group">
+                <label for="PaymentMethod">Seat Class:</label>
+                <select name="Class" id="seat" required>
+                    <option value="Economy">Economy Class</option>
+                    <option value="Business">Business Class</option>
+                    <option value="First">First Class</option>
+                    <option value="Premium">Premium Economy</option>
+                </select>
+            </div>
         </div>
 
         <!-- Row 7: Bank Details (Hidden by Default) -->

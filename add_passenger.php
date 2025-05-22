@@ -373,7 +373,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $passport = $_POST['passport'] ?? '';
     $expiry = $_POST['expiry'] ?? '';
 
-    $stmt = $conn->prepare("INSERT INTO passengers (name, email, date_of_birth, passport_number, passport_expiry) VALUES (?, ?, ?, ?, ?)");
+    $stmt = $conn->prepare("INSERT INTO passengers (name, PassengerEmail, date_of_birth, passport_number, passport_expiry) VALUES (?, ?, ?, ?, ?)");
     $stmt->bind_param("sssss", $name, $email, $dob, $passport, $expiry);
     $stmt->execute();
     $stmt->close();

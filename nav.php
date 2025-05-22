@@ -43,8 +43,8 @@
       <!-- Navbar brand -->
       <a class="navbar-brand mt-2 mt-lg-0" href="#">
         <img
-          src="https://mdbcdn.b-cdn.net/img/logo/mdb-transaprent-noshadows.webp"
-          height="15"
+          src="logo.jpg"
+          height="30"
           alt="MDB Logo"
           loading="lazy"
         />
@@ -52,23 +52,167 @@
       <!-- Left links -->
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
         <li class="nav-item">
-          <a class="nav-link" href="#">Dashboard</a>
+          <a class="nav-link" href="dashboard.php">Home</a>
+        </li>
+        <a
+          data-mdb-dropdown-init
+          class="nav-link dropdown-toggle"
+          href="#"
+          id="navbarDropdownMenuLink"
+          role="button"
+          aria-expanded="false"
+        >
+          Auto Insert
+        </a>
+        <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+          <li>
+            <a class="dropdown-item" href="agents_auto_insert.php">Agents</a>
+          </li>
+          <li>
+            <a class="dropdown-item" href="corporate_auto_insert.php">Corporate</a>
+          </li>
+          <li>
+            <a class="dropdown-item" href="counter_auto_insert.php">Counter Sell</a>
+          </li>
+        </ul>
+
+
+        <li class="nav-item dropdown">
+        <a
+          data-mdb-dropdown-init
+          class="nav-link dropdown-toggle"
+          href="#"
+          id="navbarDropdownMenuLink"
+          role="button"
+          aria-expanded="false"
+        >
+          Manual Insert
+        </a>
+
+        <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+          <li>
+            <a class="dropdown-item" href="manual_insert.php">Agents</a>
+          </li>
+          <li>
+            <a class="dropdown-item" href="corporate_manual_insert.php">Corporate</a>
+          </li>
+          <li>
+            <a class="dropdown-item" href="counter_sell_manual_insert.php">Counter Sell</a>
+          </li>
+        </ul>
+      </li>
+
+
+        <li class="nav-item">
+          <a class="nav-link" href="#">Generate Invoice</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="#">Team</a>
+          <a class="nav-link" href="invoice_list.php">Invoice List</a>
         </li>
+
+
+
+        <li class="nav-item dropdown">
+        <a
+          data-mdb-dropdown-init
+          class="nav-link dropdown-toggle"
+          href="#"
+          id="navbarDropdownMenuLink"
+          role="button"
+          aria-expanded="false"
+        >
+          Sales Flow
+        </a>
+        <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+          <li>
+            <a class="dropdown-item" href="hotel_sales.php">Hote</a>
+          </li>
+          <li>
+            <a class="dropdown-item" href="">Visa Processing</a>
+          </li>
+          <li>
+            <a class="dropdown-item" href="">Tour Package</a>
+          </li>
+        </ul>
+      </li>
+
+
         <li class="nav-item">
-          <a class="nav-link" href="#">Projects</a>
+          <a class="nav-link" href="#">Sell Summary</a>
         </li>
+        
+<li class="nav-item dropdown">
+  <a
+    data-mdb-dropdown-init
+    class="nav-link dropdown-toggle"
+    href="#"
+    id="navbarDropdownMenuLink"
+    role="button"
+    aria-expanded="false"
+  >
+    Accounts
+  </a>
+
+  <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+    <li>
+      <a class="dropdown-item" href="#">Summary</a>
+    </li>
+    <li>
+      <a class="dropdown-item" href="#">Air ticket</a>
+    </li>
+
+    <!-- Nested Dropdown Start -->
+    <li class="dropdown-submenu">
+      <a class="dropdown-item dropdown-toggle" href="view_expense.php">Expense</a>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="expense.php">Insert Expense</a></li>
+        <li><a class="dropdown-item" href="view_expense.php">View Expense</a></li>
+      </ul>
+    </li>
+    <!-- Nested Dropdown End -->
+
+  </ul>
+</li>
+
+
+                <li class="nav-item dropdown">
+        <a
+          data-mdb-dropdown-init
+          class="nav-link dropdown-toggle"
+          href="#"
+          id="navbarDropdownMenuLink"
+          role="button"
+          aria-expanded="false"
+        >
+          Add Passengers
+        </a>
+
+        <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+          <li>
+            <a class="dropdown-item" href="add_passenger.php">Counter</a>
+          </li>
+          <li>
+            <a class="dropdown-item" href="#">Corporate</a>
+          </li>
+                    <li>
+            <a class="dropdown-item" href="passenger_list.php">Passenger List</a>
+          </li>
+        </ul>
+      </li>
       </ul>
       <!-- Left links -->
+
+      
     </div>
+    
+
+    
     <!-- Collapsible wrapper -->
 
     <!-- Right elements -->
     <div class="d-flex align-items-center">
       <!-- Icon -->
-      <a class="text-reset me-3" href="#">
+      <a class="text-reset me-3" href="invoice_cart2.php">
         <i class="fas fa-shopping-cart"></i>
       </a>
 
@@ -129,7 +273,7 @@
             <a class="dropdown-item" href="#">Settings</a>
           </li>
           <li>
-            <a class="dropdown-item" href="#">Logout</a>
+            <a class="dropdown-item" href="logout.php">Logout</a>
           </li>
         </ul>
       </div>
