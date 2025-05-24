@@ -55,3 +55,13 @@ Method: POST
 User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36
 Referer: http://192.168.0.63:8080/faithtrip/accounts/invoice_cart2.php
 ----------------------
+⚠️ Blocked request at 2025-05-24 08:25:03
+Method: POST
+User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0
+Referer: http://192.168.0.63:8080/faithtrip/accounts/invoice_cart2.php
+----------------------
+⚠️ Blocked request at 2025-05-24 08:32:03
+Method: POST
+User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0
+Referer: http://192.168.0.63:8080/faithtrip/accounts/invoice_cart2.php
+----------------------

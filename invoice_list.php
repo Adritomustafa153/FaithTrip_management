@@ -45,6 +45,7 @@ if (isset($_GET['delete'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="logo.png">
     <title>Sales Records</title>
     <!-- <style>
         body { font-family: Arial, sans-serif; margin: 20px; }

@@ -16,6 +16,8 @@ $result = $stmt->get_result();
 <!DOCTYPE html>
 <html>
 <head>
+    <link rel="icon" href="logo.jpg">
+
     <title>Expense Records</title>
     <style>
         body {
