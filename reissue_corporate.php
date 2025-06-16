@@ -1,5 +1,26 @@
 <?php
 include 'db.php';
+$sale_id = $_GET['sale_id'] ?? null;
+
+if (!$sale_id) {
+    echo "Sale ID not provided.";
+    exit;
+}
+
+// Fetch sale details from database
+$query = "SELECT * FROM sales WHERE SaleID = ?";
+$stmt = $conn->prepare($query);
+$stmt->bind_param("i", $sale_id);
+$stmt->execute();
+$result = $stmt->get_result();
+
+if ($result->num_rows === 0) {
+    echo "Sale record not found.";
+    exit;
+}
+
+
+$row = $result->fetch_assoc();
 ?>
 
 <!DOCTYPE html>
@@ -20,87 +41,59 @@ include 'db.php';
         .delete-btn { background-color: #d9534f; color: white; }
         .btn:hover { opacity: 0.8; }
 
-    </style>
+        input[readonly], select[readonly] {
+    background-color: #e0e0e0;
+    color: #333;
+    /* font-weight: bold; */
+}
 
+
+    </style>
     <link rel="stylesheet" href="agents_manual_insert.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="manualinsert.js" defer></script>
+    <script src="companySearch.js" defer></script>
 
 </head>
 <body>
 
  <!-- Start your project here-->
-<?php  include 'nav.php'  ?>
+<!-- Navbar -->
+<?php include 'nav.php';  ?>
+<!-- Navbar -->
 <div style="display: flex;justify-content:center;margin-top:15px">
 <h1 style="font-family:Arial, Helvetica, sans-serif">Insert Sales</h1>
 </div>
 
 <!-- insert part is here -->
 <div class="container">
-    <h2>Sales Entry Form</h2>
-    <form action="insert_sales.php" method="POST">
+    <h2>Corporate Reissue Form</h2>
+    <form action="reissue_corporate_sell.php" method="POST">
+                <input type="hidden" name="sale_id" value="<? $row['SaleID '] ?>" >
         <!-- Row 1: Agent Name, Search, and Select Agent -->
         <div class="form-row">
             <div class="form-group">
-                <label for="agentSearch">Agent Name:</label>
-                <input type="text" id="agentSearch" placeholder="Search Agent (Name/ID)">
-            </div>
-            <div class="form-group">
-                <label for="agentDropdown">Select Agent:</label>
-                <select name="AgentID" id="agentDropdown" required>
-                    <option value="">Select Agent</option>
+                <label for="companyDropdown">Select Company:</label>
+                <input type="text" name="partyname" value="<?= htmlspecialchars($row['PartyName']) ?>" readonly>
+
+                    <!-- <option value="">Select Compa</option> -->
                 </select>
             </div>
-            <!-- <div class="form-group">
-                <button type="button" class="search-btn">Search</button>
-            </div> -->
             <div class="form-group">
                     <label for="AccountNumber">Airlines Name</label>
-                    <input type="text" id="airlines" name="airlines" autocomplete="off" onkeyup="searchAirlines()">
-                    <input type="hidden" id="airline_code" name="airline_code">
-                    <div id="suggestions"></div>
-                    <!-- <button type="submit">Submit</button> -->
+                    <input type="text" name="airlines" value="<?= htmlspecialchars($row['airlines']) ?>" readonly>
+
             </div>
-            <script>
-        function searchAirlines() {
-            let input = document.getElementById('airlines').value;
-            let suggestionsBox = document.getElementById('suggestions');
-            if (input.length < 1) {
-                suggestionsBox.innerHTML = "";
-                return;
-            }
-
-            fetch(`fetch_airlines.php?query=${input}`)
-                .then(response => response.json())
-                .then(data => {
-                    suggestionsBox.innerHTML = "";
-                    data.forEach(item => {
-                        let div = document.createElement('div');
-                        div.classList.add('suggestion-item');
-                        div.textContent = `${item.code} - ${item.name}`;
-                        div.onclick = () => selectAirline(item);
-                        suggestionsBox.appendChild(div);
-                    });
-                });
-        }
-
-        function selectAirline(airline) {
-            document.getElementById('airlines').value = airline.name;
-            document.getElementById('airline_code').value = airline.code;
-            document.getElementById('suggestions').innerHTML = "";
-        }
-    </script>
         </div>
 
         <!-- Row 2: Passenger Name, Ticket Route, and Ticket Number -->
         <div class="form-row">
             <div class="form-group">
                 <label for="PassengerName">Passenger Name:</label>
-                <input type="text" name="PassengerName" required>
+                <input type="text" name="passengername" value="<?= htmlspecialchars($row['PassengerName']) ?>" readonly>
             </div>
             <div class="form-group">
                 <label for="TicketRoute">Ticket Route:</label>
-                <input type="text" name="TicketRoute" required>
+        <input type="text" name="ticket_route" value="<?= htmlspecialchars($row['TicketRoute']) ?>" readonly>
             </div>
             <div class="form-group">
                 <label for="TicketNumber">Ticket Number:</label>
@@ -116,11 +109,11 @@ include 'db.php';
             </div>
             <div class="form-group">
                 <label for="FlightDate">Flight Date:</label>
-                <input type="date" name="FlightDate" required>
+        <input type="date" name="FlightDate" value="<?= htmlspecialchars($row['FlightDate']) ?>">
             </div>
             <div class="form-group">
                 <label for="ReturnDate">Return Date:</label>
-                <input type="date" name="ReturnDate">
+        <input type="date" name="ReturnDate" value="<?= htmlspecialchars($row['ReturnDate']) ?>">
             </div>
         </div>
 
@@ -128,7 +121,7 @@ include 'db.php';
         <div class="form-row">
             <div class="form-group">
                 <label for="PNR">PNR:</label>
-                <input type="text" name="PNR" required>
+        <input type="text" name="PNR" value="<?= htmlspecialchars($row['PNR']) ?>" readonly>
             </div>
             <div class="form-group">
                 <label for="BillAmount">Bill Amount:</label>
@@ -175,7 +168,7 @@ include 'db.php';
             </div>
             <div class="form-group">
                 <label for="DueAmount">Due Amount:</label>
-                <input type="text" name="DueAmount" id="dueAmount" readonly>
+                <input type="text" name="DueAmount" id="dueAmount" >
             </div>
             <div class="form-group">
                 <label for="salespersonDropdown">Salesperson Name:</label>
@@ -183,8 +176,7 @@ include 'db.php';
                     <option value="">Select Salesperson</option>
                 </select>
             </div>
-
-                        <div class="form-group">
+                                    <div class="form-group">
                 <label for="PaymentMethod">Seat Class:</label>
                 <select name="Class" id="seat" required>
                     <option value="Economy">Economy Class</option>
@@ -204,14 +196,11 @@ include 'db.php';
                         <option value="">Select Bank</option>
                     </select>
                 </div>
-                <div class="form-group">
+                <!-- <div class="form-group">
                     <label for="BranchName">Branch Name:</label>
                     <input type="text" name="BranchName">
-                </div>
-                <div class="form-group">
-                    <label for="AccountNumber">Account Number:</label>
-                    <input type="text" name="AccountNumber">
-                </div>
+                </div> -->
+                
             </div>
             <div class="form-row">
                 <div class="form-group">
@@ -233,7 +222,7 @@ include 'db.php';
         <div class="form-row submit-button-wrapper">   
         <div class="form-row">
             <div class="form-group">
-                <button type="submit" class="submit-btn">Submit Sale</button>
+                <button type="submit" class="submit-btn">Reissue</button>
             </div>
         </div>
         </div>

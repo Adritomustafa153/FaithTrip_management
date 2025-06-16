@@ -4,11 +4,11 @@ $conn = new mysqli("localhost", "root", "", "faithtrip_accounts");
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Prepare the SQL statement with "Counter Sell" as the PartyName
     $stmt = $conn->prepare("INSERT INTO sales 
-        (PartyName, PassengerName, TicketRoute, TicketNumber, IssueDate, FlightDate, ReturnDate, 
+        (PartyName,section, PassengerName, TicketRoute, TicketNumber, IssueDate, FlightDate, ReturnDate, 
         PNR, BillAmount, NetPayment, Profit, PaymentStatus, PaidAmount, DueAmount, 
         PaymentMethod, BankName, ReceivedDate, DepositDate, 
-        ClearingDate, SalesPersonName) 
-        VALUES ('Counter Sell', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        ClearingDate, SalesPersonName,airlines,Class) 
+        VALUES ('Counter Sell','counter', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     // Calculate Profit and Due Amount
     $profit = $_POST['BillAmount'] - $_POST['NetPayment'];
@@ -16,14 +16,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Bind parameters correctly
     $stmt->bind_param(
-        "sssssssdddsddssssss", 
+        "sssssssdddsddssssssss", 
         $_POST['PassengerName'], $_POST['TicketRoute'], $_POST['TicketNumber'], 
         $_POST['IssueDate'], $_POST['FlightDate'], $_POST['ReturnDate'], 
         $_POST['PNR'], $_POST['BillAmount'], $_POST['NetPayment'], $profit, 
         $_POST['PaymentStatus'], $_POST['PaidAmount'], $dueAmount, 
         $_POST['PaymentMethod'], $_POST['BankName'],
          $_POST['ReceivedDate'], $_POST['DepositDate'], 
-        $_POST['ClearingDate'], $_POST['SalesPersonName']
+        $_POST['ClearingDate'], $_POST['SalesPersonName'],
+        $_POST['airlines'],$_POST['Class']
     );
 
     if ($stmt->execute()) {

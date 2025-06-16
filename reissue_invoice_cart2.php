@@ -55,7 +55,7 @@ if (!empty($_SESSION['invoice_cart'])) {
         <h2 class="mb-4">Invoice Cart</h2>
 
         <div class="card p-3 mb-3">
-<form method="POST" action="generate_invoice.php">
+<form method="POST" action="reissue_generate_invoice.php">
         <div class="row">
             <div class="col-md-4">
                 <label>Type</label>

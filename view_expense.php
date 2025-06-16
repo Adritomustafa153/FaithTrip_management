@@ -11,6 +11,11 @@ $stmt = $conn->prepare($sql);
 $stmt->bind_param("ii", $year, $month);
 $stmt->execute();
 $result = $stmt->get_result();
+$total_amount = 0;
+
+
+
+
 ?>
 
 <!DOCTYPE html>
@@ -189,8 +194,14 @@ $result = $stmt->get_result();
             <a href="edit_expense.php?id=<?= $row['id'] ?>" class="edit-link">Edit</a>
             <a href="delete_expence.php?id=<?= $row['id'] ?>" class="delete-link" onclick="return confirm('Are you sure you want to delete this expense?');">Delete</a>
         </td>
+
     </tr>
+           <?php  $total_amount += $row['amount']; // accumulate ?>
     <?php endwhile; ?>
+            <tr style="font-weight:bold; background-color:#f2f2f2;">
+    <td colspan="3" style="text-align:right;">Total:</td>
+    <td><?= number_format($total_amount, 2) ?></td>
+</tr>
 </table>
 
 </body>

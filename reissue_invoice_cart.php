@@ -55,7 +55,7 @@ if (!empty($_SESSION['invoice_cart'])) {
         <h2 class="mb-4">Invoice Cart</h2>
 
         <div class="card p-3 mb-3">
-<form method="POST" action="generate_invoice.php">
+<form method="POST" action="reissue_generate_invoice.php">
         <div class="row">
             <div class="col-md-4">
                 <label>Type</label>
@@ -116,18 +116,17 @@ if (!empty($_SESSION['invoice_cart'])) {
                             Seat Class : <b><?= htmlspecialchars($row['Class']) ?></b>
 
                         </td>
-                        <td><b><?= htmlspecialchars($row['Remarks']) ?></b></td>
                             <td><?= number_format($row['BillAmount'], 2) ?></td>
                             <td>
-                               
+                               <h3 style="text-align: center;text-color:red">Refund</h3>
                             </td>
                             <td>
-                                 <a href="invoice_cart2.php?delete_id=<?= $row['SaleID'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Remove this item?')">Delete</a>
+                                 <a href="reissue_invoice_cart.php?delete_id=<?= $row['SaleID'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Remove this item?')">Delete</a>
                             </td>
                         </tr>
                             <?php $total += $row['BillAmount']; ?>
                     <?php endforeach; ?>
-                                    <tr class="total-row">
+                    <tr class="total-row">
                     <td colspan="4" class="text-end">Selling</td>
                     <td><?php echo number_format($total, 2); ?></td>
                 </tr>
@@ -145,7 +144,7 @@ if (!empty($_SESSION['invoice_cart'])) {
             </table>
 
             <div class="d-flex justify-content-between mt-3">
-                <a href="invoice_cart2.php?clear_cart=1" class="btn btn-warning" onclick="return confirm('Clear the entire cart?')">Clear Cart</a>
+                <a href="reissue_invoice_cart.php?clear_cart=1" class="btn btn-warning" onclick="return confirm('Clear the entire cart?')">Clear Cart</a>
                 <a href="invoice_list.php"><button type="button" style="font-size: 14px;border-radius: 8px;padding: 10px 20px;background-color:rgb(5, 200, 50);box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2), 0 6px 20px 0 rgba(0,0,0,0.19);">Home</button></a>
                 <button type="submit" onclick="return confirm('Are you sure you want to generate the invoice?')" class="btn btn-primary">Generate Invoice</button>
             

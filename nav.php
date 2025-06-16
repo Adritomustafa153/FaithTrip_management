@@ -74,6 +74,12 @@
           <li>
             <a class="dropdown-item" href="counter_auto_insert.php">Counter Sell</a>
           </li>
+          <li>
+            <a class="dropdown-item" href="reissue.php">Reissue</a>
+          </li>
+                              <li>
+            <a class="dropdown-item" href="counter_auto_insert.php">Refund</a>
+          </li>
         </ul>
 
 
@@ -99,6 +105,12 @@
           <li>
             <a class="dropdown-item" href="counter_sell_manual_insert.php">Counter Sell</a>
           </li>
+          <li>
+            <a class="dropdown-item" href="reissue.php">Reissue</a>
+          </li>
+                    <li>
+            <a class="dropdown-item" href="counter_auto_insert.php">Refund</a>
+          </li>
         </ul>
       </li>
 
@@ -106,9 +118,30 @@
         <li class="nav-item">
           <a class="nav-link" href="#">Generate Invoice</a>
         </li>
-        <li class="nav-item">
-          <a class="nav-link" href="invoice_list.php">Invoice List</a>
-        </li>
+        <li class="nav-item dropdown">
+        <a
+          data-mdb-dropdown-init
+          class="nav-link dropdown-toggle"
+          href="#"
+          id="navbarDropdownMenuLink"
+          role="button"
+          aria-expanded="false"
+        >
+          invoice List
+        </a>
+
+        <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+          <li>
+            <a class="dropdown-item" href="invoice_list.php">Sales</a>
+          </li>
+          <li>
+            <a class="dropdown-item" href="reissue.php">Reissue</a>
+          </li>
+                    <li>
+            <a class="dropdown-item" href="counter_auto_insert.php">Refund</a>
+          </li>
+        </ul>
+      </li>
 
 
 

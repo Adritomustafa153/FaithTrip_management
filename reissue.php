@@ -23,9 +23,9 @@ if (isset($_GET['pnr']) && !empty($_GET['pnr'])) {
     $where .= ($where ? " AND" : " WHERE") . " PNR LIKE '%$pnr_%'";
 }
 if (!empty($where)) {
-    $where .= " AND Remarks = 'Sell'";
+    $where .= " AND Remarks = 'Reissue'";
 } else {
-    $where = " WHERE Remarks = 'Sell'";
+    $where = " WHERE Remarks = 'Reissue'";
 }
 
 $salesQuery = "SELECT * FROM sales" . $where;
@@ -274,7 +274,7 @@ if (isset($_GET['delete'])) {
         data-due="<?php echo $due ?>">
   Add to Cart
 </button> -->
-<form action="invoice_cart2.php" method="POST">
+<form action="reissue_invoice_cart2.php" method="POST">
     <input type="hidden" name="sell_id" value="<?= $row['SaleID'] ?>">
     <button style="margin-top: 10px;" type="submit" class="btn btn-primary btn-sm">Add to Invoice</button>
 </form>

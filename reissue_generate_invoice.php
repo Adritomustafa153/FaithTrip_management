@@ -66,7 +66,7 @@ function convertTwoDigits($number, $words) {
 
 
 
-$invoiceNumber = 'INV-' . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+$invoiceNumber = 'RE -' . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
 
 try {
     $pdo = new PDO("mysql:host=localhost;dbname=faithtrip_accounts", "root", "");
@@ -96,8 +96,7 @@ if (!empty($_SESSION['invoice_cart'])) {
         $sales[] = $row;
         $total += $row['BillAmount'];
     }
-    // $ait = $total * 0.003;
-        $ait = 0;
+    $ait = $total * 0.003;
     $gt = $total + $ait;
 }
 
@@ -178,7 +177,7 @@ foreach ($sales as $row) {
     $html .= '<td width="20%">' . htmlspecialchars($row['PassengerName']) . '</td>';
     $html .= '<td width="25%">Route: <b>' . htmlspecialchars($row['TicketRoute']) . '</b><br>Airlines: <b>' . htmlspecialchars($row['airlines']) . '</b><br>Departure: <b>' . htmlspecialchars($row['FlightDate']) . '</b><br>Return: <b>' . htmlspecialchars($row['ReturnDate']) . '</b></td>';
     $html .= '<td width="25%">Ticket No: <b>' . htmlspecialchars($row['TicketNumber']) . '</b><br>PNR: <b>' . htmlspecialchars($row['PNR']) . '</b><br>Issued: <b>' . htmlspecialchars($row['IssueDate']) . '</b><br>Seat Class: <b>' . htmlspecialchars($row['Class']) . '</b></td>';
-    $html .= '<td width="12%"> <b>' . htmlspecialchars($row['Remarks']) . '</b></td>';
+    $html .= '<td width="12%"> Reissue</td>';
     $html .= '<td width="13%">' . number_format($row['BillAmount'], 2) . '</td>';
     $html .= '</tr>';
 }
