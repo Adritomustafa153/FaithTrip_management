@@ -78,7 +78,7 @@ if (!empty($_SESSION['invoice_cart'])) {
             </div>
             <div class="col-md-4" style="margin-top: 10px;">
                 <label>
-                    Email : <input type="text" id="email" name="client_email" readonly> <!-- Add this -->
+                    Email : <input type="text" id="email" name="client_email"> <!-- Add this -->
                 </label>
             </div>
         </div>

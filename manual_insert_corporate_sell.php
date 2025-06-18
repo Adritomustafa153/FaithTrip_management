@@ -5,8 +5,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $stmt = $conn->prepare("INSERT INTO sales 
         (PartyName,section, PassengerName, airlines, TicketRoute, TicketNumber, IssueDate, FlightDate, ReturnDate, PNR,
          BillAmount, NetPayment, Profit, PaymentStatus, PaidAmount, DueAmount, PaymentMethod, BankName, BranchName, AccountNumber,
-          ReceivedDate, DepositDate, ClearingDate, SalesPersonName, Class)
-        VALUES (?, 'corporate',?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+          ReceivedDate, DepositDate, ClearingDate, SalesPersonName, Class,Remarks)
+        VALUES (?, 'corporate',?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Sell')");
 
     $profit = $_POST['BillAmount'] - $_POST['NetPayment'];
     $dueAmount = $_POST['BillAmount'] - $_POST['PaidAmount'];

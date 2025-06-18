@@ -24,7 +24,7 @@ switch (strtolower($sale_type)) {
         header("Location: reissue_counter.php?sale_id=$sale_id");
         break;
     case 'agent':
-        header("Location: reissue.php?sale_id=$sale_id");
+        header("Location: reissue_agent.php?sale_id=$sale_id");
         break;
     case 'corporate':
         header("Location: reissue_corporate.php?sale_id=$sale_id");
