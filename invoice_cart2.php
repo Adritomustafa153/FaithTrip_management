@@ -116,13 +116,11 @@ if (!empty($_SESSION['invoice_cart'])) {
                             Seat Class : <b><?= htmlspecialchars($row['Class']) ?></b>
 
                         </td>
-                        <td><b><?= htmlspecialchars($row['Remarks']) ?></b></td>
-                            <td><?= number_format($row['BillAmount'], 2) ?></td>
+                        <td><b><?=number_format($row['BillAmount'], 2)    ?></b></td>
+                            <td><?=   htmlspecialchars($row['Remarks']) ?></td>
                             <td>
-                               
-                            </td>
-                            <td>
-                                 <a href="invoice_cart2.php?delete_id=<?= $row['SaleID'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Remove this item?')">Delete</a>
+                            <a href="invoice_cart2.php?delete_id=<?= $row['SaleID'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Remove this item?')">Delete</a>
+
                             </td>
                         </tr>
                             <?php $total += $row['BillAmount']; ?>
