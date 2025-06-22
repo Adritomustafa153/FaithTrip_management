@@ -1,120 +1,170 @@
 <?php
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "faithtrip_accounts";
+include('db.php');
 
-// Create connection
-$conn = new mysqli($servername, $username, $password, $dbname);
+$filter = $_GET['filter'] ?? 'monthly';
+$whereClause = "";
 
-// Check connection
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+if ($filter === 'monthly') {
+    $whereClause = "WHERE MONTH(IssueDate) = MONTH(CURDATE()) AND YEAR(IssueDate) = YEAR(CURDATE())";
+} elseif ($filter === 'yearly') {
+    $whereClause = "WHERE YEAR(IssueDate) = YEAR(CURDATE())";
 }
 
-// Fetch Corporate Sales
-$sql_corporate = "SELECT SUM(s.BillAmount) AS CorporateSales FROM sales s INNER JOIN companyprofile c ON s.PartyName = c.CompanyName";
-$result_corporate = $conn->query($sql_corporate);
-$corporate_sales = ($result_corporate->num_rows > 0) ? $result_corporate->fetch_assoc()['CorporateSales'] : 0;
+$salesQuery = "SELECT section, SUM(BillAmount) AS total FROM sales $whereClause GROUP BY section";
+$salesResult = mysqli_query($conn, $salesQuery);
 
-// Fetch Agent Sales - Fixing Query
-$sql_agents = "SELECT SUM(s.BillAmount) AS AgentSales FROM sales s INNER JOIN agents a ON s.PartyName = a.AgentName";
-$result_agents = $conn->query($sql_agents);
-$agent_sales = ($result_agents->num_rows > 0) ? $result_agents->fetch_assoc()['AgentSales'] : 0;
+$salesData = ['Agent' => 0, 'Counter' => 0, 'Corporate' => 0];
+while ($row = mysqli_fetch_assoc($salesResult)) {
+    $key = ucfirst(strtolower($row['section']));
+    if (array_key_exists($key, $salesData)) {
+        $salesData[$key] = (float)$row['total'];
+    }
+}
 
-// Fetch Counter Sales
-$sql_counter = "SELECT SUM(BillAmount) AS CounterSales FROM sales WHERE PartyName NOT IN (SELECT CompanyName FROM companyprofile UNION SELECT AgentName FROM agents)";
-$result_counter = $conn->query($sql_counter);
-$counter_sales = ($result_counter->num_rows > 0) ? $result_counter->fetch_assoc()['CounterSales'] : 0;
+$expenseQuery = "SELECT DATE_FORMAT(expense_date, '%b') AS month, SUM(amount) AS total FROM expenses GROUP BY month ORDER BY MIN(expense_date)";
+$expenseResult = mysqli_query($conn, $expenseQuery);
 
-// $conn->close();
+$expenseMonths = [];
+$expenseTotals = [];
+
+while ($row = mysqli_fetch_assoc($expenseResult)) {
+    $expenseMonths[] = $row['month'];
+    $expenseTotals[] = (float)$row['total'];
+}
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sales Records</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; border-radius: 20px;border-collapse: collapse;box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);}
-        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; border-radius: 20px;}
-        th { background-color:rgb(74, 113, 255); color: white; border-radius: 5px; }
-        .search-container { display: flex; gap: 10px; margin-bottom: 20px; border-radius: 15px;}
-        .search-container select, .search-container input { padding: 8px; width: 200px; }
-        .btn { padding: 5px 10px; border: none; cursor: pointer; text-decoration: none; font-size: 12px; padding: 4px 8px }
-        .edit-btn { background-color:rgb(7, 147, 32); color: white; }
-        .delete-btn { background-color: #d9534f; color: white; }
-        .btn:hover { opacity: 0.8; }
-
-    </style>
- <!-- MDB icon -->
- <link rel="icon" href="img/mdb-favicon.ico" type="image/x-icon" />
-    <!-- Font Awesome -->
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-    />
-    <!-- Google Fonts Roboto -->
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap"
-    />
-    <!-- MDB -->
-    <link rel="stylesheet" href="css/mdb.min.css" />
+    <title>Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        .chart-container {
+        body {
+            font-family: Arial, sans-serif;
+            background:rgb(255, 255, 255);
+            padding: 0px;
+            margin: 0;
+        }
+        .dashboard-header {
             display: flex;
-            /* justify-content: space-around; */
-            flex-wrap: wrap;
-            gap: 10px;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .filter-box {
             margin-bottom: 20px;
-            padding: 20px;
-            justify-content: center;
+        }
+        .charts-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0;
+            
+        }
+        .chart-container {
+            width: 45%;
+            text-align: center;
         }
         canvas {
-            width: 300px !important;
-            height: 300px !important;
+            display: block;
+            margin: 0 auto;
+            width: 50% !important;
+            height: 280px !important;
+            border-radius: 1px;
+        }
+        select {
+            padding: 6px 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        h3 {
+            margin-top: 0;
         }
     </style>
 </head>
 <body>
-
- <!-- Start your project here-->
-<?php include 'nav.php'  ?>
-
-<!-- Diagram Part starts here -->
-
-<div class="chart-container">
-        <div>
-            <h2>Sales Distribution</h2>
-            <canvas id="salesDistributionChart"></canvas>
+    <?php include 'nav.php' ?>
+    <div class="dashboard-header">
+        <h2>Sales Dashboard</h2>
+        <div class="filter-box">
+            <label for="salesFilter">Filter by:</label>
+            <select id="salesFilter" onchange="updateDashboard()">
+                <option value="monthly" <?= $filter === 'monthly' ? 'selected' : '' ?>>Monthly</option>
+                <option value="yearly" <?= $filter === 'yearly' ? 'selected' : '' ?>>Yearly</option>
+                <option value="total" <?= $filter === 'total' ? 'selected' : '' ?>>Total</option>
+            </select>
         </div>
     </div>
-    
+
+    <div class="charts-row">
+        <div class="chart-container">
+            <h3>Sales by Section (Pie Chart)</h3>
+            <canvas id="salesPieChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>Expenses by Month (Bar Graph)</h3>
+            <canvas id="expenseBarChart"></canvas>
+        </div>
+    </div>
+
     <script>
-        // Sales Distribution (Pie Chart)
-        const salesDistributionCtx = document.getElementById('salesDistributionChart').getContext('2d');
-        new Chart(salesDistributionCtx, {
-            type: 'pie',
-            data: {
-                labels: ['Corporate Sales', 'Agent Sales', 'Counter Sales'],
-                datasets: [{
-                    data: [<?php echo $corporate_sales; ?>, <?php echo $agent_sales; ?>, <?php echo $counter_sales; ?>],
-                    backgroundColor: ['red', 'blue', 'green']
-                }]
+    function updateDashboard() {
+        const filter = document.getElementById('salesFilter').value;
+        window.location.href = `dashboard.php?filter=${filter}`;
+    }
+
+    const salesPieCtx = document.getElementById('salesPieChart').getContext('2d');
+    new Chart(salesPieCtx, {
+        type: 'pie',
+        data: {
+            labels: ['Agent', 'Counter', 'Corporate'],
+            datasets: [{
+                data: [<?= $salesData['Agent'] ?>, <?= $salesData['Counter'] ?>, <?= $salesData['Corporate'] ?>],
+                backgroundColor: [
+                    'rgba(8, 180, 42, 0.7)',
+                    'rgba(54, 162, 235, 0.7)',
+                    'rgb(255, 64, 0)'
+                ],
+                borderColor: '#fff',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' }
             }
-        });
+        }
+    });
+
+    const expenseBarCtx = document.getElementById('expenseBarChart').getContext('2d');
+    new Chart(expenseBarCtx, {
+        type: 'bar',
+        data: {
+            labels: <?= json_encode($expenseMonths) ?>,
+            datasets: [{
+                label: 'Expenses',
+                data: <?= json_encode($expenseTotals) ?>,
+                backgroundColor: 'rgb(0, 64, 255)',
+                borderColor: 'rgb(99, 255, 255)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '৳' + value;
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: { display: false }
+            }
+        }
+    });
     </script>
-<!-- Diagram part ends here -->
-
-
-
-
-
-
 </body>
 </html>
-
-<?php $conn->close(); ?>

@@ -1,5 +1,7 @@
 <?php
 include 'db.php';
+$sources_query = "SELECT agency_name FROM sources";
+$sources_result = mysqli_query($conn, $sources_query);
 ?>
 
 <!DOCTYPE html>
@@ -138,6 +140,16 @@ include 'db.php';
                 <label for="NetPayment">Net Payment:</label>
                 <input type="number" name="NetPayment" id="netPayment" required>
             </div>
+            <div class="form-group">
+    <label for="source_id">Source (Agency Name)</label>
+    <select name="source_id" id="source_id" class="form-control" required>
+        <option value="">Select Source</option>
+        <?php while($row = mysqli_fetch_assoc($sources_result)): ?>
+            <option value="<?= $row['agency_name']; ?>"><?= htmlspecialchars($row['agency_name']); ?></option>
+        <?php endwhile; ?>
+    </select>
+</div>
+
         </div>
 
         <!-- Row 5: Profit, Payment Status, and Payment Method -->

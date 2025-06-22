@@ -190,6 +190,15 @@
     <li>
       <a class="dropdown-item" href="#">Summary</a>
     </li>
+        <li>
+      <a class="dropdown-item" href="payable.php">Payable</a>
+    </li>
+        <li>
+      <a class="dropdown-item" href="receiveable.php">Receiveable</a>
+    </li>
+            <li>
+      <a class="dropdown-item" href="paid.php">Paid</a>
+    </li>
     <li>
       <a class="dropdown-item" href="#">Air ticket</a>
     </li>
@@ -217,7 +226,7 @@
           role="button"
           aria-expanded="false"
         >
-          Add Passengers
+          Add
         </a>
 
         <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
@@ -229,6 +238,9 @@
           </li>
                     <li>
             <a class="dropdown-item" href="passenger_list.php">Passenger List</a>
+          </li>
+            <li>
+            <a class="dropdown-item" href="insert_sources.php">Sourcing</a>
           </li>
         </ul>
       </li>

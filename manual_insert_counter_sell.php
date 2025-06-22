@@ -7,8 +7,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         (PartyName,section, PassengerName, TicketRoute, TicketNumber, IssueDate, FlightDate, ReturnDate, 
         PNR, BillAmount, NetPayment, Profit, PaymentStatus, PaidAmount, DueAmount, 
         PaymentMethod, BankName, ReceivedDate, DepositDate, 
-        ClearingDate, SalesPersonName,airlines,Class) 
-        VALUES ('Counter Sell','counter', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        ClearingDate, SalesPersonName,airlines,Class,Remarks) 
+        VALUES ('Counter Sell','counter', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Sell')");
 
     // Calculate Profit and Due Amount
     $profit = $_POST['BillAmount'] - $_POST['NetPayment'];

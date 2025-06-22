@@ -145,3 +145,23 @@ Method: POST
 User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36 Edg/137.0.0.0
 Referer: http://127.0.0.1/faithtrip/accounts/invoice_cart2.php?delete_id=70
 ----------------------
+⚠️ Blocked request at 2025-06-18 16:00:15
+Method: POST
+User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36 Edg/137.0.0.0
+Referer: http://127.0.0.1/faithtrip/accounts/invoice_cart2.php
+----------------------
+⚠️ Blocked request at 2025-06-19 09:37:20
+Method: POST
+User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36 Edg/137.0.0.0
+Referer: http://127.0.0.1/faithtrip/accounts/invoice_cart2.php
+----------------------
+⚠️ Blocked request at 2025-06-19 09:43:18
+Method: POST
+User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36 Edg/137.0.0.0
+Referer: http://127.0.0.1/faithtrip/accounts/invoice_cart2.php
+----------------------
+⚠️ Blocked request at 2025-06-21 10:20:45
+Method: POST
+User Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36 Edg/137.0.0.0
+Referer: http://127.0.0.1/faithtrip/accounts/invoice_cart2.php
+----------------------

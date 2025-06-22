@@ -3,7 +3,8 @@ $conn = new mysqli("localhost", "root", "", "faithtrip_accounts");
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
-
+$sources_query = "SELECT agency_name FROM sources";
+$sources_result = mysqli_query($conn, $sources_query);
 ?>
 
 <!DOCTYPE html>
@@ -142,6 +143,15 @@ if ($conn->connect_error) {
                 <label for="NetPayment">Net Payment:</label>
                 <input type="number" name="NetPayment" id="netPayment" required>
             </div>
+                        <div class="form-group">
+    <label for="source_id">Source (Agency Name)</label>
+    <select name="source_id" id="source_id" class="form-control" required>
+        <option value="">Select Source</option>
+        <?php while($row = mysqli_fetch_assoc($sources_result)): ?>
+            <option value="<?= $row['agency_name']; ?>"><?= htmlspecialchars($row['agency_name']); ?></option>
+        <?php endwhile; ?>
+    </select>
+</div>
         </div>
 
         <!-- Row 5: Profit, Payment Status, and Payment Method -->
@@ -187,6 +197,7 @@ if ($conn->connect_error) {
                     <option value="">Select Salesperson</option>
                 </select>
             </div>
+            
                                     <div class="form-group">
                 <label for="PaymentMethod">Seat Class:</label>
                 <select name="Class" id="seat" required>

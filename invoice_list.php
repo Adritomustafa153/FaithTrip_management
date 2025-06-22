@@ -254,7 +254,7 @@ if (isset($_GET['delete'])) {
             <td style="font-size: 12px;"><?= htmlspecialchars($row['SalesPersonName']) ?></td>
             <td>
     <?php if (isset($row['SaleID'])): ?>
-        <a href="edit.php?id=<?php echo htmlspecialchars($row['SaleID']); ?>" class="btn edit-btn" >
+        <a href="redirect_edit.php?id=<?php echo htmlspecialchars($row['SaleID']); ?>" class="btn edit-btn" >
             <i class="fas fa-edit"></i> Edit
         </a><br>
         <a href="invoice_list.php?delete=<?php echo htmlspecialchars($row['SaleID']); ?>" class="btn delete-btn" 

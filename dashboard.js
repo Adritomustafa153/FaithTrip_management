@@ -3,6 +3,11 @@ function updateDateTime() {
     const dateTimeElement = document.getElementById('date-time');
     dateTimeElement.innerText = now.toLocaleString();
 }
+function updateDashboard() {
+  const filter = document.getElementById('salesFilter').value;
+  window.location.href = `dashboard.php?filter=${filter}`;
+}
+
 
 setInterval(updateDateTime, 1000);
 updateDateTime();
