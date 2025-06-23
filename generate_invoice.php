@@ -1,11 +1,11 @@
 
 <?php
-file_put_contents('debug_log.txt', 
-    "⚠️ Blocked request at " . date('Y-m-d H:i:s') . "\n" .
-    "Method: " . $_SERVER['REQUEST_METHOD'] . "\n" .
-    "User Agent: " . ($_SERVER['HTTP_USER_AGENT'] ?? 'N/A') . "\n" .
-    "Referer: " . ($_SERVER['HTTP_REFERER'] ?? 'N/A') . "\n" .
-    "----------------------\n", FILE_APPEND);
+// file_put_contents('debug_log.txt', 
+//     "⚠️ Blocked request at " . date('Y-m-d H:i:s') . "\n" .
+//     "Method: " . $_SERVER['REQUEST_METHOD'] . "\n" .
+//     "User Agent: " . ($_SERVER['HTTP_USER_AGENT'] ?? 'N/A') . "\n" .
+//     "Referer: " . ($_SERVER['HTTP_REFERER'] ?? 'N/A') . "\n" .
+//     "----------------------\n", FILE_APPEND);
 
 
 ob_clean();
@@ -209,7 +209,7 @@ $pdf->writeHTMLCell(0, 0, '', '', $notes, 0, 1, 0, true, 'L', true);
 $pdf->Ln(10);
 $pdf->SetFont('helvetica', 'B', 10);
 $pdf->Write(0, "We Accept:", '', 0, 'L', true);
-$logos = ['visa.png', 'master.png', 'amex.png', 'unionpay.png', 'diners.jpg', 'npsb.jpeg', 'discover.jpg'];
+$logos = ['visa.png', 'master.png', 'amex.png', 'unionpay.png', 'diners.jpg', 'npsb.jpeg', 'discover.jpg', 'tkpay.jpeg'];
 $x = 25;
 foreach ($logos as $logo) {
     $pdf->Image(__DIR__ . "/payment_icons/$logo", $x, $pdf->GetY() + 2, 15);
@@ -244,6 +244,8 @@ if (!$mail->send()) {
     echo 'Mailer Error: ' . $mail->ErrorInfo;
     exit;
 }
-
-header("Location: invoice_list.php");
+$_SESSION['invoice_sent'] = true;
+$_SESSION['invoice_file'] = $fileName;
+$_SESSION['invoice_email'] = $client_email;
+header("Location: mail_success.php");
 exit;

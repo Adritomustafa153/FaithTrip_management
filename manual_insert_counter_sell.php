@@ -7,8 +7,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         (PartyName,section, PassengerName, TicketRoute, TicketNumber, IssueDate, FlightDate, ReturnDate, 
         PNR, BillAmount, NetPayment, Profit, PaymentStatus, PaidAmount, DueAmount, 
         PaymentMethod, BankName, ReceivedDate, DepositDate, 
-        ClearingDate, SalesPersonName,airlines,Class,Remarks) 
-        VALUES ('Counter Sell','counter', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Sell')");
+        ClearingDate, SalesPersonName,airlines,Class,Remarks,Source) 
+        VALUES ('Counter Sell','counter', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Sell', ?)");
 
     // Calculate Profit and Due Amount
     $profit = $_POST['BillAmount'] - $_POST['NetPayment'];
@@ -16,7 +16,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Bind parameters correctly
     $stmt->bind_param(
-        "sssssssdddsddssssssss", 
+        "sssssssdddsddsssssssss", 
         $_POST['PassengerName'], $_POST['TicketRoute'], $_POST['TicketNumber'], 
         $_POST['IssueDate'], $_POST['FlightDate'], $_POST['ReturnDate'], 
         $_POST['PNR'], $_POST['BillAmount'], $_POST['NetPayment'], $profit, 
@@ -24,7 +24,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $_POST['PaymentMethod'], $_POST['BankName'],
          $_POST['ReceivedDate'], $_POST['DepositDate'], 
         $_POST['ClearingDate'], $_POST['SalesPersonName'],
-        $_POST['airlines'],$_POST['Class']
+        $_POST['airlines'],$_POST['Class'],$_POST['source_id']
     );
 
     if ($stmt->execute()) {

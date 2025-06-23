@@ -66,7 +66,7 @@ $result = mysqli_query($conn, $query);
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Payable (Unified View)</title>
+    <title>Payable</title>
     <style>
         body { font-family: Arial;}
         table { border-collapse: collapse; width: 100%; margin-top: 20px; }

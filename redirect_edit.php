@@ -21,7 +21,7 @@ $conn->close();
 
 switch (strtolower($sale_type)) {
     case 'counter':
-        header("Location: edit.php?sale_id=$sale_id");
+        header("Location: edit_counter_sell.php?sale_id=$sale_id");
         break;
     case 'agent':
         header("Location: edit_agent.php?sale_id=$sale_id");

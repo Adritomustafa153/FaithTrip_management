@@ -208,7 +208,7 @@ $pdf->writeHTMLCell(0, 0, '', '', $notes, 0, 1, 0, true, 'L', true);
 $pdf->Ln(10);
 $pdf->SetFont('helvetica', 'B', 10);
 $pdf->Write(0, "We Accept:", '', 0, 'L', true);
-$logos = ['visa.png', 'master.png', 'amex.png', 'unionpay.png', 'diners.jpg', 'npsb.jpeg', 'discover.jpg'];
+$logos = ['visa.png', 'master.png', 'amex.png', 'unionpay.png', 'diners.jpg', 'npsb.jpeg', 'discover.jpg', 'tkpay.jpeg'];
 $x = 25;
 foreach ($logos as $logo) {
     $pdf->Image(__DIR__ . "/payment_icons/$logo", $x, $pdf->GetY() + 2, 15);
@@ -243,6 +243,8 @@ if (!$mail->send()) {
     echo 'Mailer Error: ' . $mail->ErrorInfo;
     exit;
 }
-
-header("Location: invoice_list.php");
+$_SESSION['invoice_sent'] = true;
+$_SESSION['invoice_file'] = $fileName;
+$_SESSION['invoice_email'] = $client_email;
+header("Location: mail_success.php");
 exit;

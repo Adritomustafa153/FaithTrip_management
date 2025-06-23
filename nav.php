@@ -74,12 +74,6 @@
           <li>
             <a class="dropdown-item" href="counter_auto_insert.php">Counter Sell</a>
           </li>
-          <li>
-            <a class="dropdown-item" href="reissue.php">Reissue</a>
-          </li>
-                              <li>
-            <a class="dropdown-item" href="counter_auto_insert.php">Refund</a>
-          </li>
         </ul>
 
 
@@ -104,12 +98,6 @@
           </li>
           <li>
             <a class="dropdown-item" href="counter_sell_manual_insert.php">Counter Sell</a>
-          </li>
-          <li>
-            <a class="dropdown-item" href="reissue.php">Reissue</a>
-          </li>
-                    <li>
-            <a class="dropdown-item" href="counter_auto_insert.php">Refund</a>
           </li>
         </ul>
       </li>
@@ -235,6 +223,9 @@
           </li>
           <li>
             <a class="dropdown-item" href="#">Corporate</a>
+          </li>
+                      <li>
+            <a class="dropdown-item" href="insert_agent.php">Agents</a>
           </li>
                     <li>
             <a class="dropdown-item" href="passenger_list.php">Passenger List</a>
