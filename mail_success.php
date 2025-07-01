@@ -27,7 +27,7 @@ unset($_SESSION['invoice_sent']);
         .message {
             font-size: 22px;
             margin-top: 20px;
-            color: #2e7d32;
+            color:rgb(25, 98, 255);
         }
     </style>
 </head>

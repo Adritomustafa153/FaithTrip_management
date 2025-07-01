@@ -4,6 +4,8 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
+
+
 // Fetch company names for dropdown
 $companyQuery = "SELECT DISTINCT PartyName FROM sales";
 $companyResult = $conn->query($companyQuery);
@@ -237,7 +239,8 @@ if (isset($_GET['delete'])) {
     <div>
       <a href="redirect_reissue.php?id=<?= $row['SaleID'] ?>" class="btn btn-success btn-sm mt-1">Reissue</a>
       <a href="edit_invoice.php?id=<?= $row['SaleID'] ?>" class="btn btn-warning btn-sm mt-1">Refund</a>
-      <div><small style="color: green;">✔ Invoice generated</small></div>
+      <!-- <div><small style="color: green;">✔ Invoice generated</small></div> -->
+       <a class="view-btn" href="invoices/<?= $row['Invoice_number'] ?>.pdf" target="_blank">View Invoice</a>
     </div>
   <?php endif; ?>
 </td>

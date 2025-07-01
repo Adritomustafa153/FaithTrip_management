@@ -1,0 +1,8 @@
+Array
+(
+    [clientType] => company
+    [clientName] => Paramount Textiles Limited
+    [clientNameManual] => 
+    [address] => House #22, Road #113/A, Gulshan Circle 2, Dhaka-1212, Bangladesh.
+    [client_email] => director@faithtrip.net
+)

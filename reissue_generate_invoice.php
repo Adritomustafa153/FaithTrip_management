@@ -1,13 +1,11 @@
-
 <?php
-file_put_contents('debug_log.txt', 
-    "⚠️ Blocked request at " . date('Y-m-d H:i:s') . "\n" .
-    "Method: " . $_SERVER['REQUEST_METHOD'] . "\n" .
-    "User Agent: " . ($_SERVER['HTTP_USER_AGENT'] ?? 'N/A') . "\n" .
-    "Referer: " . ($_SERVER['HTTP_REFERER'] ?? 'N/A') . "\n" .
-    "----------------------\n", FILE_APPEND);
-
-
+// file_put_contents('debug_log.txt', 
+//     "⚠️ Blocked request at " . date('Y-m-d H:i:s') . "\n" .
+//     "Method: " . $_SERVER['REQUEST_METHOD'] . "\n" .
+//     "User Agent: " . ($_SERVER['HTTP_USER_AGENT'] ?? 'N/A') . "\n" .
+//     "Referer: " . ($_SERVER['HTTP_REFERER'] ?? 'N/A') . "\n" .
+//     "----------------------\n", FILE_APPEND);
+file_put_contents('debug.txt', print_r($_POST, true));
 ob_clean();
 ob_start();
 
@@ -64,14 +62,11 @@ function convertTwoDigits($number, $words) {
     return $words[$tens] . ($units ? ' ' . $words[$units] : '');
 }
 
-
-
-$invoiceNumber = 'RE -' . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+// START PROCESS
+$invoiceNumber = 'INV-' . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
 
 try {
     $pdo = new PDO("mysql:host=localhost;dbname=faithtrip_accounts", "root", "");
-    $stmt = $pdo->prepare("INSERT INTO invoices (Invoice_number, date) VALUES (?, NOW())");
-    $stmt->execute([$invoiceNumber]);
 } catch (Exception $e) {
     die("Database error: " . $e->getMessage());
 }
@@ -80,10 +75,19 @@ $sales = [];
 $total = 0;
 $ait = 0;
 $gt = 0;
-$pnr = '';
 
-$client_name = isset($_POST['client_name']) ? $_POST['client_name'] : 'Unknown Client';
-$client_address = isset($_POST['client_address']) ? $_POST['client_address'] : 'Unknown Address';
+$pnr = '';
+$partyName = '';
+$issueDate = '';
+$flightDate = '';
+$returnDate = '';
+$sellingPrice = 0;
+$section = '';
+
+$client_name = $_POST['ClientName'] ?? $_POST['ClientName'] ?? 'Unknown Client';
+
+$client_address = $_POST['client_address'] ?? $_POST['ClientAddress'] ?? 'Unknown Address';
+
 
 if (!empty($_SESSION['invoice_cart'])) {
     $id_list = implode(",", array_map('intval', $_SESSION['invoice_cart']));
@@ -92,23 +96,55 @@ if (!empty($_SESSION['invoice_cart'])) {
     while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
         if (empty($pnr)) {
             $pnr = $row['PNR'];
+            $partyName = $row['PartyName'];
+            $issueDate = $row['IssueDate'];
+            $flightDate = $row['FlightDate'];
+            $returnDate = $row['ReturnDate'];
         }
         $sales[] = $row;
         $total += $row['BillAmount'];
     }
-    $ait = $total * 0.003;
+
+    // $ait = $total * 0.003;
+    $ait = 0;
     $gt = $total + $ait;
+        $sellingPrice = $gt;
+$client_name = '';
+
+if (isset($_POST['ClientNameManual']) && trim($_POST['ClientNameManual']) !== '') {
+    $client_name = trim($_POST['ClientNameManual']);
+} elseif (isset($_POST['ClientNameDropdown']) && trim($_POST['ClientNameDropdown']) !== '') {
+    $client_name = trim($_POST['ClientNameDropdown']);
+} else {
+    $client_name = 'Unknown Client';
 }
 
+$Sales_section = $_POST['clientType'] ?? 'Unknown Client';
 
-$client_name = $_POST['ClientName'] ?? 'Unknown Client';
+
 $client_address = $_POST['address'] ?? 'Unknown Address';
 $client_email = $_POST['client_email'] ?? 'No Email';
+    // Insert into invoices table with additional ticket fields
+    $stmt = $pdo->prepare("INSERT INTO invoices 
+        (Invoice_number, date, PNR, PartyName, IssueDate, FlightDate, ReturnDate, SellingPrice, Section) 
+        VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->execute([
+        $invoiceNumber,
+        $pnr,
+        $client_name,
+        $issueDate,
+        $flightDate,
+        $returnDate,
+        $sellingPrice,
+        $Sales_section
+    ]);
+}
+
+// PDF and email logic (same as before)
 
 $pdf = new TCPDF();
 $pdf->SetPrintHeader(false);
 $pdf->AddPage();
-
 $pdf->Image('logo.jpg', 10, 14, 30);
 $pdf->SetY(10);
 $pdf->SetX(80);
@@ -119,13 +155,13 @@ $barcodeStyle = [
     'font' => 'helvetica', 'fontsize' => 10, 'stretchtext' => 4
 ];
 $pdf->write1DBarcode($invoiceNumber, 'C128', '70.0', '16.0', '45', 18, 0.4, $barcodeStyle, 'N');
-
 $pdf->SetFont('helvetica', 'B', 18);
 $pdf->SetTextColor(0, 102, 204);
 $pdf->Text(80, 40, 'INVOICE');
-
 $pdf->SetFont('helvetica', '', 10);
 $pdf->SetTextColor(0, 0, 0);
+
+// Company Info
 $companyInfo = <<<EOF
 <table style="font-family: helvetica; font-size: 10pt; text-align: right;" border="0" cellpadding="2">
   <tr><td colspan="2" style="font-size: 14pt;"><h3>Faith Travels and Tours LTD</h3></td></tr>
@@ -134,30 +170,23 @@ $companyInfo = <<<EOF
   <tr><td colspan="2">+8801896459490, +8801896459495</td></tr>
 </table>
 EOF;
+
 $pdf->SetXY(110, 10);
 $pdf->writeHTMLCell(0, 0, '', '', $companyInfo, 0, 1, 0, true, 'R', true);
-
-$pdf->SetTextColor(0, 0, 0);
 $pdf->SetXY(150, 45);
-$today = date('d M Y');
-$pdf->MultiCell(50, 0, "Date: $today\nInvoice: $invoiceNumber", 0, 'R');
+$pdf->MultiCell(50, 0, "Date: " . date('d M Y') . "\nInvoice: $invoiceNumber", 0, 'R');
 
-// Modify the clientInfo section to include box shadow styling:
 $clientInfo = <<<EOD
 <div style="padding: 0px;margin-top: 0px;margin-bottom: 2px; background-color:rgb(248, 246, 246);">
     <p><b>Client Name: </b>{$client_name}</p>
-        <p><b>Client Address: </b>{$client_address}</p>
+    <p><b>Client Address: </b>{$client_address}</p>
 </div>
 EOD;
-
 $pdf->SetY(40);
 $pdf->Ln(20);
 $pdf->writeHTML($clientInfo, true, false, true, false, '');
 
-$html = '<style>
-tr {border-bottom: 1px solid #ccc;}
-th {background-color:rgb(0, 98, 202); color: white;}
-</style>';
+$html = '<style>tr {border-bottom: 1px solid #ccc;} th {background-color:rgb(0, 98, 202); color: white;}</style>';
 $html .= '<table cellpadding="4" cellspacing="0" width="100%" style="border-collapse:collapse;">
 <thead>
 <tr>
@@ -173,12 +202,12 @@ $html .= '<table cellpadding="4" cellspacing="0" width="100%" style="border-coll
 $serial = 1;
 foreach ($sales as $row) {
     $html .= '<tr>';
-    $html .= '<td width="5%">' . $serial++ . '</td>';
-    $html .= '<td width="20%">' . htmlspecialchars($row['PassengerName']) . '</td>';
-    $html .= '<td width="25%">Route: <b>' . htmlspecialchars($row['TicketRoute']) . '</b><br>Airlines: <b>' . htmlspecialchars($row['airlines']) . '</b><br>Departure: <b>' . htmlspecialchars($row['FlightDate']) . '</b><br>Return: <b>' . htmlspecialchars($row['ReturnDate']) . '</b></td>';
-    $html .= '<td width="25%">Ticket No: <b>' . htmlspecialchars($row['TicketNumber']) . '</b><br>PNR: <b>' . htmlspecialchars($row['PNR']) . '</b><br>Issued: <b>' . htmlspecialchars($row['IssueDate']) . '</b><br>Seat Class: <b>' . htmlspecialchars($row['Class']) . '</b></td>';
-    $html .= '<td width="12%"> Reissue</td>';
-    $html .= '<td width="13%">' . number_format($row['BillAmount'], 2) . '</td>';
+    $html .= '<td>' . $serial++ . '</td>';
+    $html .= '<td>' . htmlspecialchars($row['PassengerName']) . '</td>';
+    $html .= '<td>Route: <b>' . htmlspecialchars($row['TicketRoute']) . '</b><br>Airlines: <b>' . htmlspecialchars($row['airlines']) . '</b><br>Departure: <b>' . htmlspecialchars($row['FlightDate']) . '</b><br>Return: <b>' . htmlspecialchars($row['ReturnDate']) . '</b></td>';
+    $html .= '<td>Ticket No: <b>' . htmlspecialchars($row['TicketNumber']) . '</b><br>PNR: <b>' . htmlspecialchars($row['PNR']) . '</b><br>Issued: <b>' . htmlspecialchars($row['IssueDate']) . '</b><br>Seat Class: <b>' . htmlspecialchars($row['Class']) . '</b></td>';
+    $html .= '<td>Reissue</td>';
+    $html .= '<td>' . number_format($row['BillAmount'], 2) . '</td>';
     $html .= '</tr>';
 }
 
@@ -220,6 +249,7 @@ $filePath = __DIR__ . "/invoices/" . $fileName;
 ob_end_clean();
 $pdf->Output($filePath, 'F');
 
+// Send email
 $mail = new PHPMailer\PHPMailer\PHPMailer();
 $mail->isSMTP();
 $mail->Host = 'smtp.gmail.com';
@@ -231,11 +261,7 @@ $mail->Port = 587;
 $mail->setFrom('info@faithtrip.net', 'Faith Travels and Tours LTD');
 $mail->addAddress($client_email);
 $mail->Subject = 'Your Invoice - ' . $invoiceNumber;
-$mail->Body = 'Dear Sir/Mam, 
-
-Greetings From Faith Travels and Tours LTD. Thank You for being with faith Travels and Tours LTD. 
-
-If you have any confussion please feel free to reach us.Please find your invoice attached.';
+$mail->Body = "Dear Sir/Mam,\n\nGreetings From Faith Travels and Tours LTD. Thank You for being with us.\n\nIf you have any confusion please feel free to reach us. Please find your invoice attached.";
 
 $mail->addAttachment($filePath);
 
@@ -243,8 +269,10 @@ if (!$mail->send()) {
     echo 'Mailer Error: ' . $mail->ErrorInfo;
     exit;
 }
+
 $_SESSION['invoice_sent'] = true;
 $_SESSION['invoice_file'] = $fileName;
 $_SESSION['invoice_email'] = $client_email;
+
 header("Location: mail_success.php");
 exit;
