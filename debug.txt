@@ -1,8 +1,8 @@
 Array
 (
-    [clientType] => company
-    [ClientNameDropdown] => Fashion Steps LTD
+    [clientType] => agent
+    [ClientNameDropdown] => Riaz Telecom
     [ClientNameManual] => 
-    [address] => Plot#16 (old – 101) Block # D, Tongi I/A,Gazipur-1712, Bangladesh
-    [client_email] => marketing1@faithtrip.net
+    [address] => riaztelecom,  post office  : poddarbazar 3706,  sadar : lakshmipur
+    [client_email] => riaztelecom.bablu@gmail.com
 )
