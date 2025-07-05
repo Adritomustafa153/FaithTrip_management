@@ -1,64 +1,168 @@
 <?php
+require 'vendor/autoload.php';
 include 'db.php';
 
-// Get the selected party name from the request
-$party_name = isset($_GET['party_name']) ? urldecode($_GET['party_name']) : '';
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 
-// Set headers for Excel file download
-header("Content-Type: application/vnd.ms-excel");
-header("Content-Disposition: attachment; filename=\"".($party_name ? $party_name.'_' : '')."Outstanding_Report_".date('Y-m-d').".xls\"");
-header("Pragma: no-cache");
-header("Expires: 0");
+$party_name = isset($_GET['party']) ? urldecode($_GET['party']) : '';
+$from_date = isset($_GET['from_date']) ? $_GET['from_date'] : '';
+$to_date = isset($_GET['to_date']) ? $_GET['to_date'] : '';
 
-// Query to get data for the selected party only
-$sql = "SELECT * FROM sales WHERE PaymentStatus != 'Paid'";
+$sql = "SELECT * FROM sales WHERE (PaymentStatus = 'Due' OR PaymentStatus = 'Partially Paid')";
 if (!empty($party_name) && strtolower($party_name) !== 'all') {
-    $sql .= " AND PartyName = '".mysqli_real_escape_string($conn, $party_name)."'";
+    $sql .= " AND PartyName = '" . mysqli_real_escape_string($conn, $party_name) . "'";
 }
+if (!empty($from_date) && !empty($to_date)) {
+    $sql .= " AND IssueDate BETWEEN '" . mysqli_real_escape_string($conn, $from_date) . "' AND '" . mysqli_real_escape_string($conn, $to_date) . "'";
+}
+$sql .= " ORDER BY IssueDate DESC";
 
 $result = mysqli_query($conn, $sql);
 
-// Calculate total amount
-$total_amount = 0;
-while ($row = mysqli_fetch_assoc($result)) {
-    $total_amount += $row['DueAmount'];
-}
-mysqli_data_seek($result, 0); // Reset result pointer
+$spreadsheet = new Spreadsheet();
+$sheet = $spreadsheet->getActiveSheet();
+$sheet->setTitle('Receivables');
 
-// Function to convert number to words
+// Add Logo (Bigger)
+$logoPath = 'logo.jpg';
+if (file_exists($logoPath)) {
+    $drawing = new Drawing();
+    $drawing->setPath($logoPath);
+    $drawing->setHeight(100); // increased height
+    $drawing->setCoordinates('D1');
+    $drawing->setWorksheet($sheet);
+}
+
+// Centered Company Info with Merged Rows
+$sheet->mergeCells('B1:N1')->setCellValue('B1', 'FAITH TRIP INTERNATIONAL');
+$sheet->mergeCells('B2:N2')->setCellValue('B2', 'Abedin Tower (Level 5), Road 17, 35 Kamal Ataturk Avenue, Banani C/A, Dhaka 1213');
+$sheet->mergeCells('B3:N3')->setCellValue('B3', 'Email: info@faithtrip.net | Phone: +8801896459590, +8801896459495');
+
+$sheet->getStyle('B1:B3')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+$sheet->getStyle('B1:B3')->getFont()->setBold(true);
+
+// Filter Info
+$row = 5;
+$filter_label = "Receivable report for " . ($party_name ?: 'All Parties');
+if ($from_date && $to_date) {
+    $filter_label .= " from $from_date to $to_date";
+}
+$sheet->mergeCells("A{$row}:N{$row}")->setCellValue("A{$row}", $filter_label);
+$sheet->getStyle("A{$row}")->getFont()->setBold(true)->setSize(14);
+$sheet->getStyle("A{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+// Header Row
+$row += 2;
+$headers = ['SL', 'Section', 'Party Name', 'Passenger', 'Airline', 'Route', 'Ticket No', 'Issue Date', 'Days Passed', 'PNR', 'Bill Amount', 'Status', 'Paid', 'Due', 'Sales Person'];
+$col = 'A';
+foreach ($headers as $header) {
+    $sheet->setCellValue("{$col}{$row}", $header);
+    $sheet->getStyle("{$col}{$row}")->getFont()->setBold(true);
+    $sheet->getStyle("{$col}{$row}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('D9EDF7');
+    $sheet->getStyle("{$col}{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+    
+    // Set smaller widths for Party Name and Passenger
+    if ($header == 'Party Name' || $header == 'Passenger') {
+        $sheet->getColumnDimension($col)->setWidth(15);
+    } else {
+        $sheet->getColumnDimension($col)->setAutoSize(true);
+    }
+    $col++;
+}
+
+// Set Ticket No column (G) to text format
+$sheet->getStyle('G:G')->getNumberFormat()->setFormatCode('@');
+
+// Data Rows
+$row++;
+$sl = 1;
+$total_bill = $total_due = $total_paid = 0;
+
+while ($data = mysqli_fetch_assoc($result)) {
+    $col = 'A';
+    $issue_date = new DateTime($data['IssueDate']);
+    $days_passed = $issue_date->diff(new DateTime())->days;
+
+    $sheet->setCellValue($col++ . $row, $sl++);
+    $sheet->setCellValue($col++ . $row, $data['section']);
+    $sheet->setCellValue($col++ . $row, $data['PartyName']);
+    $sheet->setCellValue($col++ . $row, $data['PassengerName']);
+    $sheet->setCellValue($col++ . $row, $data['airlines']);
+    $sheet->setCellValue($col++ . $row, $data['TicketRoute']);
+    $sheet->setCellValueExplicit($col++ . $row, $data['TicketNumber'], DataType::TYPE_STRING);
+    $sheet->setCellValue($col++ . $row, $data['IssueDate']);
+    $sheet->setCellValue($col++ . $row, $days_passed . " days");
+    $sheet->setCellValue($col++ . $row, $data['PNR']);
+    $sheet->setCellValue($col++ . $row, $data['BillAmount']);
+    $sheet->setCellValue($col++ . $row, $data['PaymentStatus']);
+    $sheet->setCellValue($col++ . $row, $data['PaidAmount']);
+    $sheet->setCellValue($col++ . $row, $data['DueAmount']);
+    $sheet->setCellValue($col++ . $row, $data['SalesPersonName']);
+
+    $total_bill += $data['BillAmount'];
+    $total_due += $data['DueAmount'];
+    $total_paid += $data['PaidAmount'];
+    $row++;
+}
+
+// Totals Row
+$sheet->setCellValue("J{$row}", 'Total:');
+$sheet->setCellValue("K{$row}", $total_bill);
+$sheet->setCellValue("L{$row}", '');
+$sheet->setCellValue("M{$row}", $total_paid);
+$sheet->setCellValue("N{$row}", $total_due);
+$sheet->getStyle("J{$row}:N{$row}")->getFont()->setBold(true);
+$sheet->getStyle("J{$row}:N{$row}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('F9F9F9');
+
+// Amount in Words (Bold)
+$row++;
+$amount_words = "In Words: " . numberToWords($total_due);
+$sheet->mergeCells("A{$row}:N{$row}")->setCellValue("A{$row}", $amount_words);
+$sheet->getStyle("A{$row}")->getFont()->setItalic(true)->setBold(true);
+
+// Borders
+$sheet->getStyle("A8:N" . ($row - 1))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+
+// Output
+$filename = ($party_name ? $party_name . '_' : '') . 'Receivable_Report_' . date('Y-m-d') . '.xlsx';
+header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+header("Content-Disposition: attachment; filename=\"$filename\"");
+header('Cache-Control: max-age=0');
+$writer = new Xlsx($spreadsheet);
+$writer->save('php://output');
+mysqli_close($conn);
+exit();
+
 function numberToWords($num) {
-    $ones = array("", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine");
-    $tens = array("", "Ten", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety");
-    $teens = array("Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen");
-    
+    $ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
+    $tens = ["", "Ten", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+    $teens = ["Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+
     if ($num == 0) return "Zero";
-    
+
     $words = "";
-    
     if ($num >= 10000000) {
-        $crores = (int)($num / 10000000);
-        $words .= numberToWords($crores) . " Crore ";
+        $words .= numberToWords((int)($num / 10000000)) . " Crore ";
         $num %= 10000000;
     }
-    
     if ($num >= 100000) {
-        $lakhs = (int)($num / 100000);
-        $words .= numberToWords($lakhs) . " Lakh ";
+        $words .= numberToWords((int)($num / 100000)) . " Lakh ";
         $num %= 100000;
     }
-    
     if ($num >= 1000) {
-        $thousands = (int)($num / 1000);
-        $words .= numberToWords($thousands) . " Thousand ";
+        $words .= numberToWords((int)($num / 1000)) . " Thousand ";
         $num %= 1000;
     }
-    
     if ($num >= 100) {
-        $hundreds = (int)($num / 100);
-        $words .= $ones[$hundreds] . " Hundred ";
+        $words .= $ones[(int)($num / 100)] . " Hundred ";
         $num %= 100;
     }
-    
     if ($num >= 20) {
         $words .= $tens[(int)($num / 10)] . " ";
         $num %= 10;
@@ -66,159 +170,9 @@ function numberToWords($num) {
         $words .= $teens[$num - 10] . " ";
         $num = 0;
     }
-    
     if ($num > 0) {
         $words .= $ones[$num] . " ";
     }
-    
+
     return trim($words) . " Taka Only";
 }
-
-// Path to your logo file (replace with actual path)
-$logo_path = 'logo.jpg';
-
-// Check if logo exists and get base64 encoded version
-$logo_data = '';
-if (file_exists($logo_path)) {
-    $logo_type = pathinfo($logo_path, PATHINFO_EXTENSION);
-    $logo_data = 'data:image/' . $logo_type . ';base64,' . base64_encode(file_get_contents($logo_path));
-}
-?>
-
-<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <!--[if gte mso 9]>
-    <xml>
-        <x:ExcelWorkbook>
-            <x:ExcelWorksheets>
-                <x:ExcelWorksheet>
-                    <x:Name>Outstanding Report</x:Name>
-                    <x:WorksheetOptions>
-                        <x:DisplayGridlines/>
-                    </x:WorksheetOptions>
-                </x:ExcelWorksheet>
-            </x:ExcelWorksheets>
-        </x:ExcelWorkbook>
-    </xml>
-    <![endif]-->
-    <style>
-        .company-header {
-            font-size: 14px;
-            margin-bottom: 20px;
-        }
-        .report-title {
-            font-size: 16px;
-            font-weight: bold;
-            margin-bottom: 10px;
-            text-align: center;
-        }
-        .total-row {
-            font-weight: bold;
-            background-color: #f2f2f2;
-        }
-        .amount-in-words {
-            font-style: italic;
-            margin-top: 5px;
-        }
-        table {
-            border-collapse: collapse;
-            width: 100%;
-        }
-        th, td {
-            border: 1px solid #dddddd;
-            text-align: left;
-            padding: 8px;
-        }
-        th {
-            background-color: #f2f2f2;
-            text-align: center;
-        }
-        .numeric {
-            text-align: right;
-        }
-        .logo-cell {
-            height: 80px;
-            vertical-align: top;
-        }
-    </style>
-</head>
-<body>
-    <!-- Company Header with Logo -->
-    <table width="100%" class="company-header">
-        <tr>
-            <td width="20%" class="logo-cell">
-                <?php if (!empty($logo_data)): ?>
-                    <img src="<?php echo $logo_data; ?>" alt="Company Logo" style="height: 60px;">
-                <?php else: ?>
-                    [LOGO]
-                <?php endif; ?>
-            </td>
-            <td width="80%">
-                <strong>FAITH TRIP INTERNATIONAL</strong><br>
-                Abedin Tower (Level 5), Road 17, 35 Kamal Ataturk Avenue,<br>
-                Banani C/A, Banani, Dhaka 1213<br>
-                Email: info@faithtrip.net, director@faithtrip.net<br>
-                Phone: +8801896459590, +8801896459495
-            </td>
-        </tr>
-    </table>
-    
-    <!-- Report Title -->
-    <div class="report-title">
-        Outstanding report for <?php echo htmlspecialchars($party_name ? $party_name : 'All Parties'); ?>
-    </div>
-    
-    <!-- Data Table -->
-    <table>
-        <thead>
-            <tr>
-                <th>SL</th>
-                <th>Date</th>
-                <th>Party Name</th>
-                <th>Passenger Name</th>
-                <th>Ticket No</th>
-                <th>PNR</th>
-                <th>Bill Amount</th>
-                <th>Paid Amount</th>
-                <th>Due Amount</th>
-                <th>Payment Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php 
-            $sl = 1;
-            while ($row = mysqli_fetch_assoc($result)): 
-            ?>
-                <tr>
-                    <td><?php echo $sl++; ?></td>
-                    <td><?php echo $row['IssueDate']; ?></td>
-                    <td><?php echo $row['PartyName']; ?></td>
-                    <td><?php echo $row['PassengerName']; ?></td>
-                    <td><?php echo $row['TicketNumber']; ?></td>
-                    <td><?php echo $row['PNR']; ?></td>
-                    <td class="numeric"><?php echo number_format($row['BillAmount'], 2); ?></td>
-                    <td class="numeric"><?php echo number_format($row['PaidAmount'], 2); ?></td>
-                    <td class="numeric"><?php echo number_format($row['DueAmount'], 2); ?></td>
-                    <td><?php echo $row['PaymentStatus']; ?></td>
-                </tr>
-            <?php endwhile; ?>
-            <tr class="total-row">
-                <td colspan="6" align="right"><strong>Total:</strong></td>
-                <td class="numeric"><?php echo number_format($total_amount, 2); ?></td>
-                <td class="numeric"></td>
-                <td class="numeric"><?php echo number_format($total_amount, 2); ?></td>
-                <td></td>
-            </tr>
-            <tr>
-                <td colspan="10" class="amount-in-words">
-                    <strong>In Words:</strong> <?php echo numberToWords($total_amount); ?>
-                </td>
-            </tr>
-        </tbody>
-    </table>
-</body>
-</html>
-<?php
-mysqli_close($conn);
-?>
