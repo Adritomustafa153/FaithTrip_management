@@ -34,7 +34,7 @@ if (file_exists($logoPath)) {
 
 // Header info
 $sheet->mergeCells('B1:H1');
-$sheet->setCellValue('B1', 'FAITH TRIP INTERNATIONAL');
+$sheet->setCellValue('B1', 'Faith Travels and Tours LTD');
 $sheet->getStyle('B1')->getFont()->setBold(true)->setSize(14);
 $sheet->getStyle('B1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 

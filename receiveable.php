@@ -290,9 +290,9 @@ if ($result->num_rows > 0) {
                         <button type="submit" class="btn btn-primary w-100">
                             <i class="fas fa-search me-2"></i>Search
                         </button>
-                        <button type="button" class="btn btn-secondary no-print" onclick="window.print()"> Print
+                        <!-- <button type="button" class="btn btn-secondary no-print" onclick="window.print()"> Print
                             <i class="fas fa-print"></i>
-                        </button>
+                        </button> -->
                         <a href="export_receivables.php?section=<?= urlencode($section_filter) ?>&party=<?= urlencode($party_filter) ?>&from_date=<?= urlencode($from_date) ?>&to_date=<?= urlencode($to_date) ?>&pnr=<?= urlencode($pnr_search) ?>" class="btn btn-success no-print">Excel
                             <i class="fas fa-file-excel"></i>
                         </a>

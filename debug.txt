@@ -1,8 +1,8 @@
 Array
 (
     [clientType] => agent
-    [ClientNameDropdown] => Riaz Telecom
-    [ClientNameManual] => 
-    [address] => riaztelecom,  post office  : poddarbazar 3706,  sadar : lakshmipur
-    [client_email] => riaztelecom.bablu@gmail.com
+    [ClientNameDropdown] => 
+    [ClientNameManual] => AHSAN HABIB
+    [address] => Kanaighat, Sylhet
+    [client_email] => ahsanhabibdob2002@gmail.com
 )
