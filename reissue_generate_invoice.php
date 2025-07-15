@@ -63,7 +63,7 @@ function convertTwoDigits($number, $words) {
 }
 
 // START PROCESS
-$invoiceNumber = 'INV-' . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+$invoiceNumber = 'RE-' . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
 
 try {
     $pdo = new PDO("mysql:host=localhost;dbname=faithtrip_accounts", "root", "");
@@ -202,12 +202,12 @@ $html .= '<table cellpadding="4" cellspacing="0" width="100%" style="border-coll
 $serial = 1;
 foreach ($sales as $row) {
     $html .= '<tr>';
-    $html .= '<td>' . $serial++ . '</td>';
-    $html .= '<td>' . htmlspecialchars($row['PassengerName']) . '</td>';
-    $html .= '<td>Route: <b>' . htmlspecialchars($row['TicketRoute']) . '</b><br>Airlines: <b>' . htmlspecialchars($row['airlines']) . '</b><br>Departure: <b>' . htmlspecialchars($row['FlightDate']) . '</b><br>Return: <b>' . htmlspecialchars($row['ReturnDate']) . '</b></td>';
-    $html .= '<td>Ticket No: <b>' . htmlspecialchars($row['TicketNumber']) . '</b><br>PNR: <b>' . htmlspecialchars($row['PNR']) . '</b><br>Issued: <b>' . htmlspecialchars($row['IssueDate']) . '</b><br>Seat Class: <b>' . htmlspecialchars($row['Class']) . '</b></td>';
-    $html .= '<td>Reissue</td>';
-    $html .= '<td>' . number_format($row['BillAmount'], 2) . '</td>';
+    $html .= '<td width="5%">' . $serial++ . '</td>';
+    $html .= '<td width="20%">' . htmlspecialchars($row['PassengerName']) . '</td>';
+    $html .= '<td width="25%">Route: <b>' . htmlspecialchars($row['TicketRoute']) . '</b><br>Airlines: <b>' . htmlspecialchars($row['airlines']) . '</b><br>Departure: <b>' . htmlspecialchars($row['FlightDate']) . '</b><br>Return: <b>' . htmlspecialchars($row['ReturnDate']) . '</b></td>';
+    $html .= '<td width="25%">Ticket No: <b>' . htmlspecialchars($row['TicketNumber']) . '</b><br>PNR: <b>' . htmlspecialchars($row['PNR']) . '</b><br>Issued: <b>' . htmlspecialchars($row['IssueDate']) . '</b><br>Seat Class: <b>' . htmlspecialchars($row['Class']) . '</b></td>';
+    $html .= '<td width="12%"><b>' . htmlspecialchars($row['Remarks']) . '</b></td>';
+    $html .= '<td width="13%">' . number_format($row['BillAmount'], 2) . '</td>';
     $html .= '</tr>';
 }
 
@@ -254,14 +254,14 @@ $mail = new PHPMailer\PHPMailer\PHPMailer();
 $mail->isSMTP();
 $mail->Host = 'smtp.gmail.com';
 $mail->SMTPAuth = true;
-$mail->Username = 'info@faithtrip.net';
-$mail->Password = 'kbjtsnmotgbwhwvw';
+$mail->Username = 'faithtrip.net@gmail.com';
+$mail->Password = 'hprnbfnzkywrymqw';
 $mail->SMTPSecure = 'tls';
 $mail->Port = 587;
 $mail->setFrom('info@faithtrip.net', 'Faith Travels and Tours LTD');
 $mail->addAddress($client_email);
 $mail->Subject = 'Your Invoice - ' . $invoiceNumber;
-$mail->Body = "Dear Sir/Mam,\n\nGreetings From Faith Travels and Tours LTD. Thank You for being with us.\n\nIf you have any confusion please feel free to reach us. Please find your invoice attached.";
+$mail->Body = "Dear Sir/Mam,\n\nGreetings From Faith Travels and Tours LTD. Thank You for being with us.\n\nIf you have any confusion please feel free to reach us. Please find your Re-Issue invoice attached.";
 
 $mail->addAttachment($filePath);
 

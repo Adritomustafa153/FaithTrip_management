@@ -222,7 +222,7 @@
             <a class="dropdown-item" href="add_passenger.php">Counter</a>
           </li>
           <li>
-            <a class="dropdown-item" href="#">Corporate</a>
+            <a class="dropdown-item" href="corporate_insert.php">Corporate</a>
           </li>
                       <li>
             <a class="dropdown-item" href="insert_agent.php">Agents</a>

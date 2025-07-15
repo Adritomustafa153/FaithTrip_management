@@ -102,8 +102,9 @@ if (!empty($_SESSION['invoice_cart'])) {
                     Name
                     <input type="checkbox" id="manualName" onchange="toggleManualName()"> Add Manually
                 </label>
-                <select id="clientName" class="form-select" name="ClientName" required></select>
-                <input type="text" id="manualClientName" name="ClientName" class="form-control mt-2" placeholder="Enter client name" style="display:none;" />
+                <select id="clientName" class="form-select" name="ClientNameDropdown" required></select>
+                <input type="text" id="manualClientName" name="ClientNameManual" class="form-control mt-2" placeholder="Enter client name" style="display:none;" />
+
             </div>
             <div class="col-md-4">
                 <label>

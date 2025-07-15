@@ -205,6 +205,7 @@ $sources_result = mysqli_query($conn, $sources_query);
                     <option value="Business">Business Class</option>
                     <option value="First">First Class</option>
                     <option value="Premium">Premium Economy</option>
+                    <option value="Premium">Business + Economy</option>
                 </select>
             </div>
         </div>
