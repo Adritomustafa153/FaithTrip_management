@@ -233,6 +233,9 @@
             <li>
             <a class="dropdown-item" href="insert_sources.php">Sourcing</a>
           </li>
+                      <li>
+            <a class="dropdown-item" href="add_sales_person.php">Sales Person</a>
+          </li>
         </ul>
       </li>
       </ul>
