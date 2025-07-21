@@ -2,7 +2,7 @@ Array
 (
     [clientType] => passenger
     [ClientNameDropdown] => 
-    [ClientNameManual] => Nasim AirConnect
-    [address] => Mirpur
+    [ClientNameManual] => Mr Suman Kanti Rudra
+    [address] => N/A
     [client_email] => faithtrip.net@gmail.com
 )

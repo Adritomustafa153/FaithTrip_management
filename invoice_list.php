@@ -238,7 +238,7 @@ if (isset($_GET['delete'])) {
   <?php if (!empty($row['invoice_number'])): ?>
     <div>
       <a href="redirect_reissue.php?id=<?= $row['SaleID'] ?>" class="btn btn-success btn-sm mt-1">Reissue</a>
-      <a href="edit_invoice.php?id=<?= $row['SaleID'] ?>" class="btn btn-warning btn-sm mt-1">Refund</a>
+      <a href="redirect_refund.php?id=<?= $row['SaleID'] ?>" class="btn btn-warning btn-sm mt-1">Refund</a>
       <!-- <div><small style="color: green;">✔ Invoice generated</small></div> -->
        <a class="view-btn" href="invoices/<?= $row['Invoice_number'] ?>.pdf" target="_blank">View Invoice</a>
     </div>
