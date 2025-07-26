@@ -1,8 +1,8 @@
 Array
 (
-    [clientType] => passenger
-    [ClientNameDropdown] => 
-    [ClientNameManual] => Mr Suman Kanti Rudra
-    [address] => N/A
+    [clientType] => company
+    [ClientNameDropdown] => Nippon Garments Industries Limited 
+    [ClientNameManual] => 
+    [address] => Abedin Tower (Level 8), 35 Kamal Ataturk Avenue , Banani Road 17, Dhaka 1213
     [client_email] => faithtrip.net@gmail.com
 )

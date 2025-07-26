@@ -126,7 +126,7 @@
             <a class="dropdown-item" href="reissue.php">Reissue</a>
           </li>
                     <li>
-            <a class="dropdown-item" href="counter_auto_insert.php">Refund</a>
+            <a class="dropdown-item" href="refund.php">Refund</a>
           </li>
         </ul>
       </li>
