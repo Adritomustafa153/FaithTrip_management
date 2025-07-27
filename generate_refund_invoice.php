@@ -147,7 +147,7 @@ $pdf->write1DBarcode($invoiceNumber, 'C128', '70.0', '16.0', '45', 18, 0.4, $bar
 // Invoice title
 $pdf->SetFont('helvetica', 'B', 12);
 $pdf->SetTextColor(220, 53, 69); // Red color for refund
-$pdf->Text(72, 40, 'REFUND INVOICE');
+$pdf->Text(75, 40, 'REFUND INVOICE');
 $pdf->SetFont('helvetica', '', 10);
 $pdf->SetTextColor(0, 0, 0);
 
@@ -210,7 +210,7 @@ foreach ($refunds as $row) {
 
 // $html .= '<tr><td colspan="5" align="right">Total Refund Charge</td><td class="refund-amount">' . number_format($total_refund_charge, 2) . '</td></tr>';
 $html .= '<tr><td colspan="5" align="right">Total Refund Amount</td><td class="refund-amount">' . number_format($total_refund_amount, 2) . '</td></tr>';
-$html .= '<tr><td colspan="5" align="right">AIT (0.3%)</td><td class="refund-amount">' . number_format($ait, 2) . '</td></tr>';
+// $html .= '<tr><td colspan="5" align="right">AIT (0.3%)</td><td class="refund-amount">' . number_format($ait, 2) . '</td></tr>';
 $html .= '</tbody></table>';
 
 $pdf->Ln(10);

@@ -115,6 +115,7 @@ if (!empty($_SESSION['refund_cart'])) {
             top: 80px;
             right: 20px;
             z-index: 1100;
+            margin-bottom: 20px;
         }
         .bg-refund-header {
             background-color: #dc3545;
