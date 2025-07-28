@@ -1,3 +1,6 @@
+<?php 
+require_once 'flight_reminder.php'; 
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -255,34 +258,41 @@
         <i class="fas fa-shopping-cart"></i>
       </a>
 
-      <!-- Notifications -->
-      <div class="dropdown">
-        <a
-          data-mdb-dropdown-init
-          class="text-reset me-3 dropdown-toggle hidden-arrow"
-          href="#"
-          id="navbarDropdownMenuLink"
-          role="button"
-          aria-expanded="false"
-        >
-          <i class="fas fa-bell"></i>
-          <span class="badge rounded-pill badge-notification bg-danger">1</span>
-        </a>
-        <ul
-          class="dropdown-menu dropdown-menu-end"
-          aria-labelledby="navbarDropdownMenuLink"
-        >
-          <li>
-            <a class="dropdown-item" href="#">Some news</a>
-          </li>
-          <li>
-            <a class="dropdown-item" href="#">Another news</a>
-          </li>
-          <li>
-            <a class="dropdown-item" href="#">Something else here</a>
-          </li>
-        </ul>
-      </div>
+<!-- Notifications -->
+<!-- Notifications -->
+<div class="dropdown">
+    <a
+        data-mdb-dropdown-init
+        class="text-reset me-3 dropdown-toggle hidden-arrow"
+        href="#"
+        id="navbarDropdownMenuLink"
+        role="button"
+        aria-expanded="false"
+    >
+        <i class="fas fa-bell"></i>
+        <?php if (isset($notificationCount) && $notificationCount > 0): ?>
+            <span class="badge rounded-pill badge-notification bg-danger">
+                <?php echo $notificationCount; ?>
+            </span>
+        <?php endif; ?>
+    </a>
+    <ul
+        class="dropdown-menu dropdown-menu-end"
+        aria-labelledby="navbarDropdownMenuLink"
+    >
+        <?php if (isset($notificationCount) && $notificationCount > 0): ?>
+            <li>
+                <a class="dropdown-item" href="todays_flights.php">
+                    <?php echo $notificationCount; ?> flight(s) today
+                </a>
+            </li>
+        <?php else: ?>
+            <li>
+                <a class="dropdown-item" href="#">No flights today</a>
+            </li>
+        <?php endif; ?>
+    </ul>
+</div>
       <!-- Avatar -->
       <div class="dropdown">
         <a

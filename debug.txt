@@ -1,8 +1,8 @@
 Array
 (
-    [clientType] => company
-    [ClientNameDropdown] => Nippon Garments Industries Limited 
-    [ClientNameManual] => 
-    [address] => Abedin Tower (Level 8), 35 Kamal Ataturk Avenue , Banani Road 17, Dhaka 1213
-    [client_email] => faithtrip.net@gmail.com
+    [clientType] => passenger
+    [ClientNameDropdown] => 
+    [ClientNameManual] => MRS SALINA PARVEN (ADT)
+    [address] => House : 7, Road No. : 8, Sector 5, Near Johora market, Opposite Bonoful.
+    [client_email] => director@faithtrip.net
 )
