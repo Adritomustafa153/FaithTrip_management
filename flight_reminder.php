@@ -1,26 +1,25 @@
 <?php
-require_once 'db.php';
+require_once 'db.php'; // Use the new connection handler
 
 function getTodaysFlightsCount($conn) {
     $today = date('Y-m-d');
-    
-    // Modified query to properly filter for today's flights only
     $query = "SELECT COUNT(*) as count FROM sales 
-              WHERE (
-                    (FlightDate = ? AND FlightDate != '0000-00-00') 
-                    OR 
-                    (ReturnDate = ? AND ReturnDate != '0000-00-00')
-              )
+              WHERE (FlightDate = ? OR ReturnDate = ?) 
               AND Remarks = 'Sell'";
     
     $stmt = mysqli_prepare($conn, $query);
+    if (!$stmt) {
+        error_log("Prepare failed: " . mysqli_error($conn));
+        return 0;
+    }
+    
     mysqli_stmt_bind_param($stmt, "ss", $today, $today);
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
     $row = mysqli_fetch_assoc($result);
     mysqli_stmt_close($stmt);
     
-    return $row['count'];
+    return $row['count'] ?? 0;
 }
 
 $notificationCount = getTodaysFlightsCount($conn);

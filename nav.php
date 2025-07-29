@@ -1,5 +1,6 @@
 <?php 
 require_once 'flight_reminder.php'; 
+require_once 'iata_reminder.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -260,7 +261,7 @@ require_once 'flight_reminder.php';
 
 <!-- Notifications -->
 <!-- Notifications -->
-<div class="dropdown">
+<!-- <div class="dropdown">
     <a
         data-mdb-dropdown-init
         class="text-reset me-3 dropdown-toggle hidden-arrow"
@@ -292,7 +293,68 @@ require_once 'flight_reminder.php';
             </li>
         <?php endif; ?>
     </ul>
+</div> -->
+
+
+<!-- In your notifications dropdown -->
+<div class="dropdown">
+    <a class="text-reset me-3 dropdown-toggle hidden-arrow"
+       href="#"
+       id="notificationsDropdown"
+       role="button"
+       data-mdb-dropdown-init
+       aria-expanded="false">
+        <i class="fas fa-bell"></i>
+        <?php 
+        $totalNotifications = 0;
+        if (isset($notificationCount) && $notificationCount > 0) $totalNotifications += $notificationCount;
+        if ($iataReminder['show_reminder']) $totalNotifications += 1;
+        
+        if ($totalNotifications > 0): ?>
+            <span class="badge rounded-pill badge-notification bg-danger">
+                <?php echo $totalNotifications; ?>
+            </span>
+        <?php endif; ?>
+    </a>
+    <ul class="dropdown-menu dropdown-menu-end"
+        aria-labelledby="notificationsDropdown">
+        <?php if (isset($notificationCount) && $notificationCount > 0): ?>
+            <li>
+                <a class="dropdown-item" href="todays_flights.php">
+                    <i class="fas fa-plane me-2"></i>
+                    <?php echo $notificationCount; ?> flight(s) today
+                </a>
+            </li>
+        <?php endif; ?>
+        
+        <?php if ($iataReminder['show_reminder']): ?>
+            <li>
+                <a class="dropdown-item" href="iata_payments.php">
+                    <i class="fas fa-money-bill-wave me-2"></i>
+                    IATA Payment Due: 
+                    <?php 
+                    if (date('j') >= 10 && date('j') <= 15) {
+                        echo number_format($iataReminder['first_period'], 2) . ' ('.$iataReminder['period'].')';
+                    } else {
+                        echo number_format($iataReminder['second_period'], 2) . ' ('.$iataReminder['period'].')';
+                    }
+                    ?>
+                </a>
+            </li>
+        <?php endif; ?>
+        
+        <?php if ($totalNotifications === 0): ?>
+            <li>
+                <a class="dropdown-item" href="#">
+                    <i class="fas fa-check-circle me-2"></i>
+                    No notifications
+                </a>
+            </li>
+        <?php endif; ?>
+    </ul>
 </div>
+
+
       <!-- Avatar -->
       <div class="dropdown">
         <a

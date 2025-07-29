@@ -68,7 +68,7 @@ function sanitize_input($data) {
     return $data;
 }
 
-$conn->close();
+
 ?>
 
 <!DOCTYPE html>
@@ -259,3 +259,9 @@ $conn->close();
     </script>
 </body>
 </html>
+<?php
+// Close connection only after everything is done
+if (isset($conn)) {
+    $conn->close();
+}
+?>

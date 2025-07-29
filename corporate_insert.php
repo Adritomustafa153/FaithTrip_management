@@ -49,7 +49,7 @@ function sanitizeInput($data) {
     return $data;
 }
 
-$conn->close();
+
 ?>
 
 <!DOCTYPE html>
@@ -189,3 +189,9 @@ $conn->close();
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+<?php
+// Close connection only after everything is done
+if (isset($conn)) {
+    $conn->close();
+}
+?>

@@ -31,6 +31,28 @@ while ($row = mysqli_fetch_assoc($expenseResult)) {
     $expenseMonths[] = $row['month'];
     $expenseTotals[] = (float)$row['total'];
 }
+
+// New query for monthly sales vs profit
+$monthlySalesProfitQuery = "SELECT 
+    DATE_FORMAT(IssueDate, '%b') AS month,
+    SUM(BillAmount) AS total_sales,
+    SUM(Profit) AS total_profit
+FROM sales
+WHERE YEAR(IssueDate) = YEAR(CURDATE())
+GROUP BY month
+ORDER BY MONTH(IssueDate)";
+
+$monthlySalesProfitResult = mysqli_query($conn, $monthlySalesProfitQuery);
+
+$monthlyLabels = [];
+$monthlySales = [];
+$monthlyProfit = [];
+
+while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
+    $monthlyLabels[] = $row['month'];
+    $monthlySales[] = (float)$row['total_sales'];
+    $monthlyProfit[] = (float)$row['total_profit'];
+}
 ?>
 <!DOCTYPE html>
 <html>
@@ -62,6 +84,7 @@ while ($row = mysqli_fetch_assoc($expenseResult)) {
         .chart-container {
             width: 45%;
             text-align: center;
+            margin-bottom: 30px;
         }
         canvas {
             display: block;
@@ -77,6 +100,11 @@ while ($row = mysqli_fetch_assoc($expenseResult)) {
         }
         h3 {
             margin-top: 0;
+        }
+        .charts-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
         }
     </style>
 </head>
@@ -94,14 +122,18 @@ while ($row = mysqli_fetch_assoc($expenseResult)) {
         </div>
     </div>
 
-    <div class="charts-row">
+    <div class="charts-container">
         <div class="chart-container">
-            <h3>Sales by Section (Pie Chart)</h3>
+            <h4>Sales by Section</h4>
             <canvas id="salesPieChart"></canvas>
         </div>
         <div class="chart-container">
-            <h3>Expenses by Month (Bar Graph)</h3>
+            <h4>Expenses by Month</h4>
             <canvas id="expenseBarChart"></canvas>
+        </div>
+        <div class="chart-container" style="margin-top: 20px;">
+            <h4>Monthly Sales vs Profit</h4>
+            <canvas id="salesProfitChart"></canvas>
         </div>
     </div>
 
@@ -162,6 +194,50 @@ while ($row = mysqli_fetch_assoc($expenseResult)) {
             },
             plugins: {
                 legend: { display: false }
+            }
+        }
+    });
+
+    // New chart for monthly sales vs profit
+    const salesProfitCtx = document.getElementById('salesProfitChart').getContext('2d');
+    new Chart(salesProfitCtx, {
+        type: 'bar',
+        data: {
+            labels: <?= json_encode($monthlyLabels) ?>,
+            datasets: [
+                {
+                    label: 'Sales',
+                    data: <?= json_encode($monthlySales) ?>,
+
+                                        backgroundColor: 'rgba(0, 255, 89, 0.66)',
+                    borderColor: 'rgba(0, 255, 89, 0.66)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Profit',
+                    data: <?= json_encode($monthlyProfit) ?>,
+                    backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                    borderColor: 'rgba(54, 162, 235, 0.7)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '৳' + value;
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
             }
         }
     });
