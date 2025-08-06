@@ -2,7 +2,7 @@ Array
 (
     [clientType] => passenger
     [ClientNameDropdown] => 
-    [ClientNameManual] => MRS SALINA PARVEN (ADT)
-    [address] => House : 7, Road No. : 8, Sector 5, Near Johora market, Opposite Bonoful.
-    [client_email] => director@faithtrip.net
+    [ClientNameManual] => Mr. AHMED QUAMRAN
+    [address] => N/A
+    [client_email] => marketing1@faithtrip.net
 )
