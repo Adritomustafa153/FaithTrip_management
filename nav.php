@@ -163,7 +163,7 @@ require_once 'iata_reminder.php';
 
 
         <li class="nav-item">
-          <a class="nav-link" href="#">Sell Summary</a>
+          <a class="nav-link" href="summary.php">Sell Summary</a>
         </li>
         
 <li class="nav-item dropdown">
