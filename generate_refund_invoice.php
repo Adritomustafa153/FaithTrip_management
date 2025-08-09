@@ -191,7 +191,7 @@ $html .= '<table cellpadding="4" cellspacing="0" width="100%" style="border-coll
     <th width="20%">Travelers</th>
     <th width="25%">Flight Info</th>
     <th width="25%">Ticket Info</th>
-    <th width="12%">Remarks</th>
+    <th width="12%">Refund</th>
     <th width="13%">Refund</th>
 </tr>
 </thead><tbody>';
