@@ -1,10 +1,4 @@
 <?php
-// file_put_contents('debug_log.txt', 
-//     "⚠️ Blocked request at " . date('Y-m-d H:i:s') . "\n" .
-//     "Method: " . $_SERVER['REQUEST_METHOD'] . "\n" .
-//     "User Agent: " . ($_SERVER['HTTP_USER_AGENT'] ?? 'N/A') . "\n" .
-//     "Referer: " . ($_SERVER['HTTP_REFERER'] ?? 'N/A') . "\n" .
-//     "----------------------\n", FILE_APPEND);
 file_put_contents('debug.txt', print_r($_POST, true));
 ob_clean();
 ob_start();
@@ -27,31 +21,18 @@ function convertNumberToWordsIndian($number) {
         30 => 'Thirty', 40 => 'Forty', 50 => 'Fifty', 60 => 'Sixty',
         70 => 'Seventy', 80 => 'Eighty', 90 => 'Ninety'
     ];
-
-    $digits = ['', 'Hundred', 'Thousand', 'Lac', 'Crore'];
-    $result = '';
-
     if ($number == 0) return 'Zero';
-
-    $crore = floor($number / 10000000);
-    $number %= 10000000;
-    $lac = floor($number / 100000);
-    $number %= 100000;
-    $thousand = floor($number / 1000);
-    $number %= 1000;
-    $hundred = floor($number / 100);
-    $number %= 100;
+    $result = '';
+    $crore = floor($number / 10000000); $number %= 10000000;
+    $lac = floor($number / 100000); $number %= 100000;
+    $thousand = floor($number / 1000); $number %= 1000;
+    $hundred = floor($number / 100); $number %= 100;
     $ten = $number;
-
     if ($crore) $result .= convertTwoDigits($crore, $words) . ' Crore ';
     if ($lac) $result .= convertTwoDigits($lac, $words) . ' Lac ';
     if ($thousand) $result .= convertTwoDigits($thousand, $words) . ' Thousand ';
     if ($hundred) $result .= $words[$hundred] . ' Hundred ';
-    if ($ten) {
-        if ($result != '') $result .= 'and ';
-        $result .= convertTwoDigits($ten, $words);
-    }
-
+    if ($ten) { if ($result != '') $result .= 'and '; $result .= convertTwoDigits($ten, $words); }
     return trim($result);
 }
 
@@ -62,20 +43,27 @@ function convertTwoDigits($number, $words) {
     return $words[$tens] . ($units ? ' ' . $words[$units] : '');
 }
 
-// START PROCESS
-$invoiceNumber = 'INV-' . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-
+// DB connection
 try {
     $pdo = new PDO("mysql:host=localhost;dbname=faithtrip_accounts", "root", "");
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (Exception $e) {
     die("Database error: " . $e->getMessage());
 }
 
+// ✅ Generate unique invoice number (auto-skip duplicates)
+do {
+    $invoiceNumber = 'INV-' . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+    $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM invoices WHERE Invoice_number = ?");
+    $stmtCheck->execute([$invoiceNumber]);
+    $exists = $stmtCheck->fetchColumn();
+} while ($exists > 0);
+
+// Sales data
 $sales = [];
 $total = 0;
 $ait = 0;
 $gt = 0;
-
 $pnr = '';
 $partyName = '';
 $issueDate = '';
@@ -84,13 +72,27 @@ $returnDate = '';
 $sellingPrice = 0;
 $section = '';
 
-$client_name = $_POST['ClientName'] ?? $_POST['ClientName'] ?? 'Unknown Client';
+$client_name = '';
+if (isset($_POST['ClientNameManual']) && trim($_POST['ClientNameManual']) !== '') {
+    $client_name = trim($_POST['ClientNameManual']);
+} elseif (isset($_POST['ClientNameDropdown']) && trim($_POST['ClientNameDropdown']) !== '') {
+    $client_name = trim($_POST['ClientNameDropdown']);
+} else {
+    $client_name = 'Unknown Client';
+}
 
-$client_address = $_POST['client_address'] ?? $_POST['ClientAddress'] ?? 'Unknown Address';
+$Sales_section = $_POST['clientType'] ?? 'Unknown Client';
+$client_address = $_POST['address'] ?? 'Unknown Address';
+$client_email = $_POST['client_email'] ?? 'No Email';
 
-
+// ✅ Fetch selected sales and update them with invoice number
 if (!empty($_SESSION['invoice_cart'])) {
     $id_list = implode(",", array_map('intval', $_SESSION['invoice_cart']));
+    
+    // Update sales table with the invoice number
+    $pdo->exec("UPDATE sales SET invoice_number = '$invoiceNumber' WHERE SaleID IN ($id_list)");
+    
+    // Fetch updated sales data
     $query = "SELECT * FROM sales WHERE SaleID IN ($id_list)";
     $result = $pdo->query($query);
     while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
@@ -105,43 +107,17 @@ if (!empty($_SESSION['invoice_cart'])) {
         $total += $row['BillAmount'];
     }
 
-    // $ait = $total * 0.003;
     $ait = 0;
     $gt = $total + $ait;
-        $sellingPrice = $gt;
-$client_name = '';
+    $sellingPrice = $gt;
 
-if (isset($_POST['ClientNameManual']) && trim($_POST['ClientNameManual']) !== '') {
-    $client_name = trim($_POST['ClientNameManual']);
-} elseif (isset($_POST['ClientNameDropdown']) && trim($_POST['ClientNameDropdown']) !== '') {
-    $client_name = trim($_POST['ClientNameDropdown']);
-} else {
-    $client_name = 'Unknown Client';
+    // Insert invoice header
+    $stmt = $pdo->prepare("INSERT INTO invoices (Invoice_number, date, PNR, PartyName, IssueDate, FlightDate, ReturnDate, SellingPrice, Section) 
+                           VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->execute([$invoiceNumber, $pnr, $client_name, $issueDate, $flightDate, $returnDate, $sellingPrice, $Sales_section]);
 }
 
-$Sales_section = $_POST['clientType'] ?? 'Unknown Client';
-
-
-$client_address = $_POST['address'] ?? 'Unknown Address';
-$client_email = $_POST['client_email'] ?? 'No Email';
-    // Insert into invoices table with additional ticket fields
-    $stmt = $pdo->prepare("INSERT INTO invoices 
-        (Invoice_number, date, PNR, PartyName, IssueDate, FlightDate, ReturnDate, SellingPrice, Section) 
-        VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([
-        $invoiceNumber,
-        $pnr,
-        $client_name,
-        $issueDate,
-        $flightDate,
-        $returnDate,
-        $sellingPrice,
-        $Sales_section
-    ]);
-}
-
-// PDF and email logic (same as before)
-
+// PDF creation
 $pdf = new TCPDF();
 $pdf->SetPrintHeader(false);
 $pdf->AddPage();
@@ -262,7 +238,6 @@ $mail->setFrom('info@faithtrip.net', 'Faith Travels and Tours LTD');
 $mail->addAddress($client_email);
 $mail->Subject = 'Your Invoice - ' . $invoiceNumber;
 $mail->Body = "Dear Sir/Mam,\n\nGreetings From Faith Travels and Tours LTD. Thank You for being with us.\n\nIf you have any confusion please feel free to reach us. Please find your invoice attached.";
-
 $mail->addAttachment($filePath);
 
 if (!$mail->send()) {
@@ -276,3 +251,4 @@ $_SESSION['invoice_email'] = $client_email;
 
 header("Location: mail_success.php");
 exit;
+?>

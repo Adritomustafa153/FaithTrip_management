@@ -292,7 +292,7 @@ if (isset($_GET['delete'])) {
                                             <?= htmlspecialchars($row['invoice_number']) ?>
                                             <?php if (!empty($row['invoice_number'])) : ?>
                                                 <div class="mt-1">
-                                                    <a href="invoices/<?= $row['invoice_number'] ?>.pdf" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                    <a href="invoices/<?= $row['invoice_number'] ?>.pdf" target="invoices" class="btn btn-sm btn-outline-primary">
                                                         <i class="fas fa-file-invoice me-1"></i>View
                                                     </a>
                                                 </div>

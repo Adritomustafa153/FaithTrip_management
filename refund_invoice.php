@@ -21,20 +21,29 @@ function convertNumberToWordsIndian($number) {
         70 => 'Seventy', 80 => 'Eighty', 90 => 'Ninety'
     ];
 
+    $digits = ['', 'Hundred', 'Thousand', 'Lac', 'Crore'];
+    $result = '';
+
     if ($number == 0) return 'Zero';
 
-    $result = '';
-    $crore = floor($number / 10000000); $number %= 10000000;
-    $lac = floor($number / 100000); $number %= 100000;
-    $thousand = floor($number / 1000); $number %= 1000;
-    $hundred = floor($number / 100); $number %= 100;
+    $crore = floor($number / 10000000);
+    $number %= 10000000;
+    $lac = floor($number / 100000);
+    $number %= 100000;
+    $thousand = floor($number / 1000);
+    $number %= 1000;
+    $hundred = floor($number / 100);
+    $number %= 100;
     $ten = $number;
 
     if ($crore) $result .= convertTwoDigits($crore, $words) . ' Crore ';
     if ($lac) $result .= convertTwoDigits($lac, $words) . ' Lac ';
     if ($thousand) $result .= convertTwoDigits($thousand, $words) . ' Thousand ';
     if ($hundred) $result .= $words[$hundred] . ' Hundred ';
-    if ($ten) { if ($result != '') $result .= 'and '; $result .= convertTwoDigits($ten, $words); }
+    if ($ten) {
+        if ($result != '') $result .= 'and ';
+        $result .= convertTwoDigits($ten, $words);
+    }
 
     return trim($result);
 }
@@ -46,41 +55,47 @@ function convertTwoDigits($number, $words) {
     return $words[$tens] . ($units ? ' ' . $words[$units] : '');
 }
 
+// Generate refund invoice number
+$invoiceNumber = 'RFD-' . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+
 try {
     $pdo = new PDO("mysql:host=localhost;dbname=faithtrip_accounts", "root", "");
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (Exception $e) {
     die("Database error: " . $e->getMessage());
 }
-
-// ✅ Generate unique refund invoice number
-do {
-    $invoiceNumber = 'RFD-' . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-    $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM invoices WHERE Invoice_number = ?");
-    $stmtCheck->execute([$invoiceNumber]);
-    $exists = $stmtCheck->fetchColumn();
-} while ($exists > 0);
 
 $refunds = [];
 $total_refund_charge = 0;
 $total_refund_amount = 0;
 $ait = 0;
-$pnr = $partyName = $issueDate = $flightDate = $returnDate = '';
+
+$pnr = '';
+$partyName = '';
+$issueDate = '';
+$flightDate = '';
+$returnDate = '';
 $sellingPrice = 0;
 $section = 'refund';
 
-// Client info
-$client_name = trim($_POST['ClientNameManual'] ?? '') ?: trim($_POST['ClientNameDropdown'] ?? '') ?: 'Unknown Client';
+// Get client info from form
+$client_name = '';
+if (isset($_POST['ClientNameManual']) && trim($_POST['ClientNameManual']) !== '') {
+    $client_name = trim($_POST['ClientNameManual']);
+} elseif (isset($_POST['ClientNameDropdown']) && trim($_POST['ClientNameDropdown']) !== '') {
+    $client_name = trim($_POST['ClientNameDropdown']);
+} else {
+    $client_name = 'Unknown Client';
+}
+
 $client_address = $_POST['address'] ?? 'Unknown Address';
 $client_email = $_POST['client_email'] ?? 'No Email';
+// $client_type = $_POST['clientType'] ?? 'Unknown';
 
-// ✅ Update sales with refund invoice number & fetch details
 if (!empty($_SESSION['refund_cart'])) {
     $id_list = implode(",", array_map('intval', $_SESSION['refund_cart']));
-    $pdo->exec("UPDATE sales SET invoice_number = '$invoiceNumber' WHERE SaleID IN ($id_list)");
-
     $query = "SELECT *, BillAmount AS refund_charge, refundtc AS refund_amount FROM sales WHERE SaleID IN ($id_list)";
-    foreach ($pdo->query($query) as $row) {
+    $result = $pdo->query($query);
+    while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
         if (empty($pnr)) {
             $pnr = $row['PNR'];
             $partyName = $row['PartyName'];
@@ -95,21 +110,32 @@ if (!empty($_SESSION['refund_cart'])) {
     }
 
     $ait = $total_refund_amount * 0.003;
-
-    // Insert into invoices table
+    
+    // Insert into invoices table with correct structure
     $stmt = $pdo->prepare("INSERT INTO invoices 
         (Invoice_number, date, PNR, PartyName, IssueDate, FlightDate, ReturnDate, SellingPrice, Section) 
         VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$invoiceNumber, $pnr, $client_name, $issueDate, $flightDate, $returnDate, $sellingPrice, $section]);
+    $stmt->execute([
+        $invoiceNumber,
+        $pnr,
+        $client_name,
+        $issueDate,
+        $flightDate,
+        $returnDate,
+        $sellingPrice,
+        $section
+    ]);
 }
 
-// ✅ PDF creation
+// Create PDF
 $pdf = new TCPDF();
 $pdf->SetPrintHeader(false);
 $pdf->AddPage();
 $pdf->Image('logo.jpg', 10, 14, 30);
 $pdf->SetY(10);
 $pdf->SetX(80);
+
+// Barcode style
 $barcodeStyle = [
     'position' => '', 'align' => 'C', 'stretch' => false, 'fitwidth' => true,
     'cellfitalign' => '', 'border' => false, 'hpadding' => 'auto', 'vpadding' => 'auto',
@@ -118,12 +144,14 @@ $barcodeStyle = [
 ];
 $pdf->write1DBarcode($invoiceNumber, 'C128', '70.0', '16.0', '45', 18, 0.4, $barcodeStyle, 'N');
 
+// Invoice title
 $pdf->SetFont('helvetica', 'B', 12);
-$pdf->SetTextColor(220, 53, 69);
+$pdf->SetTextColor(220, 53, 69); // Red color for refund
 $pdf->Text(75, 40, 'REFUND INVOICE');
 $pdf->SetFont('helvetica', '', 10);
 $pdf->SetTextColor(0, 0, 0);
 
+// Company Info
 $companyInfo = <<<EOF
 <table style="font-family: helvetica; font-size: 10pt; text-align: right;" border="0" cellpadding="2">
   <tr><td colspan="2" style="font-size: 14pt;"><h3>Faith Travels and Tours LTD</h3></td></tr>
@@ -132,33 +160,41 @@ $companyInfo = <<<EOF
   <tr><td colspan="2">+8801896459490, +8801896459495</td></tr>
 </table>
 EOF;
+
 $pdf->SetXY(110, 10);
 $pdf->writeHTMLCell(0, 0, '', '', $companyInfo, 0, 1, 0, true, 'R', true);
 $pdf->SetXY(150, 45);
 $pdf->MultiCell(50, 0, "Date: " . date('d M Y') . "\nInvoice: $invoiceNumber", 0, 'R');
 
+// Client Info
 $clientInfo = <<<EOD
 <div style="padding: 0px;margin-top: 0px;margin-bottom: 2px; background-color:rgb(248, 246, 246);">
     <p><b>Client Name: </b>{$client_name}</p>
     <p><b>Client Address: </b>{$client_address}</p>
+
 </div>
 EOD;
 $pdf->SetY(40);
 $pdf->Ln(20);
 $pdf->writeHTML($clientInfo, true, false, true, false, '');
 
+// Refund items table
 $html = '<style>
     tr {border-bottom: 1px solid #ccc;} 
     th {background-color:rgb(220, 53, 69); color: white;}
-</style><table cellpadding="4" cellspacing="0" width="100%" style="border-collapse:collapse;">
-<thead><tr>
+    .refund-amount {color: #000000ff; font-weight: bold;}
+</style>';
+$html .= '<table cellpadding="4" cellspacing="0" width="100%" style="border-collapse:collapse;">
+<thead>
+<tr>
     <th width="5%">SL</th>
     <th width="20%">Travelers</th>
     <th width="25%">Flight Info</th>
     <th width="25%">Ticket Info</th>
-    <th width="12%">Remarks</th>
+    <th width="12%">Refund</th>
     <th width="13%">Refund</th>
-</tr></thead><tbody>';
+</tr>
+</thead><tbody>';
 
 $serial = 1;
 foreach ($refunds as $row) {
@@ -168,20 +204,25 @@ foreach ($refunds as $row) {
     $html .= '<td width="25%">Route: <b>' . htmlspecialchars($row['TicketRoute']) . '</b><br>Airlines: <b>' . htmlspecialchars($row['airlines']) . '</b><br>Departure: <b>' . htmlspecialchars($row['FlightDate']) . '</b><br>Return: <b>' . htmlspecialchars($row['ReturnDate']) . '</b></td>';
     $html .= '<td width="25%">Ticket No: <b>' . htmlspecialchars($row['TicketNumber']) . '</b><br>PNR: <b>' . htmlspecialchars($row['PNR']) . '</b><br>Issued: <b>' . htmlspecialchars($row['IssueDate']) . '</b><br>Seat Class: <b>' . htmlspecialchars($row['Class']) . '</b></td>';
     $html .= '<td width="12%"><b>' . htmlspecialchars($row['Remarks']) . '</b></td>';
-    $html .= '<td width="13%">' . number_format($row['refund_amount'], 2) . '</td>';
+    $html .= '<td width="13%" class="refund-amount">' . number_format($row['refund_amount'], 2) . '</td>';
     $html .= '</tr>';
 }
-$html .= '<tr><td colspan="5" align="right"><b>Total Refund Amount</b></td><td><b>' . number_format($total_refund_amount, 2) . '</b></td></tr>';
+
+// $html .= '<tr><td colspan="5" align="right">Total Refund Charge</td><td class="refund-amount">' . number_format($total_refund_charge, 2) . '</td></tr>';
+$html .= '<tr><td colspan="5" align="right">Total Refund Amount</td><td class="refund-amount">' . number_format($total_refund_amount, 2) . '</td></tr>';
+// $html .= '<tr><td colspan="5" align="right">AIT (0.3%)</td><td class="refund-amount">' . number_format($ait, 2) . '</td></tr>';
 $html .= '</tbody></table>';
 
 $pdf->Ln(10);
 $pdf->writeHTML($html, true, false, true, false, '');
 
+// Amount in words
 $amountWords = convertNumberToWordsIndian($total_refund_amount) . ' Bangladeshi Taka Only';
 $pdf->Ln(10);
 $pdf->SetFont('helvetica', 'B', 10);
 $pdf->Write(0, "Amount in Words: $amountWords", '', 0, 'L', true);
 
+// Notes
 $pdf->Ln(5);
 $pdf->SetFont('helvetica', '', 9);
 $notes = <<<EOD
@@ -192,12 +233,14 @@ $notes = <<<EOD
 EOD;
 $pdf->writeHTMLCell(0, 0, '', '', $notes, 0, 1, 0, true, 'L', true);
 
-$fileName = "{$invoiceNumber}.pdf";
+// Save PDF file
+$fileName = "REFUND_{$pnr}_{$invoiceNumber}.pdf";
 $filePath = __DIR__ . "/invoices/" . $fileName;
+
 ob_end_clean();
 $pdf->Output($filePath, 'F');
 
-// Email
+// Send email
 $mail = new PHPMailer\PHPMailer\PHPMailer();
 $mail->isSMTP();
 $mail->Host = 'smtp.gmail.com';
@@ -210,6 +253,7 @@ $mail->setFrom('info@faithtrip.net', 'Faith Travels and Tours LTD');
 $mail->addAddress($client_email);
 $mail->Subject = 'Your Refund Invoice - ' . $invoiceNumber;
 $mail->Body = "Dear Sir/Madam,\n\nThis email contains your refund invoice from Faith Travels and Tours LTD.\n\nRefund amount: BDT " . number_format($total_refund_amount, 2) . "\n\nPlease find your refund invoice attached.";
+
 $mail->addAttachment($filePath);
 
 if (!$mail->send()) {
@@ -217,11 +261,12 @@ if (!$mail->send()) {
     exit;
 }
 
+// Clear refund cart after successful generation
 unset($_SESSION['refund_cart']);
+
 $_SESSION['invoice_sent'] = true;
 $_SESSION['invoice_file'] = $fileName;
 $_SESSION['invoice_email'] = $client_email;
 
 header("Location: mail_success.php");
 exit;
-?>
