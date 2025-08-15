@@ -2,7 +2,7 @@ Array
 (
     [clientType] => passenger
     [ClientNameDropdown] => 
-    [ClientNameManual] => Mr. ABDULLAH AL MAMUN
+    [ClientNameManual] => Mr Md Kamrul Islam
     [address] => N/A
-    [client_email] => director@faithtrip.net
+    [client_email] => marketing1@faithtrip.net
 )

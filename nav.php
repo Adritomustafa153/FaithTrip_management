@@ -1,6 +1,19 @@
 <?php 
 require_once 'flight_reminder.php'; 
 require_once 'iata_reminder.php';
+
+
+if (isset($_SESSION['UserID'])) {
+    $stmt = $conn->prepare("SELECT image FROM user WHERE UserID = ?");
+    $stmt->bind_param("i", $_SESSION['UserID']);
+    $stmt->execute();
+    $stmt->store_result();
+    $stmt->bind_result($user_img);
+    $stmt->fetch();
+    $stmt->close();
+    $img_src = !empty($user_img) ? 'data:image/jpeg;base64,'.base64_encode($user_img) : 'default.png';
+    echo '<img src="'.$img_src.'" alt="Profile" class="rounded-circle" width="40" height="40" style="object-fit: cover;">';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -378,7 +391,7 @@ require_once 'iata_reminder.php';
           aria-labelledby="navbarDropdownMenuAvatar"
         >
           <li>
-            <a class="dropdown-item" href="#">My profile</a>
+            <a class="dropdown-item" href="my_profile.php">My profile</a>
           </li>
           <li>
             <a class="dropdown-item" href="#">Settings</a>

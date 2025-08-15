@@ -89,7 +89,22 @@ if (isset($_GET['delete'])) {
         body {
             font-family: 'Roboto', sans-serif;
             background-color: #f8f9fa;
+            position: relative;
+            min-height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
         }
+        body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: url("https://static.vecteezy.com/system/resources/previews/026/749/007/large_2x/airplane-in-sky-background-free-photo.jpg") no-repeat center center / cover;
+    opacity: 0.5; /* 50% opacity */
+    z-index: -1; /* Keep it behind content */
+}
         .card {
             border-radius: 10px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);

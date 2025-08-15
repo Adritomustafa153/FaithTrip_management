@@ -182,7 +182,7 @@ while ($row = $result->fetch_assoc()) {
                 <div class="dashboard-card">
                     <h4>Sales Summary for <?php echo htmlspecialchars($salesPerson); ?></h4>
                     <hr>
-                                    
+                    
                     <div class="row">
                         <div class="col-md-6">
                             <div class="summary-item">
@@ -219,7 +219,6 @@ while ($row = $result->fetch_assoc()) {
                                         echo number_format($totalProfit * $commissionRate / 100, 2); 
                                     ?>
                                 </div>
-                               
                             </div>
                         </div>
                     </div>
@@ -231,9 +230,14 @@ while ($row = $result->fetch_assoc()) {
                         <p><strong>Email:</strong> <?php echo htmlspecialchars($salesPersonInfo['email'] ?? 'N/A'); ?></p>
                         <p><strong>Joining Date:</strong> <?php echo htmlspecialchars($salesPersonInfo['joining_date'] ?? 'N/A'); ?></p>
                     </div>
-                     <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#salesDetails" aria-expanded="false" aria-controls="salesDetails">
-                    View Sales Details
-                </button>
+                    
+                    <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#salesDetails" aria-expanded="false" aria-controls="salesDetails">
+                        View Sales Details
+                    </button>
+                    
+                    <div class="chart-container mt-3">
+                        <canvas id="commissionRateChart"></canvas>
+                    </div>
                 </div>
             </div>
             
@@ -271,18 +275,12 @@ while ($row = $result->fetch_assoc()) {
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="chart-container">
-                        <canvas id="commissionRateChart"></canvas>
-                    </div>
                 </div>
             </div>
         </div>
         
         <div class="row mt-4">
             <div class="col-md-12">
-
-                
                 <div class="collapse mt-3" id="salesDetails">
                     <div class="card card-body">
                         <h4>All Sales by <?php echo htmlspecialchars($salesPerson); ?></h4>

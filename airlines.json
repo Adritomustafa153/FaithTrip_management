@@ -42,6 +42,8 @@
     {"code": "OD", "name": "Batik Air(OD)"},
     {"code": "UK", "name": "Vistara(UK)"},
     {"code": "XI", "name": "Air India Express(XI)"},
-    {"code": "8D", "name": "FitsAir(8D)"}
+    {"code": "8D", "name": "FitsAir(8D)"},
+    {"code": "OV", "name": "SalamAir(OV)"},
+    {"code": "MS", "name": "Egyptair(MS)"}
   ]
   
