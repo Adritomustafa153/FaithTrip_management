@@ -1,85 +1,85 @@
 <?php
-session_start();
-include 'db.php';
+require_once 'auth_check.php';
 
-
-
-if (!isset($_SESSION['UserID'])) {
-    header("Location: login.php");
-    exit();
-}
-include 'nav.php';
-
-$user_id = $_SESSION['UserID'];
-
-// Fetch user info
-$stmt = $conn->prepare("SELECT UserName, email, DateOfBirth, NIDNumber, image FROM user WHERE UserID = ?");
-$stmt->bind_param("i", $user_id);
+// Database connection
+$conn = new mysqli('localhost', 'root', '', 'faithtrip_accounts');
+$stmt = $conn->prepare("SELECT * FROM user WHERE UserId = ?");
+$stmt->bind_param('i', $_SESSION['user_id']);
 $stmt->execute();
-$result = $stmt->get_result();
-$user = $result->fetch_assoc();
+$user = $stmt->get_result()->fetch_assoc();
 $stmt->close();
-
-// Handle profile update
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = $_POST['UserName'];
-    $email = $_POST['email'];
-    $dob = $_POST['DateOfBirth'];
-    $nid = $_POST['NIDNumber'];
-
-    if (!empty($_FILES['image']['tmp_name'])) {
-        $imgData = file_get_contents($_FILES['image']['tmp_name']);
-        $stmt = $conn->prepare("UPDATE user SET UserName=?, email=?, DateOfBirth=?, NIDNumber=?, image=? WHERE UserID=?");
-        $stmt->bind_param("ssssbi", $username, $email, $dob, $nid, $null, $user_id);
-        $null = NULL;
-        $stmt->send_long_data(4, $imgData);
-    } else {
-        $stmt = $conn->prepare("UPDATE user SET UserName=?, email=?, DateOfBirth=?, NIDNumber=? WHERE UserID=?");
-        $stmt->bind_param("ssssi", $username, $email, $dob, $nid, $user_id);
-    }
-
-    if ($stmt->execute()) {
-        echo "<script>alert('Profile updated successfully!'); window.location='my_profile.php';</script>";
-    } else {
-        echo "<script>alert('Error updating profile!');</script>";
-    }
-    $stmt->close();
-}
+$conn->close();
 ?>
-
-<div class="container mt-4">
-    <h2>My Profile</h2>
-    <form method="POST" enctype="multipart/form-data">
-        <div class="mb-3">
-            <label>Profile Picture</label><br>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile</title>
+    <!-- Bootstrap CSS only -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .profile-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .profile-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            padding: 20px 0;
+            margin-bottom: 30px;
+        }
+        .profile-img {
+            width: 150px;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 50%;
+            border: 5px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <?php include 'nav.php'; ?>
+    
+    <div class="container profile-container mt-4">
+        <div class="profile-header text-center">
             <?php if (!empty($user['image'])): ?>
-                <img src="data:image/jpeg;base64,<?= base64_encode($user['image']); ?>" width="100" height="100" class="rounded-circle mb-2">
+                <img src="<?php echo htmlspecialchars($user['image']); ?>" alt="Profile Image" class="profile-img mb-3">
             <?php else: ?>
-                <img src="default.png" width="100" height="100" class="rounded-circle mb-2">
+                <div class="profile-img mb-3 bg-secondary d-inline-flex align-items-center justify-content-center">
+                    <span class="text-white display-4"><?php echo strtoupper(substr($user['UserName'], 0, 1)); ?></span>
+                </div>
             <?php endif; ?>
-            <input type="file" name="image" class="form-control">
+            <h1><?php echo htmlspecialchars($user['UserName']); ?></h1>
+            <p class="text-muted">Member since <?php echo date('F Y', strtotime($user['created_at'] ?? 'now')); ?></p>
         </div>
-
-        <div class="mb-3">
-            <label>Name</label>
-            <input type="text" name="UserName" value="<?= htmlspecialchars($user['UserName']) ?>" class="form-control" required>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Personal Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>User ID:</strong> <?php echo htmlspecialchars($user['UserID']); ?></p>
+                        <p><strong>Email:</strong> <?php echo htmlspecialchars($user['email']); ?></p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Date of Birth:</strong> <?php echo $user['DateOfBirth'] ? htmlspecialchars($user['DateOfBirth']) : 'Not provided'; ?></p>
+                        <p><strong>NID Number:</strong> <?php echo $user['NIDNumber'] ? htmlspecialchars($user['NIDNumber']) : 'Not provided'; ?></p>
+                    </div>
+                </div>
+            </div>
         </div>
-
-        <div class="mb-3">
-            <label>Email</label>
-            <input type="email" name="email" value="<?= htmlspecialchars($user['email']) ?>" class="form-control" required>
+        
+        <div class="d-flex justify-content-between mb-4">
+            <a href="dashboard.php" class="btn btn-outline-secondary">Back to Dashboard</a>
+            <a href="edit_profile.php" class="btn btn-primary">Edit Profile</a>
         </div>
+    </div>
 
-        <div class="mb-3">
-            <label>Date of Birth</label>
-            <input type="date" name="DateOfBirth" value="<?= $user['DateOfBirth'] ?>" class="form-control">
-        </div>
-
-        <div class="mb-3">
-            <label>NID Number</label>
-            <input type="text" name="NIDNumber" value="<?= htmlspecialchars($user['NIDNumber']) ?>" class="form-control">
-        </div>
-
-        <button type="submit" class="btn btn-primary">Update Profile</button>
-    </form>
-</div>
+    <!-- Bootstrap JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

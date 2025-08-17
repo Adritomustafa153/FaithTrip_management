@@ -1,5 +1,6 @@
 <?php
 include('db.php');
+require_once 'auth_check.php';
 
 $filter = $_GET['filter'] ?? 'monthly';
 $whereClause = "";

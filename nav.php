@@ -1,4 +1,5 @@
 <?php 
+// require 'auth_check.php';
 require_once 'flight_reminder.php'; 
 require_once 'iata_reminder.php';
 
@@ -252,6 +253,12 @@ if (isset($_SESSION['UserID'])) {
           </li>
                       <li>
             <a class="dropdown-item" href="add_sales_person.php">Sales Person</a>
+          </li>
+          <!-- <li>
+            <a class="dropdown-item" href="create_user.php">User</a>
+          </li> -->
+          <li>
+            <a class="dropdown-item" href="users.php">User</a>
           </li>
         </ul>
       </li>
