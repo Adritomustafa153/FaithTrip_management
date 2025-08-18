@@ -1,11 +1,4 @@
 <?php
-// file_put_contents('debug_log.txt', 
-//     "⚠️ Blocked request at " . date('Y-m-d H:i:s') . "\n" .
-//     "Method: " . $_SERVER['REQUEST_METHOD'] . "\n" .
-//     "User Agent: " . ($_SERVER['HTTP_USER_AGENT'] ?? 'N/A') . "\n" .
-//     "Referer: " . ($_SERVER['HTTP_REFERER'] ?? 'N/A') . "\n" .
-//     "----------------------\n", FILE_APPEND);
-file_put_contents('debug.txt', print_r($_POST, true));
 ob_clean();
 ob_start();
 
@@ -28,29 +21,20 @@ function convertNumberToWordsIndian($number) {
         70 => 'Seventy', 80 => 'Eighty', 90 => 'Ninety'
     ];
 
-    $digits = ['', 'Hundred', 'Thousand', 'Lac', 'Crore'];
-    $result = '';
-
     if ($number == 0) return 'Zero';
 
-    $crore = floor($number / 10000000);
-    $number %= 10000000;
-    $lac = floor($number / 100000);
-    $number %= 100000;
-    $thousand = floor($number / 1000);
-    $number %= 1000;
-    $hundred = floor($number / 100);
-    $number %= 100;
+    $result = '';
+    $crore = floor($number / 10000000); $number %= 10000000;
+    $lac = floor($number / 100000); $number %= 100000;
+    $thousand = floor($number / 1000); $number %= 1000;
+    $hundred = floor($number / 100); $number %= 100;
     $ten = $number;
 
     if ($crore) $result .= convertTwoDigits($crore, $words) . ' Crore ';
     if ($lac) $result .= convertTwoDigits($lac, $words) . ' Lac ';
     if ($thousand) $result .= convertTwoDigits($thousand, $words) . ' Thousand ';
     if ($hundred) $result .= $words[$hundred] . ' Hundred ';
-    if ($ten) {
-        if ($result != '') $result .= 'and ';
-        $result .= convertTwoDigits($ten, $words);
-    }
+    if ($ten) { if ($result != '') $result .= 'and '; $result .= convertTwoDigits($ten, $words); }
 
     return trim($result);
 }
@@ -62,38 +46,38 @@ function convertTwoDigits($number, $words) {
     return $words[$tens] . ($units ? ' ' . $words[$units] : '');
 }
 
-// START PROCESS
-$invoiceNumber = 'RE-' . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-
+// ✅ Generate unique Reissue Invoice Number
 try {
     $pdo = new PDO("mysql:host=localhost;dbname=faithtrip_accounts", "root", "");
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (Exception $e) {
     die("Database error: " . $e->getMessage());
 }
 
+do {
+    $invoiceNumber = 'RE-' . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+    $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM invoices WHERE Invoice_number = ?");
+    $stmtCheck->execute([$invoiceNumber]);
+    $exists = $stmtCheck->fetchColumn();
+} while ($exists > 0);
+
 $sales = [];
-$total = 0;
-$ait = 0;
-$gt = 0;
-
-$pnr = '';
-$partyName = '';
-$issueDate = '';
-$flightDate = '';
-$returnDate = '';
+$total = 0; $ait = 0; $gt = 0;
+$pnr = ''; $partyName = ''; $issueDate = ''; $flightDate = ''; $returnDate = '';
 $sellingPrice = 0;
-$section = '';
 
-$client_name = $_POST['ClientName'] ?? $_POST['ClientName'] ?? 'Unknown Client';
+$client_name = trim($_POST['ClientNameManual'] ?? '') ?: trim($_POST['ClientNameDropdown'] ?? '') ?: 'Unknown Client';
+$Sales_section = $_POST['clientType'] ?? 'Unknown Client';
+$client_address = $_POST['address'] ?? 'Unknown Address';
+$client_email = $_POST['client_email'] ?? 'No Email';
 
-$client_address = $_POST['client_address'] ?? $_POST['ClientAddress'] ?? 'Unknown Address';
-
-
+// ✅ Fetch selected sales & update them with this invoice number
 if (!empty($_SESSION['invoice_cart'])) {
     $id_list = implode(",", array_map('intval', $_SESSION['invoice_cart']));
+    $pdo->exec("UPDATE sales SET invoice_number = '$invoiceNumber' WHERE SaleID IN ($id_list)");
+
     $query = "SELECT * FROM sales WHERE SaleID IN ($id_list)";
-    $result = $pdo->query($query);
-    while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
+    foreach ($pdo->query($query) as $row) {
         if (empty($pnr)) {
             $pnr = $row['PNR'];
             $partyName = $row['PartyName'];
@@ -105,59 +89,38 @@ if (!empty($_SESSION['invoice_cart'])) {
         $total += $row['BillAmount'];
     }
 
-    // $ait = $total * 0.003;
     $ait = 0;
     $gt = $total + $ait;
-        $sellingPrice = $gt;
-$client_name = '';
+    $sellingPrice = $gt;
 
-if (isset($_POST['ClientNameManual']) && trim($_POST['ClientNameManual']) !== '') {
-    $client_name = trim($_POST['ClientNameManual']);
-} elseif (isset($_POST['ClientNameDropdown']) && trim($_POST['ClientNameDropdown']) !== '') {
-    $client_name = trim($_POST['ClientNameDropdown']);
-} else {
-    $client_name = 'Unknown Client';
-}
-
-$Sales_section = $_POST['clientType'] ?? 'Unknown Client';
-
-
-$client_address = $_POST['address'] ?? 'Unknown Address';
-$client_email = $_POST['client_email'] ?? 'No Email';
-    // Insert into invoices table with additional ticket fields
+    // Insert into invoices table
     $stmt = $pdo->prepare("INSERT INTO invoices 
         (Invoice_number, date, PNR, PartyName, IssueDate, FlightDate, ReturnDate, SellingPrice, Section) 
         VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([
-        $invoiceNumber,
-        $pnr,
-        $client_name,
-        $issueDate,
-        $flightDate,
-        $returnDate,
-        $sellingPrice,
-        $Sales_section
-    ]);
+    $stmt->execute([$invoiceNumber, $pnr, $client_name, $issueDate, $flightDate, $returnDate, $sellingPrice, $Sales_section]);
 }
 
-// PDF and email logic (same as before)
-
+// ✅ PDF creation
 $pdf = new TCPDF();
 $pdf->SetPrintHeader(false);
 $pdf->AddPage();
 $pdf->Image('logo.jpg', 10, 14, 30);
-$pdf->SetY(10);
-$pdf->SetX(80);
+
+// ✅ Barcode with Invoice Number text below
 $barcodeStyle = [
     'position' => '', 'align' => 'C', 'stretch' => false, 'fitwidth' => true,
     'cellfitalign' => '', 'border' => false, 'hpadding' => 'auto', 'vpadding' => 'auto',
     'fgcolor' => [0, 0, 0], 'bgcolor' => false, 'text' => true,
     'font' => 'helvetica', 'fontsize' => 10, 'stretchtext' => 4
 ];
-$pdf->write1DBarcode($invoiceNumber, 'C128', '70.0', '16.0', '45', 18, 0.4, $barcodeStyle, 'N');
-$pdf->SetFont('helvetica', 'B', 18);
+$pdf->write1DBarcode($invoiceNumber, 'C128', 70, 16, 45, 18, 0.4, $barcodeStyle, 'N');
+
+// ✅ Place "Reissue Invoice" smaller and below barcode
+$pdf->SetFont('helvetica', 'B', 12);
 $pdf->SetTextColor(0, 102, 204);
-$pdf->Text(80, 40, 'INVOICE');
+$pdf->SetXY(70, 36);  // just below the barcode
+$pdf->Cell(45, 5, 'REISSUE INVOICE', 0, 1, 'C');
+
 $pdf->SetFont('helvetica', '', 10);
 $pdf->SetTextColor(0, 0, 0);
 
@@ -170,10 +133,9 @@ $companyInfo = <<<EOF
   <tr><td colspan="2">+8801896459490, +8801896459495</td></tr>
 </table>
 EOF;
-
 $pdf->SetXY(110, 10);
 $pdf->writeHTMLCell(0, 0, '', '', $companyInfo, 0, 1, 0, true, 'R', true);
-$pdf->SetXY(150, 45);
+$pdf->SetXY(150, 55);
 $pdf->MultiCell(50, 0, "Date: " . date('d M Y') . "\nInvoice: $invoiceNumber", 0, 'R');
 
 $clientInfo = <<<EOD
@@ -182,10 +144,11 @@ $clientInfo = <<<EOD
     <p><b>Client Address: </b>{$client_address}</p>
 </div>
 EOD;
-$pdf->SetY(40);
+$pdf->SetY(50);
 $pdf->Ln(20);
 $pdf->writeHTML($clientInfo, true, false, true, false, '');
 
+// Table
 $html = '<style>tr {border-bottom: 1px solid #ccc;} th {background-color:rgb(0, 98, 202); color: white;}</style>';
 $html .= '<table cellpadding="4" cellspacing="0" width="100%" style="border-collapse:collapse;">
 <thead>
@@ -228,9 +191,10 @@ $pdf->Ln(5);
 $pdf->SetFont('helvetica', '', 9);
 $notes = <<<EOD
 <b>Notes:</b><br>
-1. Please make all payments for "Faith Travels and Tours LTD."<br>
-2. For POS payment, an additional 2.5% charge will be added for Visa/MasterCard and 3.5% for AMEX.<br>
-3. For MFS Banking, an additional 1.75% charge will be added.
+1. This is a reissue invoice for modified/updated tickets.<br>
+2. Please make all payments for "Faith Travels and Tours LTD."<br>
+3. For POS payment, an additional 2.5% charge will be added for Visa/MasterCard and 3.5% for AMEX.<br>
+4. For MFS Banking, an additional 1.75% charge will be added.
 EOD;
 $pdf->writeHTMLCell(0, 0, '', '', $notes, 0, 1, 0, true, 'L', true);
 
@@ -243,13 +207,14 @@ foreach ($logos as $logo) {
     $pdf->Image(__DIR__ . "/payment_icons/$logo", $x, $pdf->GetY() + 2, 15);
     $x += 20;
 }
+
+// Save file
 $fileName = "{$pnr}_{$invoiceNumber}.pdf";
 $filePath = __DIR__ . "/invoices/" . $fileName;
-
 ob_end_clean();
 $pdf->Output($filePath, 'F');
 
-// Send email
+// Email
 $mail = new PHPMailer\PHPMailer\PHPMailer();
 $mail->isSMTP();
 $mail->Host = 'smtp.gmail.com';
@@ -260,8 +225,8 @@ $mail->SMTPSecure = 'tls';
 $mail->Port = 587;
 $mail->setFrom('info@faithtrip.net', 'Faith Travels and Tours LTD');
 $mail->addAddress($client_email);
-$mail->Subject = 'Your Invoice - ' . $invoiceNumber;
-$mail->Body = "Dear Sir/Mam,\n\nGreetings From Faith Travels and Tours LTD. Thank You for being with us.\n\nIf you have any confusion please feel free to reach us. Please find your Re-Issue invoice attached.";
+$mail->Subject = 'Your Reissue Invoice - ' . $invoiceNumber;
+$mail->Body = "Dear Sir/Madam,\n\nGreetings From Faith Travels and Tours LTD. Thank you for being with us.\n\nPlease find your Reissue invoice attached.";
 
 $mail->addAttachment($filePath);
 
@@ -270,6 +235,7 @@ if (!$mail->send()) {
     exit;
 }
 
+unset($_SESSION['invoice_cart']);
 $_SESSION['invoice_sent'] = true;
 $_SESSION['invoice_file'] = $fileName;
 $_SESSION['invoice_email'] = $client_email;

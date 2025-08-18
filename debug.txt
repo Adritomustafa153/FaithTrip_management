@@ -2,7 +2,7 @@ Array
 (
     [clientType] => passenger
     [ClientNameDropdown] => 
-    [ClientNameManual] => Mr Md Kamrul Islam
+    [ClientNameManual] => CHOWDHURY/MD IMDADUL HAQUE MR	
     [address] => N/A
     [client_email] => marketing1@faithtrip.net
 )

@@ -1,5 +1,5 @@
 <?php
-file_put_contents('debug.txt', print_r($_POST, true));
+// file_put_contents('debug.txt', print_r($_POST, true));
 ob_clean();
 ob_start();
 
