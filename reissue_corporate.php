@@ -19,7 +19,6 @@ if ($result->num_rows === 0) {
     exit;
 }
 
-
 $row = $result->fetch_assoc();
 ?>
 
@@ -42,46 +41,45 @@ $row = $result->fetch_assoc();
         .btn:hover { opacity: 0.8; }
 
         input[readonly], select[readonly] {
-    background-color: #e0e0e0;
-    color: #333;
-    /* font-weight: bold; */
-}
-
-
+            background-color: #e0e0e0;
+            color: #333;
+        }
+        
+        /* Add this new style for disabled dropdown */
+        select:disabled {
+            background-color: #f5f5f5;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
     </style>
     <link rel="stylesheet" href="agents_manual_insert.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="companySearch.js" defer></script>
-
 </head>
 <body>
 
- <!-- Start your project here-->
 <!-- Navbar -->
-<?php include 'nav.php';  ?>
+<?php include 'nav.php'; ?>
 <!-- Navbar -->
 <div style="display: flex;justify-content:center;margin-top:15px">
-<h1 style="font-family:Arial, Helvetica, sans-serif">Insert Sales</h1>
+<h1 style="font-family:Arial, Helvetica, sans-serif">Insert Reissue</h1>
 </div>
 
 <!-- insert part is here -->
 <div class="container">
     <h2>Corporate Reissue Form</h2>
     <form action="reissue_corporate_sell.php" method="POST">
-                <input type="hidden" name="sale_id" value="<? $row['SaleID '] ?>" >
+        <input type="hidden" name="sale_id" value="<?= $row['SaleID'] ?>">
+        
         <!-- Row 1: Agent Name, Search, and Select Agent -->
         <div class="form-row">
             <div class="form-group">
                 <label for="companyDropdown">Select Company:</label>
                 <input type="text" name="partyname" value="<?= htmlspecialchars($row['PartyName']) ?>" readonly>
-
-                    <!-- <option value="">Select Compa</option> -->
-                </select>
             </div>
             <div class="form-group">
-                    <label for="AccountNumber">Airlines Name</label>
-                    <input type="text" name="airlines" value="<?= htmlspecialchars($row['airlines']) ?>" readonly>
-
+                <label for="AccountNumber">Airlines Name</label>
+                <input type="text" name="airlines" value="<?= htmlspecialchars($row['airlines']) ?>" readonly>
             </div>
         </div>
 
@@ -93,7 +91,7 @@ $row = $result->fetch_assoc();
             </div>
             <div class="form-group">
                 <label for="TicketRoute">Ticket Route:</label>
-        <input type="text" name="ticket_route" value="<?= htmlspecialchars($row['TicketRoute']) ?>" readonly>
+                <input type="text" name="ticket_route" value="<?= htmlspecialchars($row['TicketRoute']) ?>" readonly>
             </div>
             <div class="form-group">
                 <label for="TicketNumber">Ticket Number:</label>
@@ -109,11 +107,11 @@ $row = $result->fetch_assoc();
             </div>
             <div class="form-group">
                 <label for="FlightDate">Flight Date:</label>
-        <input type="date" name="FlightDate" value="<?= htmlspecialchars($row['FlightDate']) ?>">
+                <input type="date" name="FlightDate" value="<?= htmlspecialchars($row['FlightDate']) ?>">
             </div>
             <div class="form-group">
                 <label for="ReturnDate">Return Date:</label>
-        <input type="date" name="ReturnDate" value="<?= htmlspecialchars($row['ReturnDate']) ?>">
+                <input type="date" name="ReturnDate" value="<?= htmlspecialchars($row['ReturnDate']) ?>">
             </div>
         </div>
 
@@ -121,7 +119,7 @@ $row = $result->fetch_assoc();
         <div class="form-row">
             <div class="form-group">
                 <label for="PNR">PNR:</label>
-        <input type="text" name="PNR" value="<?= htmlspecialchars($row['PNR']) ?>" readonly>
+                <input type="text" name="PNR" value="<?= htmlspecialchars($row['PNR']) ?>" readonly>
             </div>
             <div class="form-group">
                 <label for="BillAmount">Bill Amount:</label>
@@ -130,6 +128,19 @@ $row = $result->fetch_assoc();
             <div class="form-group">
                 <label for="NetPayment">Net Payment:</label>
                 <input type="number" name="NetPayment" id="netPayment" required>
+            </div>
+            <div class="form-group">
+                <label for="source">Source:</label>
+                <select name="source" id="source" required>
+                    <option value="">Select Source</option>
+                    <?php 
+                    $sources_query = "SELECT agency_name FROM sources";
+                    $sources_result = $conn->query($sources_query);
+                    while ($source = $sources_result->fetch_assoc()) {
+                        echo '<option value="'.htmlspecialchars($source['agency_name']).'">'.htmlspecialchars($source['agency_name']).'</option>';
+                    }
+                    ?>
+                </select>
             </div>
         </div>
 
@@ -158,6 +169,19 @@ $row = $result->fetch_assoc();
                     <option value="Mobile Banking(nagad)">Mobile Banking (Nagad)</option>
                 </select>
             </div>
+            <div class="form-group">
+                <label for="system">System:</label>
+                <select name="system" id="system" disabled required>
+                    <option value="">Select System</option>
+                    <?php 
+                    $systems_query = "SELECT system FROM iata_systems";
+                    $systems_result = $conn->query($systems_query);
+                    while ($system = $systems_result->fetch_assoc()) {
+                        echo '<option value="'.htmlspecialchars($system['system']).'">'.htmlspecialchars($system['system']).'</option>';
+                    }
+                    ?>
+                </select>
+            </div>
         </div>
 
         <!-- Row 6: Paid Amount, Due Amount, and Salesperson Name -->
@@ -168,7 +192,7 @@ $row = $result->fetch_assoc();
             </div>
             <div class="form-group">
                 <label for="DueAmount">Due Amount:</label>
-                <input type="text" name="DueAmount" id="dueAmount" >
+                <input type="text" name="DueAmount" id="dueAmount">
             </div>
             <div class="form-group">
                 <label for="salespersonDropdown">Salesperson Name:</label>
@@ -176,7 +200,7 @@ $row = $result->fetch_assoc();
                     <option value="">Select Salesperson</option>
                 </select>
             </div>
-                                    <div class="form-group">
+            <div class="form-group">
                 <label for="PaymentMethod">Seat Class:</label>
                 <select name="Class" id="seat" required>
                     <option value="Economy">Economy Class</option>
@@ -196,11 +220,6 @@ $row = $result->fetch_assoc();
                         <option value="">Select Bank</option>
                     </select>
                 </div>
-                <!-- <div class="form-group">
-                    <label for="BranchName">Branch Name:</label>
-                    <input type="text" name="BranchName">
-                </div> -->
-                
             </div>
             <div class="form-row">
                 <div class="form-group">
@@ -220,17 +239,50 @@ $row = $result->fetch_assoc();
 
         <!-- Row 8: Submit Button -->
         <div class="form-row submit-button-wrapper">   
-        <div class="form-row">
-            <div class="form-group">
-                <button type="submit" class="submit-btn">Reissue</button>
+            <div class="form-row">
+                <div class="form-group">
+                    <button type="submit" class="submit-btn">Reissue</button>
+                </div>
             </div>
-        </div>
         </div>
     </form>
 </div>
 
+<script>
+$(document).ready(function() {
+    // Initially disable the system dropdown
+    $('#system').prop('disabled', true);
+    
+    // When source changes
+    $('#source').change(function() {
+        var selectedSource = $(this).val();
+        
+        // Check if source contains "IATA" (case-sensitive)
+        if (selectedSource.includes('IATA')) {
+            $('#system').prop('disabled', false);
+        } else {
+            $('#system').prop('disabled', true).val('');
+        }
+    });
+    
+    // Calculate profit when bill amount or net payment changes
+    $('#billAmount, #netPayment').on('input', function() {
+        var billAmount = parseFloat($('#billAmount').val()) || 0;
+        var netPayment = parseFloat($('#netPayment').val()) || 0;
+        var profit = billAmount - netPayment;
+        $('#profit').val(profit.toFixed(2));
+    });
+    
+    // Calculate due amount when paid amount changes
+    $('#paidAmount').on('input', function() {
+        var billAmount = parseFloat($('#billAmount').val()) || 0;
+        var paidAmount = parseFloat($('#paidAmount').val()) || 0;
+        var dueAmount = billAmount - paidAmount;
+        $('#dueAmount').val(dueAmount.toFixed(2));
+    });
+});
+</script>
 
- <!-- Insert part Ends here -->
 </body>
 </html>
 

@@ -207,6 +207,19 @@ $row = $result->fetch_assoc();
                 <label for="DueAmount">Due Amount:</label>
                 <input type="text" name="DueAmount" id="dueAmount" readonly>
             </div>
+            <div class="form-group">
+    <label for="source">Source:</label>
+    <select name="source" id="source" required>
+        <option value="">Select Source</option>
+        <?php 
+        $sources_query = "SELECT agency_name FROM sources";
+        $sources_result = $conn->query($sources_query);
+        while ($source = $sources_result->fetch_assoc()) {
+            echo '<option value="'.htmlspecialchars($source['agency_name']).'">'.htmlspecialchars($source['agency_name']).'</option>';
+        }
+        ?>
+    </select>
+</div>
             <!-- <div class="form-group">
                 <label for="salespersonDropdown">Salesperson Name:</label>
                 <select name="SalesPersonName" id="salespersonDropdown" required>

@@ -237,27 +237,27 @@ if (isset($_GET['delete'])) {
     <div>
       <a href="redirect_reissue.php?id=<?= $row['SaleID'] ?>" class="btn btn-success btn-sm mt-1">Reissue</a>
       <a href="edit_invoice.php?id=<?= $row['SaleID'] ?>" class="btn btn-warning btn-sm mt-1">Refund</a>
-      <div><small style="color: green;">✔ Invoice generated</small></div>
+      <!-- <div><small style="color: green;">✔ Invoice generated</small></div> -->
     </div>
   <?php endif; ?>
 </td>
 
             <td style="font-size: 12px;"><?= htmlspecialchars($row['TicketRoute']) ?>
         </td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['airlines']) ?></td>
+            <td style="font-size: 12px;"><?= htmlspecialchars($row['airlines']) ?><br><b>Issued From : <span style="color: #088910e2;"><b><?= htmlspecialchars($row['Source']) ?><br><?= htmlspecialchars($row['system']) ?></span></td>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['PNR']) ?></td>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['TicketNumber']) ?></td>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['IssueDate']) ?></td>
             <td style="font-size: 12px;"><?= $day_passes ?> days</td>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['PaymentStatus']) ?></td>
-            <td style="font-size: 12px;">BDT<?= number_format($row['BillAmount'], 2) ?></td>
+            <td style="font-size: 12px;"><b>Selling :<?= number_format($row['BillAmount'], 2) ?><br><b>Net :<?= number_format($row['NetPayment'], 2) ?><br><b> Profit :<?= number_format($row['Profit'], 2) ?></td>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['SalesPersonName']) ?></td>
             <td>
     <?php if (isset($row['SaleID'])): ?>
         <a href="edit.php?id=<?php echo htmlspecialchars($row['SaleID']); ?>" class="btn edit-btn" >
             <i class="fas fa-edit"></i> Edit
         </a><br>
-        <a href="invoice_list.php?delete=<?php echo htmlspecialchars($row['SaleID']); ?>" class="btn delete-btn" 
+        <a href="reissue.php?delete=<?php echo htmlspecialchars($row['SaleID']); ?>" class="btn delete-btn" 
            onclick="return confirm('Are you sure you want to delete this record?')">
             <i class="fas fa-trash"></i> Delete
             

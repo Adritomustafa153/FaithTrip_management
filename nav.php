@@ -260,6 +260,9 @@ if (isset($_SESSION['UserID'])) {
           <li>
             <a class="dropdown-item" href="users.php">User</a>
           </li>
+                    <li>
+            <a class="dropdown-item" href="view_iata_system.php">IATA System</a>
+          </li>
         </ul>
       </li>
       </ul>

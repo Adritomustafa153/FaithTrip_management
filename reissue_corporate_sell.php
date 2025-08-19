@@ -16,17 +16,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         BillAmount, NetPayment, Profit, PaymentStatus, PaidAmount, DueAmount,
         PaymentMethod, BankName,
         ReceivedDate, DepositDate, ClearingDate,
-        SalesPersonName, invoice_number, Remarks
+        SalesPersonName, Source, invoice_number, Remarks
     ) VALUES (
         'Corporate', ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, 
         ?, ?, ?, ?, ?, ?, 
         ?, ?, ?, ?, 
-        ?, ?, ?, 'Reissue'
+        ?, ?, ?, ?, 'Reissue'
     )");
 
     $stmt->bind_param(
-        "ssssssssssdddsddsssssss",
+        "ssssssssssdddsddssssssss",
         $_POST['partyname'],
         $_POST['passengername'],
         $_POST['airlines'],
@@ -49,6 +49,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $_POST['DepositDate'],
         $_POST['ClearingDate'],
         $_POST['SalesPersonName'],
+        $_POST['source'],
         $_POST['invoice_number']
     );
 

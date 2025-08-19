@@ -16,10 +16,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             section, PartyName, PassengerName, airlines, TicketRoute, TicketNumber, Class, IssueDate,
             FlightDate, ReturnDate, PNR, BillAmount, NetPayment, Profit, PaymentStatus, PaidAmount,
             DueAmount, PaymentMethod, BankName, BranchName, AccountNumber,
-            ReceivedDate, DepositDate, ClearingDate, SalesPersonName, Remarks
+            ReceivedDate, DepositDate, ClearingDate, SalesPersonName, Source, Remarks
         ) 
         VALUES (
-            'counter sell', 'counter sell', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Reissue'
+            'counter sell', 'counter sell', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Reissue'
         )");
 
     if (!$stmt) {
@@ -27,17 +27,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     $stmt->bind_param(
-        "sssssssssdddsddssssssss",
+        "sssssssssdddsddsssssssss",
         $_POST['passenger_name'], $_POST['airlines'], $_POST['ticket_route'], $_POST['TicketNumber'],
         $_POST['Class'], $_POST['issueDate'], $_POST['journey_date'], $_POST['return_date'],
         $_POST['pnr'], $billAmount, $netPayment, $profit,
         $_POST['PaymentStatus'], $paidAmount, $dueAmount,
         $_POST['PaymentMethod'], $_POST['BankName'], $_POST['BranchName'], $_POST['AccountNumber'],
-        $_POST['ReceivedDate'], $_POST['DepositDate'], $_POST['ClearingDate'], $_POST['sales_person']
+        $_POST['ReceivedDate'], $_POST['DepositDate'], $_POST['ClearingDate'], $_POST['sales_person'], $_POST['source']
     );
 
     if ($stmt->execute()) {
-        echo "<script>alert('Reissue sale inserted successfully!'); window.location.href='invoice_list.php';</script>";
+        echo "<script>alert('Reissue sale inserted successfully!'); window.location.href='reissue.php';</script>";
         exit;
     } else {
         echo "Error: " . $stmt->error;
