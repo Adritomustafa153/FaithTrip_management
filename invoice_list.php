@@ -246,7 +246,7 @@ if (isset($_GET['delete'])) {
 
             <td style="font-size: 12px;"><?= htmlspecialchars($row['TicketRoute']) ?>
         </td>
-            <td style="font-size: 12px;"><?= htmlspecialchars($row['airlines']) ?><br><b>Issued From : <span style="color: #088910e2;"><b><?= htmlspecialchars($row['Source']) ?></span></td>
+            <td style="font-size: 12px;"><?= htmlspecialchars($row['airlines']) ?><br><b>Issued From : <span style="color: #088910e2;"><b><?= htmlspecialchars($row['Source']) ?></span> <br><b>System : <span style="color: #088910e2;"><b><?= htmlspecialchars($row['system']) ?></span></td>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['PNR']) ?></td>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['TicketNumber']) ?></td>
             <td style="font-size: 12px;"><?= htmlspecialchars($row['IssueDate']) ?></td>

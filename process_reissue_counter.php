@@ -16,10 +16,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             section, PartyName, PassengerName, airlines, TicketRoute, TicketNumber, Class, IssueDate,
             FlightDate, ReturnDate, PNR, BillAmount, NetPayment, Profit, PaymentStatus, PaidAmount,
             DueAmount, PaymentMethod, BankName, BranchName, AccountNumber,
-            ReceivedDate, DepositDate, ClearingDate, SalesPersonName, Source, Remarks
+            ReceivedDate, DepositDate, ClearingDate, SalesPersonName, Source, system, Remarks
         ) 
         VALUES (
-            'counter sell', 'counter sell', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Reissue'
+            'counter sell', 'counter sell', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Reissue'
         )");
 
     if (!$stmt) {
@@ -27,13 +27,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     $stmt->bind_param(
-        "sssssssssdddsddsssssssss",
+        "sssssssssdddsddssssssssss",
         $_POST['passenger_name'], $_POST['airlines'], $_POST['ticket_route'], $_POST['TicketNumber'],
         $_POST['Class'], $_POST['issueDate'], $_POST['journey_date'], $_POST['return_date'],
         $_POST['pnr'], $billAmount, $netPayment, $profit,
         $_POST['PaymentStatus'], $paidAmount, $dueAmount,
         $_POST['PaymentMethod'], $_POST['BankName'], $_POST['BranchName'], $_POST['AccountNumber'],
-        $_POST['ReceivedDate'], $_POST['DepositDate'], $_POST['ClearingDate'], $_POST['sales_person'], $_POST['source']
+        $_POST['ReceivedDate'], $_POST['DepositDate'], $_POST['ClearingDate'], $_POST['sales_person'], $_POST['source'], $_POST['system']
     );
 
     if ($stmt->execute()) {

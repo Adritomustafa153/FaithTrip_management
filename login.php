@@ -64,9 +64,9 @@ if (empty($_SESSION['csrf_token'])) {
         <div class="flex flex-col lg:flex-row items-center gap-12">
             <!-- Left Side - Branding -->
             <div class="w-full lg:w-1/2 flex flex-col items-center">
+                <h3>Faith Travels and Tours LTD</h3>
                 <img src="logo.jpg" alt="BillBoard Logo" class="h-20 mb-6">
-                <img src="accounts_display.gif" alt="Account Access" class="w-full max-w-xs rounded-lg mb-6">
-                
+                <img src="accounts_display.gif" alt="Account Access" class="w-full max-w-xs rounded-lg mb-6">          
                 <div class="handwriting text-center">
                     Login to <span class="brand-primary">Bill</span><span class="brand-secondary">Board</span>
                 </div>

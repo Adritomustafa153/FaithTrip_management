@@ -5,6 +5,10 @@ if ($conn->connect_error) {
 }
 $sources_query = "SELECT agency_name FROM sources";
 $sources_result = mysqli_query($conn, $sources_query);
+
+// Fetch systems for the dropdown
+$systems_query = "SELECT system FROM iata_systems";
+$systems_result = mysqli_query($conn, $systems_query);
 ?>
 
 <!DOCTYPE html>
@@ -24,7 +28,11 @@ $sources_result = mysqli_query($conn, $sources_query);
         .edit-btn { background-color:rgb(7, 147, 32); color: white; }
         .delete-btn { background-color: #d9534f; color: white; }
         .btn:hover { opacity: 0.8; }
-
+        select:disabled {
+            background-color: #f5f5f5;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
     </style>
     <link rel="stylesheet" href="agents_manual_insert.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -33,9 +41,8 @@ $sources_result = mysqli_query($conn, $sources_query);
 </head>
 <body>
 
- <!-- Start your project here-->
 <!-- Navbar -->
-<?php include 'nav.php';  ?>
+<?php include 'nav.php'; ?>
 <!-- Navbar -->
 <div style="display: flex;justify-content:center;margin-top:15px">
 <h1 style="font-family:Arial, Helvetica, sans-serif">Insert Sales</h1>
@@ -58,43 +65,12 @@ $sources_result = mysqli_query($conn, $sources_query);
                 </select>
             </div>
             <div class="form-group">
-                    <label for="AccountNumber">Airlines Name</label>
-                    <input type="text" id="airlines" name="airlines" autocomplete="off" onkeyup="searchAirlines()">
-                    <input type="hidden" id="airline_code" name="airline_code">
-                    <input type="hidden" id="airline_logo_url" name="airline_logo_url">
-                    <div id="suggestions"></div>
-                    <!-- <button type="submit">Submit</button> -->
+                <label for="AccountNumber">Airlines Name</label>
+                <input type="text" id="airlines" name="airlines" autocomplete="off" onkeyup="searchAirlines()">
+                <input type="hidden" id="airline_code" name="airline_code">
+                <input type="hidden" id="airline_logo_url" name="airline_logo_url">
+                <div id="suggestions"></div>
             </div>
-            <script>
-        function searchAirlines() {
-            let input = document.getElementById('airlines').value;
-            let suggestionsBox = document.getElementById('suggestions');
-            if (input.length < 1) {
-                suggestionsBox.innerHTML = "";
-                return;
-            }
-
-            fetch(`fetch_airlines.php?query=${input}`)
-                .then(response => response.json())
-                .then(data => {
-                    suggestionsBox.innerHTML = "";
-                    data.forEach(item => {
-                        let div = document.createElement('div');
-                        div.classList.add('suggestion-item');
-                        div.textContent = `${item.code} - ${item.name}`;
-                        div.onclick = () => selectAirline(item);
-                        suggestionsBox.appendChild(div);
-                    });
-                });
-        }
-
-        function selectAirline(airline) {
-            document.getElementById('airlines').value = airline.name;
-            document.getElementById('airline_code').value = airline.code;
-            document.getElementById('airline_logo').src = airline.logo;
-            document.getElementById('suggestions').innerHTML = "";
-        }
-    </script>
         </div>
 
         <!-- Row 2: Passenger Name, Ticket Route, and Ticket Number -->
@@ -143,15 +119,18 @@ $sources_result = mysqli_query($conn, $sources_query);
                 <label for="NetPayment">Net Payment:</label>
                 <input type="number" name="NetPayment" id="netPayment" required>
             </div>
-                        <div class="form-group">
-    <label for="source_id">Source (Agency Name)</label>
-    <select name="source_id" id="source_id" class="form-control" required>
-        <option value="">Select Source</option>
-        <?php while($row = mysqli_fetch_assoc($sources_result)): ?>
-            <option value="<?= $row['agency_name']; ?>"><?= htmlspecialchars($row['agency_name']); ?></option>
-        <?php endwhile; ?>
-    </select>
-</div>
+            <div class="form-group">
+                <label for="source_id">Source (Agency Name)</label>
+                <select name="source_id" id="source_id" class="form-control" required>
+                    <option value="">Select Source</option>
+                    <?php 
+                    // Reset pointer and loop through sources again
+                    mysqli_data_seek($sources_result, 0);
+                    while($row = mysqli_fetch_assoc($sources_result)): ?>
+                        <option value="<?= $row['agency_name']; ?>"><?= htmlspecialchars($row['agency_name']); ?></option>
+                    <?php endwhile; ?>
+                </select>
+            </div>
         </div>
 
         <!-- Row 5: Profit, Payment Status, and Payment Method -->
@@ -179,6 +158,16 @@ $sources_result = mysqli_query($conn, $sources_query);
                     <option value="Mobile Banking(nagad)">Mobile Banking (Nagad)</option>
                 </select>
             </div>
+            <!-- Add System dropdown -->
+            <div class="form-group">
+                <label for="system">System:</label>
+                <select name="system" id="system" disabled required>
+                    <option value="">Select System</option>
+                    <?php while($system = mysqli_fetch_assoc($systems_result)): ?>
+                        <option value="<?= $system['system']; ?>"><?= htmlspecialchars($system['system']); ?></option>
+                    <?php endwhile; ?>
+                </select>
+            </div>
         </div>
 
         <!-- Row 6: Paid Amount, Due Amount, and Salesperson Name -->
@@ -197,15 +186,14 @@ $sources_result = mysqli_query($conn, $sources_query);
                     <option value="">Select Salesperson</option>
                 </select>
             </div>
-            
-                                    <div class="form-group">
+            <div class="form-group">
                 <label for="PaymentMethod">Seat Class:</label>
                 <select name="Class" id="seat" required>
                     <option value="Economy">Economy Class</option>
                     <option value="Business">Business Class</option>
                     <option value="First">First Class</option>
                     <option value="Premium">Premium Economy</option>
-                    <option value="Premium">Business + Economy</option>
+                    <option value="Business + Economy">Business + Economy</option>
                 </select>
             </div>
         </div>
@@ -219,11 +207,6 @@ $sources_result = mysqli_query($conn, $sources_query);
                         <option value="">Select Bank</option>
                     </select>
                 </div>
-                <!-- <div class="form-group">
-                    <label for="BranchName">Branch Name:</label>
-                    <input type="text" name="BranchName">
-                </div> -->
-                
             </div>
             <div class="form-row">
                 <div class="form-group">
@@ -243,17 +226,80 @@ $sources_result = mysqli_query($conn, $sources_query);
 
         <!-- Row 8: Submit Button -->
         <div class="form-row submit-button-wrapper">   
-        <div class="form-row">
-            <div class="form-group">
-                <button type="submit" class="submit-btn">Submit Sale</button>
+            <div class="form-row">
+                <div class="form-group">
+                    <button type="submit" class="submit-btn">Submit Sale</button>
+                </div>
             </div>
-        </div>
         </div>
     </form>
 </div>
 
+<script>
+$(document).ready(function() {
+    // Initially disable the system dropdown
+    $('#system').prop('disabled', true);
+    
+    // When source changes
+    $('#source_id').change(function() {
+        var selectedSource = $(this).val();
+        
+        // Check if source contains "IATA" (case-sensitive)
+        if (selectedSource.includes('IATA')) {
+            $('#system').prop('disabled', false);
+        } else {
+            $('#system').prop('disabled', true).val('');
+        }
+    });
+    
+    // Calculate profit when bill amount or net payment changes
+    $('#billAmount, #netPayment').on('input', function() {
+        var billAmount = parseFloat($('#billAmount').val()) || 0;
+        var netPayment = parseFloat($('#netPayment').val()) || 0;
+        var profit = billAmount - netPayment;
+        $('#profit').val(profit.toFixed(2));
+    });
+    
+    // Calculate due amount when paid amount changes
+    $('#paidAmount').on('input', function() {
+        var billAmount = parseFloat($('#billAmount').val()) || 0;
+        var paidAmount = parseFloat($('#paidAmount').val()) || 0;
+        var dueAmount = billAmount - paidAmount;
+        $('#dueAmount').val(dueAmount.toFixed(2));
+    });
+});
 
- <!-- Insert part Ends here -->
+// Airline search functionality
+function searchAirlines() {
+    let input = document.getElementById('airlines').value;
+    let suggestionsBox = document.getElementById('suggestions');
+    if (input.length < 1) {
+        suggestionsBox.innerHTML = "";
+        return;
+    }
+
+    fetch(`fetch_airlines.php?query=${input}`)
+        .then(response => response.json())
+        .then(data => {
+            suggestionsBox.innerHTML = "";
+            data.forEach(item => {
+                let div = document.createElement('div');
+                div.classList.add('suggestion-item');
+                div.textContent = `${item.code} - ${item.name}`;
+                div.onclick = () => selectAirline(item);
+                suggestionsBox.appendChild(div);
+            });
+        });
+}
+
+function selectAirline(airline) {
+    document.getElementById('airlines').value = airline.name;
+    document.getElementById('airline_code').value = airline.code;
+    document.getElementById('airline_logo_url').value = airline.logo;
+    document.getElementById('suggestions').innerHTML = "";
+}
+</script>
+
 </body>
 </html>
 
