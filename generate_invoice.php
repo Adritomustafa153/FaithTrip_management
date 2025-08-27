@@ -84,6 +84,8 @@ if (isset($_POST['ClientNameManual']) && trim($_POST['ClientNameManual']) !== ''
 $Sales_section = $_POST['clientType'] ?? 'Unknown Client';
 $client_address = $_POST['address'] ?? 'Unknown Address';
 $client_email = $_POST['client_email'] ?? 'No Email';
+$cc_emails = $_POST['cc_emails'] ?? '';
+$bcc_emails = $_POST['bcc_emails'] ?? '';
 
 // ✅ Fetch selected sales and update them with invoice number
 if (!empty($_SESSION['invoice_cart'])) {
@@ -187,8 +189,8 @@ foreach ($sales as $row) {
     $html .= '</tr>';
 }
 
-$html .= '<tr><td colspan="5" align="right">Selling</td><td>' . number_format($total, 2) . '</td></tr>';
-$html .= '<tr><td colspan="5" align="right">AIT</td><td>' . number_format($ait, 2) . '</td></tr>';
+$html .= '<tr><td colspan="5" align="right">Air Ticket Price</td><td>' . number_format($total, 2) . '</td></tr>';
+$html .= '<tr><td colspan="5" align="right">Advance Income Tax (AIT)</td><td>' . number_format($ait, 2) . '</td></tr>';
 $html .= '<tr><td colspan="5" align="right"><b>Total</b></td><td><b>' . number_format($gt, 2) . '</b></td></tr>';
 $html .= '</tbody></table>';
 
@@ -236,6 +238,29 @@ $mail->SMTPSecure = 'tls';
 $mail->Port = 587;
 $mail->setFrom('info@faithtrip.net', 'Faith Travels and Tours LTD');
 $mail->addAddress($client_email);
+
+// Add CC emails if provided
+if (!empty($cc_emails)) {
+    $cc_array = explode(',', $cc_emails);
+    foreach ($cc_array as $cc_email) {
+        $cc_email = trim($cc_email);
+        if (filter_var($cc_email, FILTER_VALIDATE_EMAIL)) {
+            $mail->addCC($cc_email);
+        }
+    }
+}
+
+// Add BCC emails if provided
+if (!empty($bcc_emails)) {
+    $bcc_array = explode(',', $bcc_emails);
+    foreach ($bcc_array as $bcc_email) {
+        $bcc_email = trim($bcc_email);
+        if (filter_var($bcc_email, FILTER_VALIDATE_EMAIL)) {
+            $mail->addBCC($bcc_email);
+        }
+    }
+}
+
 $mail->Subject = 'Your Invoice - ' . $invoiceNumber;
 $mail->Body = "Dear Sir/Mam,\n\nGreetings From Faith Travels and Tours LTD. Thank You for being with us.\n\nIf you have any confusion please feel free to reach us. Please find your invoice attached.";
 $mail->addAttachment($filePath);
@@ -248,6 +273,8 @@ if (!$mail->send()) {
 $_SESSION['invoice_sent'] = true;
 $_SESSION['invoice_file'] = $fileName;
 $_SESSION['invoice_email'] = $client_email;
+$_SESSION['cc_emails'] = $cc_emails;
+$_SESSION['bcc_emails'] = $bcc_emails;
 
 header("Location: mail_success.php");
 exit;

@@ -13,8 +13,30 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
+// Handle unblock request
+if (isset($_GET['unblock']) && is_numeric($_GET['unblock'])) {
+    $userId = $_GET['unblock'];
+    
+    // Reset login attempts and unlock the user
+    $unblockSql = "UPDATE user SET login_attempts = 0, is_locked = 0, lock_time = NULL WHERE UserID = ?";
+    $stmt = $conn->prepare($unblockSql);
+    $stmt->bind_param("i", $userId);
+    
+    if ($stmt->execute()) {
+        $successMessage = "User #$userId has been unblocked successfully.";
+    } else {
+        $errorMessage = "Error unblocking user: " . $stmt->error;
+    }
+    
+    $stmt->close();
+    
+    // Redirect to avoid form resubmission on refresh
+    header("Location: ".$_SERVER['PHP_SELF']);
+    exit();
+}
+
 // Fetch all users from the user table
-$sql = "SELECT * FROM user";
+$sql = "SELECT * FROM user ORDER BY UserID DESC";
 $result = $conn->query($sql);
 ?>
 
@@ -28,7 +50,6 @@ $result = $conn->query($sql);
         body {
             font-family: Arial, sans-serif;
             margin: 0;
-
             background-color: #f5f5f5;
         }
         .container {
@@ -127,12 +148,44 @@ $result = $conn->query($sql);
         .btn:hover {
             background-color: #45a049;
         }
+        .btn-unblock {
+            background-color: #f44336;
+            margin-left: 5px;
+        }
+        .btn-unblock:hover {
+            background-color: #d32f2f;
+        }
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+        }
+        .alert-success {
+            color: #3c763d;
+            background-color: #dff0d8;
+            border-color: #d6e9c6;
+        }
+        .alert-error {
+            color: #a94442;
+            background-color: #f2dede;
+            border-color: #ebccd1;
+        }
     </style>
 </head>
 <body>
     <?php include 'nav.php'; ?>
     <div class="container">
         <h1>User Activity Dashboard</h1>
+        
+        <!-- Display success/error messages -->
+        <?php if (isset($successMessage)): ?>
+            <div class="alert alert-success"><?php echo $successMessage; ?></div>
+        <?php endif; ?>
+        
+        <?php if (isset($errorMessage)): ?>
+            <div class="alert alert-error"><?php echo $errorMessage; ?></div>
+        <?php endif; ?>
         
         <div class="search-container">
             <input type="text" id="searchInput" placeholder="Search for users..." onkeyup="searchTable()">
@@ -176,8 +229,14 @@ $result = $conn->query($sql);
                         echo "<td class='" . $statusClass . "'>" . $statusText . "</td>";
                         echo "<td>
                                 <button onclick='viewDetails(" . $row["UserID"] . ")'>View</button>
-                                <button onclick='editUser(" . $row["UserID"] . ")'>Edit</button>
-                              </td>";
+                                <button onclick='editUser(" . $row["UserID"] . ")'>Edit</button>";
+                        
+                        // Add unblock button only for locked users
+                        if ($row["is_locked"]) {
+                            echo "<button class='btn-unblock' onclick='unblockUser(" . $row["UserID"] . ")'>Unblock</button>";
+                        }
+                        
+                        echo "</td>";
                         echo "</tr>";
                     }
                 } else {
@@ -244,6 +303,12 @@ $result = $conn->query($sql);
             alert("Edit user ID: " + userId);
             // In a real application, you would redirect to an edit page
             // window.location.href = 'edit_user.php?id=' + userId;
+        }
+        
+        function unblockUser(userId) {
+            if (confirm("Are you sure you want to unblock user #" + userId + "? This will reset their login attempts and allow them to log in immediately.")) {
+                window.location.href = "<?php echo $_SERVER['PHP_SELF']; ?>?unblock=" + userId;
+            }
         }
     </script>
 </body>

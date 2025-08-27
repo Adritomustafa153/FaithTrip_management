@@ -339,7 +339,7 @@ if ($result->num_rows > 0) {
                                 echo '<td>' . htmlspecialchars($row['PassengerName']) . '</td>';
                                 echo '<td>' . htmlspecialchars($row['airlines']) . '</td>';
                                 echo '<td>' . htmlspecialchars($row['TicketRoute']) . '</td>';
-                                echo '<td>' . htmlspecialchars($row['TicketNumber']) . '</td>';
+                                echo '<td>' . htmlspecialchars($row['TicketNumber']) . '<br>' . '</td>';
                                 echo '<td>' . htmlspecialchars($row['IssueDate']) . '</td>';
                                 echo '<td>' . $day_passes . ' days</td>';
                                 echo '<td>' . htmlspecialchars($row['PNR']) . '</td>';

@@ -28,13 +28,13 @@ try {
         // Get summary data
         $stmt = $pdo->prepare("
             SELECT 
-                SUM(CASE WHEN Remarks = 'Sell' THEN BillAmount ELSE 0 END) as sell_amount,
+                SUM(CASE WHEN Remarks = 'Air Ticket Sale' THEN BillAmount ELSE 0 END) as sell_amount,
                 SUM(CASE WHEN Remarks = 'Reissue' THEN BillAmount ELSE 0 END) as reissue_amount,
                 SUM(CASE WHEN Remarks = 'Refund' THEN ABS(refundtc) ELSE 0 END) as refund_amount,
-                SUM(CASE WHEN Remarks = 'Sell' THEN Profit ELSE 0 END) as sell_profit,
+                SUM(CASE WHEN Remarks = 'Air Ticket Sale' THEN Profit ELSE 0 END) as sell_profit,
                 SUM(CASE WHEN Remarks = 'Reissue' THEN Profit ELSE 0 END) as reissue_profit,
                 SUM(CASE WHEN Remarks = 'Refund' THEN Profit ELSE 0 END) as refund_profit,
-                SUM(CASE WHEN Remarks = 'Sell' THEN 1 ELSE 0 END) as sell_count,
+                SUM(CASE WHEN Remarks = 'Air Ticket Sale' THEN 1 ELSE 0 END) as sell_count,
                 SUM(CASE WHEN Remarks = 'Reissue' THEN 1 ELSE 0 END) as reissue_count,
                 SUM(CASE WHEN Remarks = 'Refund' THEN 1 ELSE 0 END) as refund_count
             FROM sales 
@@ -51,7 +51,7 @@ try {
         $chartStmt = $pdo->prepare("
             SELECT 
                 DATE(IssueDate) as day,
-                SUM(CASE WHEN Remarks IN ('Sell', 'Reissue') THEN BillAmount ELSE 0 END) - 
+                SUM(CASE WHEN Remarks IN ('Air Ticket Sale', 'Reissue') THEN BillAmount ELSE 0 END) - 
                 SUM(CASE WHEN Remarks = 'Refund' THEN ABS(refundtc) ELSE 0 END) as daily_sales,
                 SUM(Profit) as daily_profit
             FROM sales
@@ -93,13 +93,13 @@ try {
         // Get summary data
         $stmt = $pdo->prepare("
             SELECT 
-                SUM(CASE WHEN Remarks = 'Sell' THEN BillAmount ELSE 0 END) as sell_amount,
+                SUM(CASE WHEN Remarks = 'Air Ticket Sale' THEN BillAmount ELSE 0 END) as sell_amount,
                 SUM(CASE WHEN Remarks = 'Reissue' THEN BillAmount ELSE 0 END) as reissue_amount,
                 SUM(CASE WHEN Remarks = 'Refund' THEN ABS(refundtc) ELSE 0 END) as refund_amount,
-                SUM(CASE WHEN Remarks = 'Sell' THEN Profit ELSE 0 END) as sell_profit,
+                SUM(CASE WHEN Remarks = 'Air Ticket Sale' THEN Profit ELSE 0 END) as sell_profit,
                 SUM(CASE WHEN Remarks = 'Reissue' THEN Profit ELSE 0 END) as reissue_profit,
                 SUM(CASE WHEN Remarks = 'Refund' THEN Profit ELSE 0 END) as refund_profit,
-                SUM(CASE WHEN Remarks = 'Sell' THEN 1 ELSE 0 END) as sell_count,
+                SUM(CASE WHEN Remarks = 'Air Ticket Sale' THEN 1 ELSE 0 END) as sell_count,
                 SUM(CASE WHEN Remarks = 'Reissue' THEN 1 ELSE 0 END) as reissue_count,
                 SUM(CASE WHEN Remarks = 'Refund' THEN 1 ELSE 0 END) as refund_count
             FROM sales 
@@ -116,7 +116,7 @@ try {
         $chartStmt = $pdo->prepare("
             SELECT 
                 MONTH(IssueDate) as month,
-                SUM(CASE WHEN Remarks IN ('Sell', 'Reissue') THEN BillAmount ELSE 0 END) - 
+                SUM(CASE WHEN Remarks IN ('Air Ticket Sale', 'Reissue') THEN BillAmount ELSE 0 END) - 
                 SUM(CASE WHEN Remarks = 'Refund' THEN ABS(refundtc) ELSE 0 END) as monthly_sales,
                 SUM(Profit) as monthly_profit
             FROM sales

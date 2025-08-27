@@ -73,6 +73,8 @@ $section = 'refund';
 $client_name = trim($_POST['ClientNameManual'] ?? '') ?: trim($_POST['ClientNameDropdown'] ?? '') ?: 'Unknown Client';
 $client_address = $_POST['address'] ?? 'Unknown Address';
 $client_email = $_POST['client_email'] ?? 'No Email';
+$cc_emails = $_POST['cc_emails'] ?? '';
+$bcc_emails = $_POST['bcc_emails'] ?? '';
 
 // ✅ Update sales with refund invoice number & fetch details
 if (!empty($_SESSION['refund_cart'])) {
@@ -208,6 +210,29 @@ $mail->SMTPSecure = 'tls';
 $mail->Port = 587;
 $mail->setFrom('info@faithtrip.net', 'Faith Travels and Tours LTD');
 $mail->addAddress($client_email);
+
+// Add CC emails if provided
+if (!empty($cc_emails)) {
+    $cc_array = explode(',', $cc_emails);
+    foreach ($cc_array as $cc_email) {
+        $cc_email = trim($cc_email);
+        if (filter_var($cc_email, FILTER_VALIDATE_EMAIL)) {
+            $mail->addCC($cc_email);
+        }
+    }
+}
+
+// Add BCC emails if provided
+if (!empty($bcc_emails)) {
+    $bcc_array = explode(',', $bcc_emails);
+    foreach ($bcc_array as $bcc_email) {
+        $bcc_email = trim($bcc_email);
+        if (filter_var($bcc_email, FILTER_VALIDATE_EMAIL)) {
+            $mail->addBCC($bcc_email);
+        }
+    }
+}
+
 $mail->Subject = 'Your Refund Invoice - ' . $invoiceNumber;
 $mail->Body = "Dear Sir/Madam,\n\nThis email contains your refund invoice from Faith Travels and Tours LTD.\n\nRefund amount: BDT " . number_format($total_refund_amount, 2) . "\n\nPlease find your refund invoice attached.";
 $mail->addAttachment($filePath);
@@ -221,6 +246,8 @@ unset($_SESSION['refund_cart']);
 $_SESSION['invoice_sent'] = true;
 $_SESSION['invoice_file'] = $fileName;
 $_SESSION['invoice_email'] = $client_email;
+$_SESSION['cc_emails'] = $cc_emails;
+$_SESSION['bcc_emails'] = $bcc_emails;
 
 header("Location: mail_success.php");
 exit;

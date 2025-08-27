@@ -1,244 +1,291 @@
 <?php
-ob_clean();
-ob_start();
-
-require_once __DIR__ . '/vendor/autoload.php';
 include 'db.php';
+$sources_query = "SELECT agency_name FROM sources";
+$sources_result = mysqli_query($conn, $sources_query);
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+// Fetch systems for the dropdown
+$systems_query = "SELECT system FROM iata_systems";
+$systems_result = mysqli_query($conn, $systems_query);
+?>
 
-function convertNumberToWordsIndian($number) {
-    $number = round($number);
-    $words = [
-        0 => '', 1 => 'One', 2 => 'Two', 3 => 'Three', 4 => 'Four',
-        5 => 'Five', 6 => 'Six', 7 => 'Seven', 8 => 'Eight', 9 => 'Nine',
-        10 => 'Ten', 11 => 'Eleven', 12 => 'Twelve', 13 => 'Thirteen',
-        14 => 'Fourteen', 15 => 'Fifteen', 16 => 'Sixteen', 17 => 'Seventeen',
-        18 => 'Eighteen', 19 => 'Nineteen', 20 => 'Twenty',
-        30 => 'Thirty', 40 => 'Forty', 50 => 'Fifty', 60 => 'Sixty',
-        70 => 'Seventy', 80 => 'Eighty', 90 => 'Ninety'
-    ];
-
-    if ($number == 0) return 'Zero';
-
-    $result = '';
-    $crore = floor($number / 10000000); $number %= 10000000;
-    $lac = floor($number / 100000); $number %= 100000;
-    $thousand = floor($number / 1000); $number %= 1000;
-    $hundred = floor($number / 100); $number %= 100;
-    $ten = $number;
-
-    if ($crore) $result .= convertTwoDigits($crore, $words) . ' Crore ';
-    if ($lac) $result .= convertTwoDigits($lac, $words) . ' Lac ';
-    if ($thousand) $result .= convertTwoDigits($thousand, $words) . ' Thousand ';
-    if ($hundred) $result .= $words[$hundred] . ' Hundred ';
-    if ($ten) { if ($result != '') $result .= 'and '; $result .= convertTwoDigits($ten, $words); }
-
-    return trim($result);
-}
-
-function convertTwoDigits($number, $words) {
-    if ($number < 21) return $words[$number];
-    $tens = floor($number / 10) * 10;
-    $units = $number % 10;
-    return $words[$tens] . ($units ? ' ' . $words[$units] : '');
-}
-
-// ✅ Generate unique Reissue Invoice Number
-try {
-    $pdo = new PDO("mysql:host=localhost;dbname=faithtrip_accounts", "root", "");
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (Exception $e) {
-    die("Database error: " . $e->getMessage());
-}
-
-do {
-    $invoiceNumber = 'RE-' . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-    $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM invoices WHERE Invoice_number = ?");
-    $stmtCheck->execute([$invoiceNumber]);
-    $exists = $stmtCheck->fetchColumn();
-} while ($exists > 0);
-
-$sales = [];
-$total = 0; $ait = 0; $gt = 0;
-$pnr = ''; $partyName = ''; $issueDate = ''; $flightDate = ''; $returnDate = '';
-$sellingPrice = 0;
-
-$client_name = trim($_POST['ClientNameManual'] ?? '') ?: trim($_POST['ClientNameDropdown'] ?? '') ?: 'Unknown Client';
-$Sales_section = $_POST['clientType'] ?? 'Unknown Client';
-$client_address = $_POST['address'] ?? 'Unknown Address';
-$client_email = $_POST['client_email'] ?? 'No Email';
-
-// ✅ Fetch selected sales & update them with this invoice number
-if (!empty($_SESSION['invoice_cart'])) {
-    $id_list = implode(",", array_map('intval', $_SESSION['invoice_cart']));
-    $pdo->exec("UPDATE sales SET invoice_number = '$invoiceNumber' WHERE SaleID IN ($id_list)");
-
-    $query = "SELECT * FROM sales WHERE SaleID IN ($id_list)";
-    foreach ($pdo->query($query) as $row) {
-        if (empty($pnr)) {
-            $pnr = $row['PNR'];
-            $partyName = $row['PartyName'];
-            $issueDate = $row['IssueDate'];
-            $flightDate = $row['FlightDate'];
-            $returnDate = $row['ReturnDate'];
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="logo.png">
+    <title>Sales Records</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; border-radius: 20px;border-collapse: collapse;box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);}
+        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; border-radius: 20px;}
+        th { background-color:rgb(74, 113, 255); color: white; border-radius: 5px; }
+        .search-container { display: flex; gap: 10px; margin-bottom: 20px; border-radius: 15px;}
+        .search-container select, .search-container input { padding: 8px; width: 200px; }
+        .btn { padding: 5px 10px; border: none; cursor: pointer; text-decoration: none; font-size: 12px; padding: 4px 8px }
+        .edit-btn { background-color:rgb(7, 147, 32); color: white; }
+        .delete-btn { background-color: #d9534f; color: white; }
+        .btn:hover { opacity: 0.8; }
+        select:disabled {
+            background-color: #f5f5f5;
+            cursor: not-allowed;
+            opacity: 0.7;
         }
-        $sales[] = $row;
-        $total += $row['BillAmount'];
+    </style>
+    <!-- Manual Insert links -->
+    <link rel="stylesheet" href="agents_manual_insert.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="manualinsert.js" defer></script>
+
+</head>
+<body>
+
+<!-- Start your project here-->
+<?php include 'nav.php' ?>
+
+<div style="display: flex;justify-content:center;margin-top:15px">
+<h1 style="font-family:Arial, Helvetica, sans-serif">Insert Sales</h1>
+</div>
+
+<!-- insert part is here -->
+<div class="container">
+    <h2>Counter Sales Entry</h2>
+    <form action="manual_insert_counter_sell.php" method="POST">
+
+        <!-- Row 2: Passenger Name, Ticket Route, and Ticket Number -->
+        <div class="form-row">
+            <div class="form-group">
+                <label for="PassengerName">Passenger Name:</label>
+                <input type="text" name="PassengerName" required>
+            </div>
+            <div class="form-group">
+                <label for="TicketRoute">Ticket Route:</label>
+                <input type="text" name="TicketRoute" required>
+            </div>
+            <div class="form-group">
+                <label for="TicketNumber">Ticket Number:</label>
+                <input type="text" name="TicketNumber" required>
+            </div>
+        </div>
+        
+        <!-- Row for airlines selection search box -->
+        <div class="form-row">
+            <label for="AccountNumber">Airlines Name :</label>
+            <input type="text" id="airlines" name="airlines" autocomplete="on" onkeyup="searchAirlines()">
+            <input type="hidden" id="airline_code" name="airline_code">
+            <div id="suggestions"></div>
+        </div>
+
+        <!-- Row 3: Issue Date, Flight Date, and Return Date -->
+        <div class="form-row">
+            <div class="form-group">
+                <label for="IssueDate">Issue Date:</label>
+                <input type="date" name="IssueDate" required>
+            </div>
+            <div class="form-group">
+                <label for="FlightDate">Flight Date:</label>
+                <input type="date" name="FlightDate" required>
+            </div>
+            <div class="form-group">
+                <label for="ReturnDate">Return Date:</label>
+                <input type="date" name="ReturnDate">
+            </div>
+        </div>
+
+        <!-- Row 4: PNR, Bill Amount, and Net Payment -->
+        <div class="form-row">
+            <div class="form-group">
+                <label for="PNR">PNR:</label>
+                <input type="text" name="PNR" required>
+            </div>
+            <div class="form-group">
+                <label for="BillAmount">Bill Amount:</label>
+                <input type="number" name="BillAmount" id="billAmount" required>
+            </div>
+            <div class="form-group">
+                <label for="NetPayment">Net Payment:</label>
+                <input type="number" name="NetPayment" id="netPayment" required>
+            </div>
+            <div class="form-group">
+                <label for="source_id">Source (Agency Name)</label>
+                <select name="source_id" id="source_id" class="form-control" required>
+                    <option value="">Select Source</option>
+                    <?php 
+                    // Reset pointer and loop through sources again
+                    mysqli_data_seek($sources_result, 0);
+                    while($row = mysqli_fetch_assoc($sources_result)): ?>
+                        <option value="<?= $row['agency_name']; ?>"><?= htmlspecialchars($row['agency_name']); ?></option>
+                    <?php endwhile; ?>
+                </select>
+            </div>
+        </div>
+
+        <!-- Row 5: Profit, Payment Status, and Payment Method -->
+        <div class="form-row">
+            <div class="form-group">
+                <label for="Profit">Profit:</label>
+                <input type="text" name="Profit" id="profit" readonly>
+            </div>
+            <div class="form-group">
+                <label for="PaymentStatus">Payment Status:</label>
+                <select name="PaymentStatus" id="paymentStatus" required>
+                    <option value="Paid">Paid</option>
+                    <option value="Partially Paid">Partially Paid</option>
+                    <option value="DUE">DUE</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="PaymentMethod">Payment Method:</label>
+                <select name="PaymentMethod" id="paymentMethod" required>
+                    <option value="Cash Payment">Cash Payment</option>
+                    <option value="Card Payment">Card Payment</option>
+                    <option value="Cheque Deposit">Cheque Deposit</option>
+                    <option value="Bank Deposit">Bank Deposit</option>
+                    <option value="Cheque Clearing">Cheque Clearing</option>
+                    <option value="Mobile Banking(nagad)">Mobile Banking (Nagad)</option>
+                </select>
+            </div>
+            <!-- Add System dropdown -->
+            <div class="form-group">
+                <label for="system">System:</label>
+                <select name="system" id="system" disabled required>
+                    <option value="">Select System</option>
+                    <?php while($system = mysqli_fetch_assoc($systems_result)): ?>
+                        <option value="<?= $system['system']; ?>"><?= htmlspecialchars($system['system']); ?></option>
+                    <?php endwhile; ?>
+                </select>
+            </div>
+        </div>
+
+        <!-- Row 6: Paid Amount, Due Amount, and Salesperson Name -->
+        <div class="form-row">
+            <div class="form-group">
+                <label for="PaidAmount">Paid Amount:</label>
+                <input type="number" name="PaidAmount" id="paidAmount" required>
+            </div>
+            <div class="form-group">
+                <label for="DueAmount">Due Amount:</label>
+                <input type="text" name="DueAmount" id="dueAmount" readonly>
+            </div>
+            <div class="form-group">
+                <label for="salespersonDropdown">Salesperson Name:</label>
+                <select name="SalesPersonName" id="salespersonDropdown" required>
+                    <option value="">Select Salesperson</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="PaymentMethod">Seat Class:</label>
+                <select name="Class" id="seat" required>
+                    <option value="Economy">Economy Class</option>
+                    <option value="Business">Business Class</option>
+                    <option value="First">First Class</option>
+                    <option value="Premium">Premium Economy</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Row 7: Bank Details (Hidden by Default) -->
+        <div id="bankDetails" class="hidden">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="BankName">Bank Name:</label>
+                    <select name="BankName" id="bankDropdown">
+                        <option value="">Select Bank</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="ReceivedDate">Received Date:</label>
+                    <input type="date" name="ReceivedDate">
+                </div>
+                <div class="form-group">
+                    <label for="DepositDate">Deposit Date:</label>
+                    <input type="date" name="DepositDate">
+                </div>
+                <div class="form-group">
+                    <label for="ClearingDate">Clearing Date:</label>
+                    <input type="date" name="ClearingDate">
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 8: Submit Button -->
+        <div class="form-row submit-button-wrapper">   
+            <div class="form-row">
+                <div class="form-group">
+                    <button type="submit" class="submit-btn">Submit Sale</button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Initially disable the system dropdown
+    $('#system').prop('disabled', true);
+    
+    // When source changes
+    $('#source_id').change(function() {
+        var selectedSource = $(this).val();
+        
+        // Check if source contains "IATA" (case-sensitive)
+        if (selectedSource.includes('IATA')) {
+            $('#system').prop('disabled', false);
+        } else {
+            $('#system').prop('disabled', true).val('');
+        }
+    });
+    
+    // Calculate profit when bill amount or net payment changes
+    $('#billAmount, #netPayment').on('input', function() {
+        var billAmount = parseFloat($('#billAmount').val()) || 0;
+        var netPayment = parseFloat($('#netPayment').val()) || 0;
+        var profit = billAmount - netPayment;
+        $('#profit').val(profit.toFixed(2));
+    });
+    
+    // Calculate due amount when paid amount changes
+    $('#paidAmount').on('input', function() {
+        var billAmount = parseFloat($('#billAmount').val()) || 0;
+        var paidAmount = parseFloat($('#paidAmount').val()) || 0;
+        var dueAmount = billAmount - paidAmount;
+        $('#dueAmount').val(dueAmount.toFixed(2));
+    });
+});
+
+// Airline search functionality
+function searchAirlines() {
+    let input = document.getElementById('airlines').value;
+    let suggestionsBox = document.getElementById('suggestions');
+    if (input.length < 1) {
+        suggestionsBox.innerHTML = "";
+        return;
     }
 
-    $ait = 0;
-    $gt = $total + $ait;
-    $sellingPrice = $gt;
-
-    // Insert into invoices table
-    $stmt = $pdo->prepare("INSERT INTO invoices 
-        (Invoice_number, date, PNR, PartyName, IssueDate, FlightDate, ReturnDate, SellingPrice, Section) 
-        VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$invoiceNumber, $pnr, $client_name, $issueDate, $flightDate, $returnDate, $sellingPrice, $Sales_section]);
+    fetch(`fetch_airlines.php?query=${input}`)
+        .then(response => response.json())
+        .then(data => {
+            suggestionsBox.innerHTML = "";
+            data.forEach(item => {
+                let div = document.createElement('div');
+                div.classList.add('suggestion-item');
+                div.textContent = `${item.code} - ${item.name}`;
+                div.onclick = () => selectAirline(item);
+                suggestionsBox.appendChild(div);
+            });
+        });
 }
 
-// ✅ PDF creation
-$pdf = new TCPDF();
-$pdf->SetPrintHeader(false);
-$pdf->AddPage();
-$pdf->Image('logo.jpg', 10, 14, 30);
-
-// ✅ Barcode with Invoice Number text below
-$barcodeStyle = [
-    'position' => '', 'align' => 'C', 'stretch' => false, 'fitwidth' => true,
-    'cellfitalign' => '', 'border' => false, 'hpadding' => 'auto', 'vpadding' => 'auto',
-    'fgcolor' => [0, 0, 0], 'bgcolor' => false, 'text' => true,
-    'font' => 'helvetica', 'fontsize' => 10, 'stretchtext' => 4
-];
-$pdf->write1DBarcode($invoiceNumber, 'C128', 70, 16, 45, 18, 0.4, $barcodeStyle, 'N');
-
-// ✅ Place "Reissue Invoice" smaller and below barcode
-$pdf->SetFont('helvetica', 'B', 12);
-$pdf->SetTextColor(0, 102, 204);
-$pdf->SetXY(70, 36);  // just below the barcode
-$pdf->Cell(45, 5, 'REISSUE INVOICE', 0, 1, 'C');
-
-$pdf->SetFont('helvetica', '', 10);
-$pdf->SetTextColor(0, 0, 0);
-
-// Company Info
-$companyInfo = <<<EOF
-<table style="font-family: helvetica; font-size: 10pt; text-align: right;" border="0" cellpadding="2">
-  <tr><td colspan="2" style="font-size: 14pt;"><h3>Faith Travels and Tours LTD</h3></td></tr>
-  <tr><td colspan="2">Abedin Tower (Level 5), Road 17,<br>35 Kamal Ataturk Avenue, Banani, Dhaka 1213</td></tr>
-  <tr><td colspan="2">info@faithtrip.net, director@faithtrip.net</td></tr>
-  <tr><td colspan="2">+8801896459490, +8801896459495</td></tr>
-</table>
-EOF;
-$pdf->SetXY(110, 10);
-$pdf->writeHTMLCell(0, 0, '', '', $companyInfo, 0, 1, 0, true, 'R', true);
-$pdf->SetXY(150, 55);
-$pdf->MultiCell(50, 0, "Date: " . date('d M Y') . "\nInvoice: $invoiceNumber", 0, 'R');
-
-$clientInfo = <<<EOD
-<div style="padding: 0px;margin-top: 0px;margin-bottom: 2px; background-color:rgb(248, 246, 246);">
-    <p><b>Client Name: </b>{$client_name}</p>
-    <p><b>Client Address: </b>{$client_address}</p>
-</div>
-EOD;
-$pdf->SetY(50);
-$pdf->Ln(20);
-$pdf->writeHTML($clientInfo, true, false, true, false, '');
-
-// Table
-$html = '<style>tr {border-bottom: 1px solid #ccc;} th {background-color:rgb(0, 98, 202); color: white;}</style>';
-$html .= '<table cellpadding="4" cellspacing="0" width="100%" style="border-collapse:collapse;">
-<thead>
-<tr>
-    <th width="5%">SL</th>
-    <th width="20%">Travelers</th>
-    <th width="25%">Flight Info</th>
-    <th width="25%">Ticket Info</th>
-    <th width="12%">Remarks</th>
-    <th width="13%">Price</th>
-</tr>
-</thead><tbody>';
-
-$serial = 1;
-foreach ($sales as $row) {
-    $html .= '<tr>';
-    $html .= '<td width="5%">' . $serial++ . '</td>';
-    $html .= '<td width="20%">' . htmlspecialchars($row['PassengerName']) . '</td>';
-    $html .= '<td width="25%">Route: <b>' . htmlspecialchars($row['TicketRoute']) . '</b><br>Airlines: <b>' . htmlspecialchars($row['airlines']) . '</b><br>Departure: <b>' . htmlspecialchars($row['FlightDate']) . '</b><br>Return: <b>' . htmlspecialchars($row['ReturnDate']) . '</b></td>';
-    $html .= '<td width="25%">Ticket No: <b>' . htmlspecialchars($row['TicketNumber']) . '</b><br>PNR: <b>' . htmlspecialchars($row['PNR']) . '</b><br>Issued: <b>' . htmlspecialchars($row['IssueDate']) . '</b><br>Seat Class: <b>' . htmlspecialchars($row['Class']) . '</b></td>';
-    $html .= '<td width="12%"><b>' . htmlspecialchars($row['Remarks']) . '</b></td>';
-    $html .= '<td width="13%">' . number_format($row['BillAmount'], 2) . '</td>';
-    $html .= '</tr>';
+function selectAirline(airline) {
+    document.getElementById('airlines').value = airline.name;
+    document.getElementById('airline_code').value = airline.code;
+    document.getElementById('suggestions').innerHTML = "";
 }
+</script>
 
-$html .= '<tr><td colspan="5" align="right">Selling</td><td>' . number_format($total, 2) . '</td></tr>';
-$html .= '<tr><td colspan="5" align="right">AIT</td><td>' . number_format($ait, 2) . '</td></tr>';
-$html .= '<tr><td colspan="5" align="right"><b>Total</b></td><td><b>' . number_format($gt, 2) . '</b></td></tr>';
-$html .= '</tbody></table>';
+</body>
+</html>
 
-$pdf->Ln(10);
-$pdf->writeHTML($html, true, false, true, false, '');
-
-$amountWords = convertNumberToWordsIndian($gt) . ' Bangladeshi Taka Only';
-$pdf->Ln(10);
-$pdf->SetFont('helvetica', 'B', 10);
-$pdf->Write(0, "Amount in Words: $amountWords", '', 0, 'L', true);
-
-$pdf->Ln(5);
-$pdf->SetFont('helvetica', '', 9);
-$notes = <<<EOD
-<b>Notes:</b><br>
-1. This is a reissue invoice for modified/updated tickets.<br>
-2. Please make all payments for "Faith Travels and Tours LTD."<br>
-3. For POS payment, an additional 2.5% charge will be added for Visa/MasterCard and 3.5% for AMEX.<br>
-4. For MFS Banking, an additional 1.75% charge will be added.
-EOD;
-$pdf->writeHTMLCell(0, 0, '', '', $notes, 0, 1, 0, true, 'L', true);
-
-$pdf->Ln(10);
-$pdf->SetFont('helvetica', 'B', 10);
-$pdf->Write(0, "We Accept:", '', 0, 'L', true);
-$logos = ['visa.png', 'master.png', 'amex.png', 'unionpay.png', 'diners.jpg', 'npsb.jpeg', 'discover.jpg', 'tkpay.jpeg'];
-$x = 25;
-foreach ($logos as $logo) {
-    $pdf->Image(__DIR__ . "/payment_icons/$logo", $x, $pdf->GetY() + 2, 15);
-    $x += 20;
-}
-
-// Save file
-$fileName = "{$pnr}_{$invoiceNumber}.pdf";
-$filePath = __DIR__ . "/invoices/" . $fileName;
-ob_end_clean();
-$pdf->Output($filePath, 'F');
-
-// Email
-$mail = new PHPMailer\PHPMailer\PHPMailer();
-$mail->isSMTP();
-$mail->Host = 'smtp.gmail.com';
-$mail->SMTPAuth = true;
-$mail->Username = 'faithtrip.net@gmail.com';
-$mail->Password = 'hprnbfnzkywrymqw';
-$mail->SMTPSecure = 'tls';
-$mail->Port = 587;
-$mail->setFrom('info@faithtrip.net', 'Faith Travels and Tours LTD');
-$mail->addAddress($client_email);
-$mail->Subject = 'Your Reissue Invoice - ' . $invoiceNumber;
-$mail->Body = "Dear Sir/Madam,\n\nGreetings From Faith Travels and Tours LTD. Thank you for being with us.\n\nPlease find your Reissue invoice attached.";
-
-$mail->addAttachment($filePath);
-
-if (!$mail->send()) {
-    echo 'Mailer Error: ' . $mail->ErrorInfo;
-    exit;
-}
-
-unset($_SESSION['invoice_cart']);
-$_SESSION['invoice_sent'] = true;
-$_SESSION['invoice_file'] = $fileName;
-$_SESSION['invoice_email'] = $client_email;
-
-header("Location: mail_success.php");
-exit;
+<?php $conn->close(); ?>

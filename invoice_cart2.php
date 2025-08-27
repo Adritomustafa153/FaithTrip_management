@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_id'])) {
     }
 }
 
-// Handle item deletion
+// Handle item deletion - FIXED THIS LINE
 if (isset($_GET['delete_id'])) {
     $delete_id = intval($_GET['delete_id']);
     if (($key = array_search($delete_id, $_SESSION['invoice_cart'])) !== false) {
@@ -69,6 +69,10 @@ if (!empty($_SESSION['invoice_cart'])) {
             font-size: 18px;
             color: #333;
         }
+        .cc-bcc-fields {
+            display: none;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -116,6 +120,29 @@ if (!empty($_SESSION['invoice_cart'])) {
                 <label>Email:</label>
                 <input type="text" id="email" name="client_email" class="form-control">
             </div>
+            
+            <!-- CC and BCC Fields -->
+            <div class="col-md-12 mt-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="showCCBCC" onchange="toggleCCBCCFields()">
+                    <label class="form-check-label" for="showCCBCC">
+                        Add CC/BCC Recipients
+                    </label>
+                </div>
+                
+                <div id="ccBCCFields" class="cc-bcc-fields">
+                    <div class="row mt-2">
+                        <div class="col-md-6">
+                            <label>CC (comma separated emails):</label>
+                            <input type="text" id="cc_emails" name="cc_emails" class="form-control" placeholder="email1@example.com, email2@example.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label>BCC (comma separated emails):</label>
+                            <input type="text" id="bcc_emails" name="bcc_emails" class="form-control" placeholder="email1@example.com, email2@example.com">
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -158,12 +185,12 @@ if (!empty($_SESSION['invoice_cart'])) {
                     <?php $total += $row['BillAmount']; ?>
                 <?php endforeach; ?>
                 <tr>
-                    <td colspan="4" class="text-end">Selling</td>
+                    <td colspan="4" class="text-end">Air Ticket Price</td>
                     <td><b><?= number_format($total, 2); ?></b></td>
                 </tr>
                 <tr>
                     <?php $ait = $total * 0.003 ?>
-                    <td colspan="4" class="text-end">AIT</td>
+                    <td colspan="4" class="text-end">Advance Income Tax (AIT)</td>
                     <td><b><?= number_format($ait, 2); ?></b></td>
                 </tr>
                 <tr>
@@ -198,6 +225,11 @@ function toggleManualName() {
     document.getElementById('manualClientName').style.display = isManual ? 'block' : 'none';
     document.getElementById('clientName').required = !isManual;
     document.getElementById('manualClientName').required = isManual;
+}
+
+function toggleCCBCCFields() {
+    const showCCBCC = document.getElementById('showCCBCC').checked;
+    document.getElementById('ccBCCFields').style.display = showCCBCC ? 'block' : 'none';
 }
 
 document.getElementById('clientType').addEventListener('change', function () {

@@ -6,7 +6,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         (PartyName,section, PassengerName, airlines, TicketRoute, TicketNumber, IssueDate, FlightDate, ReturnDate, PNR,
          BillAmount, NetPayment, Profit, PaymentStatus, PaidAmount, DueAmount, PaymentMethod, BankName, BranchName, AccountNumber,
           ReceivedDate, DepositDate, ClearingDate, SalesPersonName, Class,Source,system,Remarks)
-        VALUES (?, 'corporate',?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Sell')");
+        VALUES (?, 'corporate',?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Air Ticket Sale')");
 
     $profit = $_POST['BillAmount'] - $_POST['NetPayment'];
     $dueAmount = $_POST['BillAmount'] - $_POST['PaidAmount'];
