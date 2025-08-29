@@ -31,7 +31,7 @@ while ($row = mysqli_fetch_assoc($source_query)) {
     $sources[] = $row['agency_name'];
 }
 
-// Main query
+// Main query - Modified to handle refunds properly
 $query = "
     SELECT 
         s.Source,
@@ -42,10 +42,26 @@ $query = "
         s.TicketNumber,
         s.NetPayment AS credit,
         0 AS debit,
-        '' AS remarks,
+        s.Remarks AS remarks,
         'sale' AS type
     FROM sales s
-    WHERE 1=1 $source_condition $date_condition
+    WHERE s.Remarks != 'Refund' $source_condition $date_condition
+
+    UNION ALL
+
+    SELECT 
+        s.Source,
+        s.IssueDate AS trans_date,
+        s.TicketRoute,
+        s.Airlines,
+        s.PNR,
+        s.TicketNumber,
+        0 AS credit,
+        s.NetPayment AS debit,
+        s.Remarks AS remarks,
+        'refund' AS type
+    FROM sales s
+    WHERE s.Remarks = 'Refund' $source_condition $date_condition
 
     UNION ALL
 
@@ -240,7 +256,7 @@ if (isset($_GET['export'])) {
     <title>Payable</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f5f5f5; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; background-color: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; background-color: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
         h2 { color: #2a5885; text-align: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
         .filter-section { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
         .filter-form { display: flex; flex-wrap: wrap; gap: 15px; align-items: center; }
@@ -252,16 +268,23 @@ if (isset($_GET['export'])) {
         .btn-search:hover { background-color: #1e3c6d; }
         .btn-export { background-color: #28a745; color: white; }
         .btn-export:hover { background-color: #218838; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px 15px; text-align: left; border: 1px solid #dee2e6; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+        th, td { padding: 10px 12px; text-align: left; border: 1px solid #dee2e6; }
         th { background-color: #2a5885; color: white; font-weight: 600; }
         tr:nth-child(even) { background-color: #f8f9fa; }
         .text-right { text-align: right; }
         .total-section { margin-top: 20px; padding: 10px; background-color: #e9ecef; border-radius: 4px; text-align: right; font-weight: 600; }
+        @media (max-width: 1200px) {
+            .container { max-width: 100%; padding: 10px; }
+            table { font-size: 12px; }
+            th, td { padding: 8px 10px; }
+        }
         @media (max-width: 768px) {
             .filter-form { flex-direction: column; align-items: stretch; }
             .filter-group { width: 100%; }
             select, input[type="date"] { width: 100%; }
+            table { font-size: 11px; }
+            th, td { padding: 6px 8px; }
         }
     </style>
 </head>
@@ -323,10 +346,12 @@ if (isset($_GET['export'])) {
             $sl = 1;
             $balance = 0;
             mysqli_data_seek($result, 0);
-            while ($row = mysqli_fetch_assoc($result)):
-                $debit = floatval($row['debit']);
-                $credit = floatval($row['credit']);
-                $balance += $credit - $debit;
+            
+            if ($result && mysqli_num_rows($result) > 0) {
+                while ($row = mysqli_fetch_assoc($result)):
+                    $debit = floatval($row['debit']);
+                    $credit = floatval($row['credit']);
+                    $balance += $credit - $debit;
             ?>
             <tr>
                 <td><?= $sl++ ?></td>
@@ -342,13 +367,19 @@ if (isset($_GET['export'])) {
                 <td class="text-right"><?= number_format($balance, 2) ?></td>
                 <td><?= htmlspecialchars($row['remarks']) ?></td>
             </tr>
-            <?php endwhile; ?>
+            <?php endwhile; 
+            } else {
+                echo '<tr><td colspan="12" style="text-align: center;">No records found</td></tr>';
+            }
+            ?>
         </tbody>
     </table>
     
+    <?php if ($result && mysqli_num_rows($result) > 0): ?>
     <div class="total-section">
         Total Payable Balance: <?= number_format($balance, 2) ?> Taka
     </div>
+    <?php endif; ?>
 </div>
 
 </body>

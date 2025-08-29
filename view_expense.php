@@ -1,28 +1,36 @@
 <?php
 include 'db.php';
 
-$result = $conn->query("SELECT * FROM expenses ORDER BY expense_date DESC");
-
+// Initialize year and month for filtering
 $year = $_GET['year'] ?? date('Y');
 $month = $_GET['month'] ?? date('m');
 
-$sql = "SELECT * FROM expenses WHERE YEAR(expense_date) = ? AND MONTH(expense_date) = ? ORDER BY expense_date DESC";
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("ii", $year, $month);
+// Initialize start and end date for date range filtering
+$start_date = $_GET['start_date'] ?? '';
+$end_date = $_GET['end_date'] ?? '';
+
+// Build the SQL query based on filters
+if (!empty($start_date) && !empty($end_date)) {
+    // Date range filter
+    $sql = "SELECT * FROM expenses WHERE expense_date BETWEEN ? AND ? ORDER BY expense_date DESC";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ss", $start_date, $end_date);
+} else {
+    // Month/Year filter
+    $sql = "SELECT * FROM expenses WHERE YEAR(expense_date) = ? AND MONTH(expense_date) = ? ORDER BY expense_date DESC";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ii", $year, $month);
+}
+
 $stmt->execute();
 $result = $stmt->get_result();
 $total_amount = 0;
-
-
-
-
 ?>
 
 <!DOCTYPE html>
 <html>
 <head>
     <link rel="icon" href="logo.jpg">
-
     <title>Expense Records</title>
     <style>
         body {
@@ -142,21 +150,50 @@ $total_amount = 0;
         .insert-btn:hover {
             background-color: #5a32a3;
         }
+        
+        .notification {
+            padding: 10px;
+            margin: 10px auto;
+            width: 80%;
+            text-align: center;
+            border-radius: 5px;
+        }
+        
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
     </style>
 </head>
 <body>
 
 <?php include 'nav.php' ?>
 
+<!-- Display success/error messages -->
+<?php
+if (isset($_GET['message'])) {
+    $message = $_GET['message'];
+    $type = isset($_GET['success']) && $_GET['success'] == 'true' ? 'success' : 'error';
+    echo "<div class='notification $type'>$message</div>";
+}
+?>
+
 <!-- Date Range Filter -->
 <form method="GET">
-    From: <input type="date" name="start_date" value="<?= $_GET['start_date'] ?? '' ?>">
-    To: <input type="date" name="end_date" value="<?= $_GET['end_date'] ?? '' ?>">
+    From: <input type="date" name="start_date" value="<?= $start_date ?>">
+    To: <input type="date" name="end_date" value="<?= $end_date ?>">
     <button type="submit">Filter</button>
     <?php
     $params = http_build_query([
-        'start_date' => $_GET['start_date'] ?? '',
-        'end_date' => $_GET['end_date'] ?? ''
+        'start_date' => $start_date,
+        'end_date' => $end_date
     ]);
     ?>
     <a href="export.php?<?= $params ?>" target="_blank" class="export-btn">Export to Excel</a>
@@ -184,25 +221,41 @@ $total_amount = 0;
         <th>Amount</th>
         <th>Action</th>
     </tr>
-    <?php while($row = $result->fetch_assoc()): ?>
-    <tr>
-        <td><?= $row['expense_date'] ?></td>
-        <td><?= $row['category'] ?></td>
-        <td><?= $row['description'] ?></td>
-        <td>&#2547;<?= number_format($row['amount'], 2) ?></td>
-        <td class="action-links">
-            <a href="edit_expense.php?id=<?= $row['id'] ?>" class="edit-link">Edit</a>
-            <a href="delete_expence.php?id=<?= $row['id'] ?>" class="delete-link" onclick="return confirm('Are you sure you want to delete this expense?');">Delete</a>
-        </td>
-
+    <?php if ($result->num_rows > 0): ?>
+        <?php while($row = $result->fetch_assoc()): ?>
+        <tr>
+            <td><?= $row['expense_date'] ?></td>
+            <td><?= $row['category'] ?></td>
+            <td><?= $row['description'] ?></td>
+            <td>&#2547;<?= number_format($row['amount'], 2) ?></td>
+            <td class="action-links">
+                <a href="edit_expense.php?id=<?= $row['id'] ?>" class="edit-link">Edit</a>
+                <a href="#" class="delete-link" onclick="confirmDelete(<?= $row['id'] ?>)">Delete</a>
+            </td>
+        </tr>
+        <?php $total_amount += $row['amount']; // accumulate ?>
+        <?php endwhile; ?>
+    <?php else: ?>
+        <tr>
+            <td colspan="5" style="text-align: center;">No expenses found for the selected filter.</td>
+        </tr>
+    <?php endif; ?>
+    <?php if ($result->num_rows > 0): ?>
+    <tr style="font-weight:bold; background-color:#f2f2f2;">
+        <td colspan="3" style="text-align:right;">Total:</td>
+        <td>&#2547;<?= number_format($total_amount, 2) ?></td>
+        <td></td>
     </tr>
-           <?php  $total_amount += $row['amount']; // accumulate ?>
-    <?php endwhile; ?>
-            <tr style="font-weight:bold; background-color:#f2f2f2;">
-    <td colspan="3" style="text-align:right;">Total:</td>
-    <td><?= number_format($total_amount, 2) ?></td>
-</tr>
+    <?php endif; ?>
 </table>
+
+<script>
+function confirmDelete(id) {
+    if (confirm('Are you sure you want to delete this expense?')) {
+        window.location.href = 'delete_expense.php?id=' + id;
+    }
+}
+</script>
 
 </body>
 </html>

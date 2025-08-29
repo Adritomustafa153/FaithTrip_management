@@ -108,8 +108,8 @@ if (!empty($_SESSION['invoice_cart'])) {
         $sales[] = $row;
         $total += $row['BillAmount'];
     }
-
     $ait = 0;
+    // $ait = $total * 0.003;
     $gt = $total + $ait;
     $sellingPrice = $gt;
 
