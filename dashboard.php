@@ -117,7 +117,8 @@ $monthlyPurchaseQuery = "SELECT SUM(NetPayment) as purchase_amount
                          WHERE (Source NOT LIKE '%IATA%' OR Source IS NULL) AND 
                                (MONTH(ReceivedDate) = MONTH(CURDATE()) AND YEAR(ReceivedDate) = YEAR(CURDATE()) OR 
                                 MONTH(ClearingDate) = MONTH(CURDATE()) AND YEAR(ClearingDate) = YEAR(CURDATE()) OR 
-                                MONTH(DepositDate) = MONTH(CURDATE()) AND YEAR(DepositDate) = YEAR(CURDATE()))";
+                                MONTH(IssueDate) = MONTH(CURDATE()) AND YEAR(IssueDate) = YEAR(CURDATE()))";
+                                
 $monthlyPurchaseResult = mysqli_query($conn, $monthlyPurchaseQuery);
 $monthlyPurchaseData = mysqli_fetch_assoc($monthlyPurchaseResult);
 
@@ -586,7 +587,7 @@ $yearlyPaymentData = mysqli_fetch_assoc($yearlyPaymentResult);
                                 <span class="rhc-value">BDT 10,000,000</span>
                             </div>
                             <div class="rhc-detail">
-                                <span class="rhc-label">Remaining Balance</span>
+                                <span class="rhc-label">Remaining Balance (90% of RHC Amount)</span>
                                 <span class="rhc-value" id="rhc-remaining-balance">BDT 9,000,000</span>
                             </div>
                             <div class="rhc-detail">

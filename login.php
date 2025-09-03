@@ -10,7 +10,7 @@ if (empty($_SESSION['csrf_token'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login Page</title>
+    <title>Login </title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Caveat:wght@400;700&display=swap" rel="stylesheet">
     <style>
@@ -64,7 +64,7 @@ if (empty($_SESSION['csrf_token'])) {
         <div class="flex flex-col lg:flex-row items-center gap-12">
             <!-- Left Side - Branding -->
             <div class="w-full lg:w-1/2 flex flex-col items-center">
-                <h3>Faith Travels and Tours LTD</h3>
+               
                 <img src="logo.jpg" alt="BillBoard Logo" class="h-20 mb-6">
                 <img src="accounts_display.gif" alt="Account Access" class="w-full max-w-xs rounded-lg mb-6">          
                 <div class="handwriting text-center">
@@ -75,7 +75,7 @@ if (empty($_SESSION['csrf_token'])) {
             <!-- Right Side - Login Form -->
             <div class="w-full lg:w-1/2">
                 <div class="border-l border-gray-100 pl-8 lg:pl-12">
-                    <h1 class="text-2xl font-bold text-gray-800 mb-2">Welcome Back</h1>
+                    <h1 class="text-2xl font-bold text-gray-800 mb-2">Faith Travels and Tours LTD</h1>
                     <p class="text-gray-500 mb-6">Please enter your credentials</p>
                     
                     <?php if (isset($_SESSION['error'])): ?>
@@ -121,12 +121,12 @@ if (empty($_SESSION['csrf_token'])) {
                             Sign In
                         </button>
                     </form>
-                    
+<!--                     
                     <div class="mt-6 text-center">
                         <p class="text-sm text-gray-600">New to BillBoard? 
                             <a href="register.php" class="text-blue-500 hover:text-blue-700 hover:underline">Create account</a>
                         </p>
-                    </div>
+                    </div> -->
                 </div>
             </div>
         </div>

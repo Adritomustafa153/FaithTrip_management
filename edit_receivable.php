@@ -210,6 +210,7 @@ if (isset($_GET['id'])) {
                             <option value="Check" <?php echo $row['PaymentMethod'] == 'Check' ? 'selected' : ''; ?>>Cheque</option>
                             <option value="Credit Card" <?php echo $row['PaymentMethod'] == 'Credit Card' ? 'selected' : ''; ?>>Bank Deposit</option>
                             <option value="Mobile Payment" <?php echo $row['PaymentMethod'] == 'Mobile Payment' ? 'selected' : ''; ?>>Cheque Clearing</option>
+                            <option value="Mobile banking" <?php echo $row['PaymentMethod'] == 'Mobile Banking' ? 'selected' : ''; ?>>Mobile Banking</option>
                         </select>
                     </div>
                     <div class="col-md-6">

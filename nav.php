@@ -221,7 +221,94 @@ if (isset($_SESSION['UserID'])) {
 
   </ul>
 </li>
+<!-- Fince & Banking part -->
+<li class="nav-item dropdown">
+  <a
+    data-mdb-dropdown-init
+    class="nav-link dropdown-toggle"
+    href="#"
+    id="navbarDropdownMenuLink"
+    role="button"
+    aria-expanded="false"
+  >
+    Finance & Banking
+  </a>
 
+  <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+    <li>
+      <a class="dropdown-item" href="#">Balance Summary</a>
+    </li>
+        <li>
+      <a class="dropdown-item" href="view_banks.php">Bank Accounts</a>
+    </li>
+        <li>
+      <a class="dropdown-item" href="banking_management.php">Balance Inquery</a>
+    </li>
+            <li>
+      <a class="dropdown-item" href="manage_loans.php">Loan Management</a>
+    </li>
+    <!-- <li>
+      <a class="dropdown-item" href="commission.php">Sales Performance</a>
+    </li> -->
+
+    <!-- Nested Dropdown Start -->
+    <!-- <li class="dropdown-submenu">
+      <a class="dropdown-item dropdown-toggle" href="view_expense.php">Expense</a>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="expense.php">Insert Expense</a></li>
+        <li><a class="dropdown-item" href="view_expense.php">View Expense</a></li>
+      </ul>
+    </li> -->
+    <!-- Nested Dropdown End -->
+
+  </ul>
+</li>
+<!-- Finance banking part ends here -->
+
+
+<!-- HR Module part -->
+<li class="nav-item dropdown">
+  <a
+    data-mdb-dropdown-init
+    class="nav-link dropdown-toggle"
+    href="#"
+    id="navbarDropdownMenuLink"
+    role="button"
+    aria-expanded="false"
+  >
+    Human Resource
+  </a>
+
+  <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+    <li>
+      <a class="dropdown-item" href="#">Leave Management</a>
+    </li>
+        <li>
+      <a class="dropdown-item" href="#">Salary Calculation</a>
+    </li>
+        <li>
+      <a class="dropdown-item" href="#">Attandance Inquery</a>
+    </li>
+            <!-- <li>
+      <a class="dropdown-item" href="#">Loan Management</a>
+    </li> -->
+    <!-- <li>
+      <a class="dropdown-item" href="commission.php">Sales Performance</a>
+    </li> -->
+
+    <!-- Nested Dropdown Start -->
+    <!-- <li class="dropdown-submenu">
+      <a class="dropdown-item dropdown-toggle" href="view_expense.php">Expense</a>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="expense.php">Insert Expense</a></li>
+        <li><a class="dropdown-item" href="view_expense.php">View Expense</a></li>
+      </ul>
+    </li> -->
+    <!-- Nested Dropdown End -->
+
+  </ul>
+</li>
+<!-- HR Module part ends here -->
 
                 <li class="nav-item dropdown">
         <a
