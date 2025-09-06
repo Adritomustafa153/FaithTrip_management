@@ -73,9 +73,12 @@ $client_email = $_POST['client_email'] ?? 'No Email';
 $cc_emails = $_POST['cc_emails'] ?? '';
 $bcc_emails = $_POST['bcc_emails'] ?? '';
 
+// Get AIT status from POST
+$addAIT = isset($_POST['addAIT']) && $_POST['addAIT'] == '1';
+
 // ✅ Fetch selected sales & update them with this invoice number
-if (!empty($_SESSION['invoice_cart'])) {
-    $id_list = implode(",", array_map('intval', $_SESSION['invoice_cart']));
+if (!empty($_SESSION['reissue_invoice_cart'])) {
+    $id_list = implode(",", array_map('intval', $_SESSION['reissue_invoice_cart']));
     $pdo->exec("UPDATE sales SET invoice_number = '$invoiceNumber' WHERE SaleID IN ($id_list)");
 
     $query = "SELECT * FROM sales WHERE SaleID IN ($id_list)";
@@ -91,9 +94,16 @@ if (!empty($_SESSION['invoice_cart'])) {
         $total += $row['BillAmount'];
     }
 
+    // Calculate AIT based on checkbox
     $ait = 0;
+    if ($addAIT) {
+        $ait = $total * 0.003;
+    }
     $gt = $total + $ait;
     $sellingPrice = $gt;
+
+    // Update sales table with AIT information
+    $pdo->exec("UPDATE sales SET AIT = '$ait' WHERE SaleID IN ($id_list)");
 
     // Insert into invoices table
     $stmt = $pdo->prepare("INSERT INTO invoices 
@@ -260,7 +270,7 @@ if (!$mail->send()) {
     exit;
 }
 
-unset($_SESSION['invoice_cart']);
+unset($_SESSION['reissue_invoice_cart']);
 $_SESSION['invoice_sent'] = true;
 $_SESSION['invoice_file'] = $fileName;
 $_SESSION['invoice_email'] = $client_email;

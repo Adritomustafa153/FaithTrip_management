@@ -13,6 +13,7 @@ $systems_result = mysqli_query($conn, $systems_query);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="icon" href="logo.jpg">
     <title>Sales Records</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }

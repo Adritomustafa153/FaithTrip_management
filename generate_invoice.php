@@ -87,6 +87,9 @@ $client_email = $_POST['client_email'] ?? 'No Email';
 $cc_emails = $_POST['cc_emails'] ?? '';
 $bcc_emails = $_POST['bcc_emails'] ?? '';
 
+// Get AIT status from POST
+$addAIT = isset($_POST['addAIT']) && $_POST['addAIT'] == '1';
+
 // ✅ Fetch selected sales and update them with invoice number
 if (!empty($_SESSION['invoice_cart'])) {
     $id_list = implode(",", array_map('intval', $_SESSION['invoice_cart']));
@@ -108,12 +111,19 @@ if (!empty($_SESSION['invoice_cart'])) {
         $sales[] = $row;
         $total += $row['BillAmount'];
     }
+    
+    // Calculate AIT based on checkbox
     $ait = 0;
-    // $ait = $total * 0.003;
+    if ($addAIT) {
+        $ait = $total * 0.003;
+    }
     $gt = $total + $ait;
     $sellingPrice = $gt;
 
-    // Insert invoice header
+    // Update sales table with AIT information
+    $pdo->exec("UPDATE sales SET AIT = '$ait' WHERE SaleID IN ($id_list)");
+
+    // Insert invoice header (without AIT column since it doesn't exist in invoices table)
     $stmt = $pdo->prepare("INSERT INTO invoices (Invoice_number, date, PNR, PartyName, IssueDate, FlightDate, ReturnDate, SellingPrice, Section) 
                            VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?)");
     $stmt->execute([$invoiceNumber, $pnr, $client_name, $issueDate, $flightDate, $returnDate, $sellingPrice, $Sales_section]);

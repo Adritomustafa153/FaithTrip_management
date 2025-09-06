@@ -33,14 +33,23 @@ if (isset($_GET['clear_cart']) && $_GET['clear_cart'] == '1') {
 
 // Fetch cart data
 $sales = [];
+$total = 0; // Initialize total here
 if (!empty($_SESSION['invoice_cart'])) {
     $id_list = implode(",", array_map('intval', $_SESSION['invoice_cart']));
     $query = "SELECT * FROM sales WHERE SaleID IN ($id_list)";
     $result = $conn->query($query);
     while ($row = $result->fetch_assoc()) {
         $sales[] = $row;
+        $total += $row['BillAmount']; // Calculate total here
     }
 }
+
+// Calculate AIT if checkbox was checked in previous submission
+$ait = 0;
+if (isset($_POST['addAIT']) && $_POST['addAIT'] == '1') {
+    $ait = $total * 0.003;
+}
+$gt = $total + $ait;
 ?>
 
 <!DOCTYPE html>
@@ -121,6 +130,14 @@ if (!empty($_SESSION['invoice_cart'])) {
                 <input type="text" id="email" name="client_email" class="form-control">
             </div>
             
+            <!-- Add AIT Checkbox -->
+            <div class="col-md-4 mt-2">
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="addAIT" name="addAIT" value="1" <?php echo (isset($_POST['addAIT']) && $_POST['addAIT'] == '1') ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="addAIT">Add AIT (0.3%)</label>
+                </div>
+            </div>
+            
             <!-- CC and BCC Fields -->
             <div class="col-md-12 mt-3">
                 <div class="form-check">
@@ -160,7 +177,7 @@ if (!empty($_SESSION['invoice_cart'])) {
                 </tr>
             </thead>
             <tbody>
-                <?php $total = 0; $serial = 1; foreach ($sales as $row): ?>
+                <?php $serial = 1; foreach ($sales as $row): ?>
                     <tr>
                         <td><?= $serial++ ?></td>
                         <td><?= htmlspecialchars($row['PassengerName']) ?></td>
@@ -182,21 +199,21 @@ if (!empty($_SESSION['invoice_cart'])) {
                             <a href="invoice_cart2.php?delete_id=<?= $row['SaleID'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Remove this item?')">Delete</a>
                         </td>
                     </tr>
-                    <?php $total += $row['BillAmount']; ?>
                 <?php endforeach; ?>
                 <tr>
                     <td colspan="4" class="text-end">Air Ticket Price</td>
                     <td><b><?= number_format($total, 2); ?></b></td>
+                    <td colspan="2"></td>
                 </tr>
                 <tr>
-                    <?php $ait = $total * 0.003 ?>
                     <td colspan="4" class="text-end">Advance Income Tax (AIT)</td>
                     <td><b><?= number_format($ait, 2); ?></b></td>
+                    <td colspan="2"></td>
                 </tr>
                 <tr>
-                    <?php $gt = $total + $ait ?>
                     <td colspan="4" class="text-end">Total</td>
                     <td><b><?= number_format($gt, 2); ?></b></td>
+                    <td colspan="2"></td>
                 </tr>
             </tbody>
         </table>

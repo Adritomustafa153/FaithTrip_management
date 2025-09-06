@@ -23,7 +23,7 @@ function getTodaysFlightsWithDetails($conn) {
                     OR 
                     (ReturnDate = ? AND ReturnDate != '0000-00-00')
               )
-              AND Remarks = 'Sell'
+              AND Remarks IN ('Air Ticket Sale', 'Reissue')
               ORDER BY FlightDate, ReturnDate";
     
     $stmt = mysqli_prepare($conn, $query);

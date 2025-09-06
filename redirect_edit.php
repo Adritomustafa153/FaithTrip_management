@@ -1,7 +1,5 @@
 <?php
-// redirect_reissue.php
-
-include 'db.php'; // adjust if your DB connection file is named differently
+include 'db.php';
 
 if (!isset($_GET['id'])) {
     die("Sale ID not provided.");
@@ -19,18 +17,21 @@ $stmt->fetch();
 $stmt->close();
 $conn->close();
 
+// Redirect based on sale type
 switch (strtolower($sale_type)) {
     case 'counter':
-        header("Location: edit_counter_sell.php?sale_id=$sale_id");
+        header("Location: edit_counter_sell.php?id=$sale_id");
         break;
     case 'agent':
-        header("Location: edit_agent.php?sale_id=$sale_id");
+        header("Location: edit_agents.php?id=$sale_id");
         break;
     case 'corporate':
-        header("Location: edit_corporate.php?sale_id=$sale_id");
+        header("Location: edit_corporate.php?id=$sale_id");
         break;
     default:
-        echo "Unknown sale type: $sale_type";
+        // If no specific section or unknown, redirect to general edit page
+        header("Location: edit_sales.php?id=$sale_id");
+        break;
 }
 exit;
 ?>

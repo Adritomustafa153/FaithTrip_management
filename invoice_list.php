@@ -303,7 +303,7 @@ if (isset($_GET['delete'])) {
                     </td>
                     <td><?= htmlspecialchars($row['PNR']) ?></td>
                     <td><?= htmlspecialchars($row['TicketNumber']) ?></td>
-                    <td><?= htmlspecialchars($row['IssueDate']) ?></td>
+                    <td><b>Issue Date : </b><?= htmlspecialchars($row['IssueDate']) ?> <br><b>Deperture : </b><?= htmlspecialchars($row['FlightDate']) ?><br><b>Return Date : </b><?= htmlspecialchars($row['ReturnDate']) ?></td>
                     <td><?= $day_passes ?> days</td>
                     <td>
                         <?php 

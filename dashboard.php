@@ -3,15 +3,111 @@ include('db.php');
 require_once 'auth_check.php';
 
 $filter = $_GET['filter'] ?? 'monthly';
-$whereClause = "";
 
-if ($filter === 'monthly') {
-    $whereClause = "WHERE MONTH(IssueDate) = MONTH(CURDATE()) AND YEAR(IssueDate) = YEAR(CURDATE())";
-} elseif ($filter === 'yearly') {
-    $whereClause = "WHERE YEAR(IssueDate) = YEAR(CURDATE())";
-}
+// Calculate summary metrics for cards
+// Daily metrics - Using payments table for collection amounts
+$dailySalesQuery = "SELECT 
+    SUM(BillAmount) as sale_amount,
+    SUM(Profit) as profit_amount
+FROM sales 
+WHERE DATE(IssueDate) = CURDATE()";
+$dailyResult = mysqli_query($conn, $dailySalesQuery);
+$dailySalesData = mysqli_fetch_assoc($dailyResult);
 
-$salesQuery = "SELECT section, SUM(BillAmount) AS total FROM sales $whereClause GROUP BY section";
+// Collection amount from payments table
+$dailyCollectionQuery = "SELECT SUM(Amount) as collection_amount 
+                         FROM payments 
+                         WHERE DATE(PaymentDate) = CURDATE()";
+$dailyCollectionResult = mysqli_query($conn, $dailyCollectionQuery);
+$dailyCollectionData = mysqli_fetch_assoc($dailyCollectionResult);
+
+// Purchase amount (non-IATA sources)
+$dailyPurchaseQuery = "SELECT SUM(NetPayment) as purchase_amount 
+                       FROM sales 
+                       WHERE (Source NOT LIKE '%IATA%' OR Source IS NULL) AND 
+                             DATE(IssueDate) = CURDATE()";
+$dailyPurchaseResult = mysqli_query($conn, $dailyPurchaseQuery);
+$dailyPurchaseData = mysqli_fetch_assoc($dailyPurchaseResult);
+
+$dailyExpenseQuery = "SELECT SUM(amount) as expense_amount FROM expenses WHERE DATE(expense_date) = CURDATE()";
+$dailyExpenseResult = mysqli_query($conn, $dailyExpenseQuery);
+$dailyExpenseData = mysqli_fetch_assoc($dailyExpenseResult);
+
+// Payment amount from payments table (for non-sale payments)
+$dailyPaymentQuery = "SELECT SUM(amount) as payment_amount FROM paid WHERE DATE(payment_date) = CURDATE()";
+$dailyPaymentResult = mysqli_query($conn, $dailyPaymentQuery);
+$dailyPaymentData = mysqli_fetch_assoc($dailyPaymentResult);
+
+// Monthly metrics
+$monthlySalesQuery = "SELECT 
+    SUM(BillAmount) as sale_amount,
+    SUM(Profit) as profit_amount
+FROM sales 
+WHERE MONTH(IssueDate) = MONTH(CURDATE()) AND YEAR(IssueDate) = YEAR(CURDATE())";
+$monthlyResult = mysqli_query($conn, $monthlySalesQuery);
+$monthlySalesData = mysqli_fetch_assoc($monthlyResult);
+
+// Collection amount from payments table
+$monthlyCollectionQuery = "SELECT SUM(Amount) as collection_amount 
+                           FROM payments 
+                           WHERE MONTH(PaymentDate) = MONTH(CURDATE()) AND YEAR(PaymentDate) = YEAR(CURDATE())";
+$monthlyCollectionResult = mysqli_query($conn, $monthlyCollectionQuery);
+$monthlyCollectionData = mysqli_fetch_assoc($monthlyCollectionResult);
+
+// Purchase amount (non-IATA sources)
+$monthlyPurchaseQuery = "SELECT SUM(NetPayment) as purchase_amount 
+                         FROM sales 
+                         WHERE (Source NOT LIKE '%IATA%' OR Source IS NULL) AND 
+                               MONTH(IssueDate) = MONTH(CURDATE()) AND YEAR(IssueDate) = YEAR(CURDATE())";
+$monthlyPurchaseResult = mysqli_query($conn, $monthlyPurchaseQuery);
+$monthlyPurchaseData = mysqli_fetch_assoc($monthlyPurchaseResult);
+
+$monthlyExpenseQuery = "SELECT SUM(amount) as expense_amount FROM expenses WHERE MONTH(expense_date) = MONTH(CURDATE()) AND YEAR(expense_date) = YEAR(CURDATE())";
+$monthlyExpenseResult = mysqli_query($conn, $monthlyExpenseQuery);
+$monthlyExpenseData = mysqli_fetch_assoc($monthlyExpenseResult);
+
+// Payment amount from payments table (for non-sale payments)
+$monthlyPaymentQuery = "SELECT SUM(amount) as payment_amount FROM paid WHERE MONTH(payment_date) = MONTH(CURDATE()) AND YEAR(payment_date) = YEAR(CURDATE())";
+$monthlyPaymentResult = mysqli_query($conn, $monthlyPaymentQuery);
+$monthlyPaymentData = mysqli_fetch_assoc($monthlyPaymentResult);
+
+// Yearly metrics
+$yearlySalesQuery = "SELECT 
+    SUM(BillAmount) as sale_amount,
+    SUM(Profit) as profit_amount
+FROM sales 
+WHERE YEAR(IssueDate) = YEAR(CURDATE())";
+$yearlyResult = mysqli_query($conn, $yearlySalesQuery);
+$yearlySalesData = mysqli_fetch_assoc($yearlyResult);
+
+// Collection amount from payments table
+$yearlyCollectionQuery = "SELECT SUM(Amount) as collection_amount 
+                          FROM payments 
+                          WHERE YEAR(PaymentDate) = YEAR(CURDATE())";
+$yearlyCollectionResult = mysqli_query($conn, $yearlyCollectionQuery);
+$yearlyCollectionData = mysqli_fetch_assoc($yearlyCollectionResult);
+
+// Purchase amount (non-IATA sources)
+$yearlyPurchaseQuery = "SELECT SUM(NetPayment) as purchase_amount 
+                        FROM sales 
+                        WHERE (Source NOT LIKE '%IATA%' OR Source IS NULL) AND 
+                              YEAR(IssueDate) = YEAR(CURDATE())";
+$yearlyPurchaseResult = mysqli_query($conn, $yearlyPurchaseQuery);
+$yearlyPurchaseData = mysqli_fetch_assoc($yearlyPurchaseResult);
+
+$yearlyExpenseQuery = "SELECT SUM(amount) as expense_amount FROM expenses WHERE YEAR(expense_date) = YEAR(CURDATE())";
+$yearlyExpenseResult = mysqli_query($conn, $yearlyExpenseQuery);
+$yearlyExpenseData = mysqli_fetch_assoc($yearlyExpenseResult);
+
+// Payment amount from payments table (for non-sale payments)
+$yearlyPaymentQuery = "SELECT SUM(amount) as payment_amount FROM paid WHERE YEAR(payment_date) = YEAR(CURDATE())";
+$yearlyPaymentResult = mysqli_query($conn, $yearlyPaymentQuery);
+$yearlyPaymentData = mysqli_fetch_assoc($yearlyPaymentResult);
+
+// Sales by section data
+$salesQuery = "SELECT section, SUM(BillAmount) AS total FROM sales 
+               WHERE MONTH(IssueDate) = MONTH(CURDATE()) AND YEAR(IssueDate) = YEAR(CURDATE())
+               GROUP BY section";
 $salesResult = mysqli_query($conn, $salesQuery);
 
 $salesData = ['Agent' => 0, 'Counter' => 0, 'Corporate' => 0];
@@ -22,7 +118,12 @@ while ($row = mysqli_fetch_assoc($salesResult)) {
     }
 }
 
-$expenseQuery = "SELECT DATE_FORMAT(expense_date, '%b') AS month, SUM(amount) AS total FROM expenses GROUP BY month ORDER BY MIN(expense_date)";
+// Expense data
+$expenseQuery = "SELECT DATE_FORMAT(expense_date, '%b') AS month, SUM(amount) AS total 
+                 FROM expenses 
+                 WHERE YEAR(expense_date) = YEAR(CURDATE())
+                 GROUP BY month 
+                 ORDER BY MIN(expense_date)";
 $expenseResult = mysqli_query($conn, $expenseQuery);
 
 $expenseMonths = [];
@@ -33,7 +134,7 @@ while ($row = mysqli_fetch_assoc($expenseResult)) {
     $expenseTotals[] = (float)$row['total'];
 }
 
-// New query for monthly sales vs profit
+// Monthly sales vs profit data
 $monthlySalesProfitQuery = "SELECT 
     DATE_FORMAT(IssueDate, '%b') AS month,
     SUM(BillAmount) AS total_sales,
@@ -54,121 +155,11 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
     $monthlySales[] = (float)$row['total_sales'];
     $monthlyProfit[] = (float)$row['total_profit'];
 }
-
-// Calculate summary metrics for cards
-// Daily metrics - Fixed to handle cases where no tickets were issued but payments were made
-$dailySalesQuery = "SELECT 
-    SUM(BillAmount) as sale_amount,
-    SUM(Profit) as profit_amount
-FROM sales 
-WHERE DATE(IssueDate) = CURDATE()";
-$dailyResult = mysqli_query($conn, $dailySalesQuery);
-$dailySalesData = mysqli_fetch_assoc($dailyResult);
-
-// Collection amount from sales table (regardless of issue date)
-$dailyCollectionQuery = "SELECT SUM(PaidAmount) as collection_amount 
-                         FROM sales 
-                         WHERE DATE(ReceivedDate) = CURDATE() OR 
-                               (ReceivedDate IS NULL AND DATE(ClearingDate) = CURDATE()) OR
-                               (ReceivedDate IS NULL AND ClearingDate IS NULL AND DATE(DepositDate) = CURDATE())";
-$dailyCollectionResult = mysqli_query($conn, $dailyCollectionQuery);
-$dailyCollectionData = mysqli_fetch_assoc($dailyCollectionResult);
-
-// Purchase amount (non-IATA sources, regardless of issue date)
-$dailyPurchaseQuery = "SELECT SUM(NetPayment) as purchase_amount 
-                       FROM sales 
-                       WHERE (Source NOT LIKE '%IATA%' OR Source IS NULL) AND 
-                             (DATE(ReceivedDate) = CURDATE() OR 
-                              DATE(ClearingDate) = CURDATE() OR 
-                              DATE(IssueDate) = CURDATE() OR 
-                              DATE(DepositDate) = CURDATE())";
-$dailyPurchaseResult = mysqli_query($conn, $dailyPurchaseQuery);
-$dailyPurchaseData = mysqli_fetch_assoc($dailyPurchaseResult);
-
-$dailyExpenseQuery = "SELECT SUM(amount) as expense_amount FROM expenses WHERE DATE(expense_date) = CURDATE()";
-$dailyExpenseResult = mysqli_query($conn, $dailyExpenseQuery);
-$dailyExpenseData = mysqli_fetch_assoc($dailyExpenseResult);
-
-$dailyPaymentQuery = "SELECT SUM(amount) as payment_amount FROM paid WHERE DATE(payment_date) = CURDATE()";
-$dailyPaymentResult = mysqli_query($conn, $dailyPaymentQuery);
-$dailyPaymentData = mysqli_fetch_assoc($dailyPaymentResult);
-
-// Monthly metrics - Fixed to handle all transactions in the month regardless of issue date
-$monthlySalesQuery = "SELECT 
-    SUM(BillAmount) as sale_amount,
-    SUM(Profit) as profit_amount
-FROM sales 
-WHERE MONTH(IssueDate) = MONTH(CURDATE()) AND YEAR(IssueDate) = YEAR(CURDATE())";
-$monthlyResult = mysqli_query($conn, $monthlySalesQuery);
-$monthlySalesData = mysqli_fetch_assoc($monthlyResult);
-
-// Collection amount from sales table (regardless of issue date)
-$monthlyCollectionQuery = "SELECT SUM(PaidAmount) as collection_amount 
-                           FROM sales 
-                           WHERE (MONTH(ReceivedDate) = MONTH(CURDATE()) AND YEAR(ReceivedDate) = YEAR(CURDATE())) OR 
-                                 (ReceivedDate IS NULL AND MONTH(ClearingDate) = MONTH(CURDATE()) AND YEAR(ClearingDate) = YEAR(CURDATE())) OR
-                                 (ReceivedDate IS NULL AND ClearingDate IS NULL AND MONTH(DepositDate) = MONTH(CURDATE()) AND YEAR(DepositDate) = YEAR(CURDATE()))";
-$monthlyCollectionResult = mysqli_query($conn, $monthlyCollectionQuery);
-$monthlyCollectionData = mysqli_fetch_assoc($monthlyCollectionResult);
-
-// Purchase amount (non-IATA sources, regardless of issue date)
-$monthlyPurchaseQuery = "SELECT SUM(NetPayment) as purchase_amount 
-                         FROM sales 
-                         WHERE (Source NOT LIKE '%IATA%' OR Source IS NULL) AND 
-                               (MONTH(ReceivedDate) = MONTH(CURDATE()) AND YEAR(ReceivedDate) = YEAR(CURDATE()) OR 
-                                MONTH(ClearingDate) = MONTH(CURDATE()) AND YEAR(ClearingDate) = YEAR(CURDATE()) OR 
-                                MONTH(IssueDate) = MONTH(CURDATE()) AND YEAR(IssueDate) = YEAR(CURDATE()))";
-                                
-$monthlyPurchaseResult = mysqli_query($conn, $monthlyPurchaseQuery);
-$monthlyPurchaseData = mysqli_fetch_assoc($monthlyPurchaseResult);
-
-$monthlyExpenseQuery = "SELECT SUM(amount) as expense_amount FROM expenses WHERE MONTH(expense_date) = MONTH(CURDATE()) AND YEAR(expense_date) = YEAR(CURDATE())";
-$monthlyExpenseResult = mysqli_query($conn, $monthlyExpenseQuery);
-$monthlyExpenseData = mysqli_fetch_assoc($monthlyExpenseResult);
-
-$monthlyPaymentQuery = "SELECT SUM(amount) as payment_amount FROM paid WHERE MONTH(payment_date) = MONTH(CURDATE()) AND YEAR(payment_date) = YEAR(CURDATE())";
-$monthlyPaymentResult = mysqli_query($conn, $monthlyPaymentQuery);
-$monthlyPaymentData = mysqli_fetch_assoc($monthlyPaymentResult);
-
-// Yearly metrics - Fixed to handle all transactions in the year regardless of issue date
-$yearlySalesQuery = "SELECT 
-    SUM(BillAmount) as sale_amount,
-    SUM(Profit) as profit_amount
-FROM sales 
-WHERE YEAR(IssueDate) = YEAR(CURDATE())";
-$yearlyResult = mysqli_query($conn, $yearlySalesQuery);
-$yearlySalesData = mysqli_fetch_assoc($yearlyResult);
-
-// Collection amount from sales table (regardless of issue date)
-$yearlyCollectionQuery = "SELECT SUM(PaidAmount) as collection_amount 
-                          FROM sales 
-                          WHERE YEAR(ReceivedDate) = YEAR(CURDATE()) OR 
-                                (ReceivedDate IS NULL AND YEAR(ClearingDate) = YEAR(CURDATE())) OR
-                                (ReceivedDate IS NULL AND ClearingDate IS NULL AND YEAR(DepositDate) = YEAR(CURDATE()))";
-$yearlyCollectionResult = mysqli_query($conn, $yearlyCollectionQuery);
-$yearlyCollectionData = mysqli_fetch_assoc($yearlyCollectionResult);
-
-// Purchase amount (non-IATA sources, regardless of issue date)
-$yearlyPurchaseQuery = "SELECT SUM(NetPayment) as purchase_amount 
-                        FROM sales 
-                        WHERE (Source NOT LIKE '%IATA%' OR Source IS NULL) AND 
-                              (YEAR(ReceivedDate) = YEAR(CURDATE()) OR 
-                               YEAR(ClearingDate) = YEAR(CURDATE()) OR 
-                               YEAR(DepositDate) = YEAR(CURDATE()))";
-$yearlyPurchaseResult = mysqli_query($conn, $yearlyPurchaseQuery);
-$yearlyPurchaseData = mysqli_fetch_assoc($yearlyPurchaseResult);
-
-$yearlyExpenseQuery = "SELECT SUM(amount) as expense_amount FROM expenses WHERE YEAR(expense_date) = YEAR(CURDATE())";
-$yearlyExpenseResult = mysqli_query($conn, $yearlyExpenseQuery);
-$yearlyExpenseData = mysqli_fetch_assoc($yearlyExpenseResult);
-
-$yearlyPaymentQuery = "SELECT SUM(amount) as payment_amount FROM paid WHERE YEAR(payment_date) = YEAR(CURDATE())";
-$yearlyPaymentResult = mysqli_query($conn, $yearlyPaymentQuery);
-$yearlyPaymentData = mysqli_fetch_assoc($yearlyPaymentResult);
 ?>
 <!DOCTYPE html>
 <html>
 <head>
+        <link rel="icon" href="logo.jpg">
     <title>Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">

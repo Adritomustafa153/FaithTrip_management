@@ -25,31 +25,36 @@ $parties_sql .= " ORDER BY PartyName";
 $parties_result = $conn->query($parties_sql);
 
 // Build the main query
-$sql = "SELECT SaleID, section, PartyName, PassengerName, airlines, TicketRoute, TicketNumber, 
-               IssueDate, PNR, BillAmount, Source, PaymentStatus, PaidAmount, DueAmount, 
-               SalesPersonName, DATEDIFF(CURDATE(), IssueDate) AS DaysPassed 
-        FROM sales 
-        WHERE (PaymentStatus = 'Due' OR PaymentStatus = 'Partially Paid')";
+$sql = "SELECT s.SaleID, s.section, s.PartyName, s.PassengerName, s.airlines, s.TicketRoute, s.TicketNumber, 
+               s.IssueDate, s.PNR, s.BillAmount, s.Source, s.PaymentStatus, 
+               COALESCE(SUM(p.Amount), 0) as PaidAmount, 
+               (s.BillAmount - COALESCE(SUM(p.Amount), 0)) as DueAmount,
+               s.SalesPersonName, DATEDIFF(CURDATE(), s.IssueDate) AS DaysPassed 
+        FROM sales s
+        LEFT JOIN payments p ON s.SaleID = p.SaleID
+        WHERE (s.PaymentStatus = 'Due' OR s.PaymentStatus = 'Partially Paid')
+        GROUP BY s.SaleID
+        HAVING DueAmount > 0";
 
 // Add filters if they exist
 if (!empty($section_filter)) {
-    $sql .= " AND section = '" . $conn->real_escape_string($section_filter) . "'";
+    $sql .= " AND s.section = '" . $conn->real_escape_string($section_filter) . "'";
 }
 
 if (!empty($party_filter)) {
-    $sql .= " AND PartyName = '" . $conn->real_escape_string($party_filter) . "'";
+    $sql .= " AND s.PartyName = '" . $conn->real_escape_string($party_filter) . "'";
 }
 
 if (!empty($from_date) && !empty($to_date)) {
-    $sql .= " AND IssueDate BETWEEN '" . $conn->real_escape_string($from_date) . "' 
+    $sql .= " AND s.IssueDate BETWEEN '" . $conn->real_escape_string($from_date) . "' 
               AND '" . $conn->real_escape_string($to_date) . "'";
 }
 
 if (!empty($pnr_search)) {
-    $sql .= " AND PNR LIKE '%" . $conn->real_escape_string($pnr_search) . "%'";
+    $sql .= " AND s.PNR LIKE '%" . $conn->real_escape_string($pnr_search) . "%'";
 }
 
-$sql .= " ORDER BY IssueDate DESC";
+$sql .= " ORDER BY s.IssueDate DESC";
 
 $result = $conn->query($sql);
 
@@ -162,29 +167,37 @@ if ($result->num_rows > 0) {
         }
         
         .action-buttons {
-            min-width: 80px;
+            min-width: 120px;
         }
         
         .btn-sm {
             font-size: 12px;
             padding: 4px 8px;
             margin: 2px 0;
-            color: white !important;
         }
         
         .btn-success {
             background-color: #28a745;
             border-color: #28a745;
+            color: white !important;
+        }
+        
+        .btn-info {
+            background-color: #17a2b8;
+            border-color: #17a2b8;
+            color: white !important;
         }
         
         .btn-primary {
             background-color: #007bff;
             border-color: #007bff;
+            color: white !important;
         }
         
         .btn-secondary {
             background-color: #6c757d;
             border-color: #6c757d;
+            color: white !important;
         }
         
         .form-control, .form-select {
@@ -208,6 +221,12 @@ if ($result->num_rows > 0) {
             
             .action-buttons {
                 min-width: auto;
+            }
+            
+            .btn-sm {
+                margin: 1px;
+                padding: 3px 5px;
+                font-size: 11px;
             }
         }
         
@@ -290,9 +309,6 @@ if ($result->num_rows > 0) {
                         <button type="submit" class="btn btn-primary w-100">
                             <i class="fas fa-search me-2"></i>Search
                         </button>
-                        <!-- <button type="button" class="btn btn-secondary no-print" onclick="window.print()"> Print
-                            <i class="fas fa-print"></i>
-                        </button> -->
                         <a href="export_receivables.php?section=<?= urlencode($section_filter) ?>&party=<?= urlencode($party_filter) ?>&from_date=<?= urlencode($from_date) ?>&to_date=<?= urlencode($to_date) ?>&pnr=<?= urlencode($pnr_search) ?>" class="btn btn-success no-print">Excel
                             <i class="fas fa-file-excel"></i>
                         </a>
@@ -346,17 +362,21 @@ if ($result->num_rows > 0) {
                                 echo '<td>' . number_format($row['BillAmount'], 2) . '</td>';
                                 
                                 // Payment status with color coding
-                                $status_class = ($row['PaymentStatus'] == 'Due') ? 'status-due' : 'status-partial';
-                                echo '<td class="' . $status_class . '">' . htmlspecialchars($row['PaymentStatus']) . '</td>';
+                                $status_class = ($row['DueAmount'] == $row['BillAmount']) ? 'status-due' : 'status-partial';
+                                $status_text = ($row['DueAmount'] == $row['BillAmount']) ? 'Due' : 'Partially Paid';
+                                echo '<td class="' . $status_class . '">' . $status_text . '</td>';
                                 
                                 echo '<td>' . number_format($row['PaidAmount'], 2) . '</td>';
                                 echo '<td>' . number_format($row['DueAmount'], 2) . '</td>';
                                 echo '<td>' . htmlspecialchars($row['SalesPersonName']) . '</td>';
                                 
-                                // Action button - only Edit remains
+                                // Action buttons
                                 echo '<td class="action-buttons">';
-                                echo '<a href="edit_receivable.php?id=' . $row['SaleID'] . '" class="btn btn-success btn-sm">';
-                                echo '<i class="fas fa-edit"></i> Edit</a>';
+                                echo '<a href="edit_receivable.php?id=' . $row['SaleID'] . '" class="btn btn-success btn-sm mb-1">';
+                                echo '<i class="fas fa-money-bill-wave"></i> Pay</a>';
+                                
+                                echo '<a href="payment_history.php?id=' . $row['SaleID'] . '" class="btn btn-info btn-sm mb-1">';
+                                echo '<i class="fas fa-history"></i> History</a>';
                                 echo '</td>';
                                 echo '</tr>';
                             }

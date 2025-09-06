@@ -5,7 +5,7 @@ function getTodaysFlightsCount($conn) {
     $today = date('Y-m-d');
     $query = "SELECT COUNT(*) as count FROM sales 
               WHERE (FlightDate = ? OR ReturnDate = ?) 
-              AND Remarks = 'Sell'";
+              AND Remarks = 'Air Ticket Sell' OR  'Reissue'";
     
     $stmt = mysqli_prepare($conn, $query);
     if (!$stmt) {

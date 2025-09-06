@@ -91,7 +91,7 @@ $row = $result->fetch_assoc();
             </div>
             <div class="form-group">
                 <label for="TicketRoute">Ticket Route:</label>
-                <input type="text" name="ticket_route" value="<?= htmlspecialchars($row['TicketRoute']) ?>" readonly>
+                <input type="text" name="ticket_route" value="<?= htmlspecialchars($row['TicketRoute']) ?>" >
             </div>
             <div class="form-group">
                 <label for="TicketNumber">Ticket Number:</label>
