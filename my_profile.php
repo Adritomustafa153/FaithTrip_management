@@ -1,5 +1,6 @@
 <?php
-require_once 'auth_check.php';
+include 'auth_check.php';
+
 
 // Database connection
 $conn = new mysqli('localhost', 'root', '', 'faithtrip_accounts');

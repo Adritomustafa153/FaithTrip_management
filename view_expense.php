@@ -1,5 +1,6 @@
 <?php
 include 'db.php';
+include 'auth_check.php';
 
 // Initialize year and month for filtering
 $year = $_GET['year'] ?? date('Y');

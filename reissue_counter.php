@@ -1,7 +1,8 @@
 <?php
 // reissue_counter_sell.php
 
-include 'db_connection.php'; // Adjust if your DB connection file has a different name
+include 'auth_check.php';
+include 'db.php'; // Adjust if your DB connection file has a different name
 
 $sale_id = $_GET['sale_id'] ?? null;
 
@@ -68,7 +69,7 @@ $row = $result->fetch_assoc();
                 </div>
                 <div class="form-group">
                     <label>Ticket Route:</label>
-                    <input type="text" name="ticket_route" value="<?= htmlspecialchars($row['TicketRoute']) ?>" readonly>
+                    <input type="text" name="ticket_route" value="<?= htmlspecialchars($row['TicketRoute']) ?>">
                 </div>
                 <div class="form-group">
                     <label>Issue Date:</label>

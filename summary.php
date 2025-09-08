@@ -1,4 +1,7 @@
-<?php include 'config.php'; ?>
+<?php include 'db.php';
+include 'auth_check.php';
+ include 'config.php'; ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>

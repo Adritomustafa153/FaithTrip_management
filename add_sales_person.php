@@ -1,5 +1,6 @@
 <?php
 // Database connection
+include 'auth_check.php';
 include 'db.php';
 
 // Initialize variables

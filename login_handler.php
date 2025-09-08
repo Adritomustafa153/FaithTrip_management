@@ -1,15 +1,26 @@
 <?php
+// ------------------------------
 // Start session with secure parameters
-session_start([
-    'cookie_lifetime' => 86400,
-    'cookie_secure' => isset($_SERVER['HTTPS']),
-    'cookie_httponly' => true,
-    'cookie_samesite' => 'Strict',
-    'use_strict_mode' => true
-]);
+// ------------------------------
+if (session_status() === PHP_SESSION_NONE) {
+    session_start([
+        'cookie_lifetime' => 86400,
+        'cookie_secure'   => !empty($_SERVER['HTTPS']), // Secure only if HTTPS
+        'cookie_httponly' => true,                      // Prevent JS access
+        'cookie_samesite' => 'Strict',                  // Mitigate CSRF
+        'use_strict_mode' => true                       // Prevent session fixation
+    ]);
+}
+
+// Force regenerate session ID on every fresh POST to avoid fixation
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    session_regenerate_id(true);
+}
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Validate inputs
+    // ------------------------------
+    // Validate and sanitize inputs
+    // ------------------------------
     if (empty($_POST['email']) || empty($_POST['password'])) {
         $_SESSION['error'] = "Email and password are required";
         header("Location: login.php");
@@ -19,7 +30,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $email = filter_var(trim($_POST['email']), FILTER_SANITIZE_EMAIL);
     $password = trim($_POST['password']);
 
+    // ------------------------------
     // Database connection
+    // ------------------------------
     $conn = new mysqli('localhost', 'root', '', 'faithtrip_accounts');
     
     if ($conn->connect_error) {
@@ -28,8 +41,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         exit();
     }
 
+    // ------------------------------
     // Get user from database including login attempt info
-    $sql = "SELECT UserId, UserName, email, Password, login_attempts, last_failed_login, is_locked, lock_time, last_login 
+    // ------------------------------
+    $sql = "SELECT UserId, UserName, email, Password, login_attempts, last_failed_login, 
+                   is_locked, lock_time, last_login 
             FROM user 
             WHERE email = ?";
     $stmt = $conn->prepare($sql);
@@ -40,11 +56,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if ($result->num_rows === 1) {
         $user = $result->fetch_assoc();
         
+        // ------------------------------
         // Check if account is locked
+        // ------------------------------
         if ($user['is_locked'] == 1) {
             $lockTime = strtotime($user['lock_time']);
             $currentTime = time();
-            $lockDuration = 30 * 60; // 30 minutes in seconds
+            $lockDuration = 30 * 60; // 30 minutes
             
             if (($currentTime - $lockTime) < $lockDuration) {
                 $remainingTime = ceil(($lockDuration - ($currentTime - $lockTime)) / 60);
@@ -52,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 header("Location: login.php");
                 exit();
             } else {
-                // Unlock the account if lock duration has passed
+                // Unlock account after lock duration
                 $unlockSql = "UPDATE user SET is_locked = 0, login_attempts = 0 WHERE UserId = ?";
                 $unlockStmt = $conn->prepare($unlockSql);
                 $unlockStmt->bind_param('i', $user['UserId']);
@@ -62,22 +80,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
         
-        // Check if password is hashed (starts with $2y$)
+        // ------------------------------
+        // Password verification
+        // ------------------------------
         $isHashed = (strpos($user['Password'], '$2y$') === 0);
-        
-        // Verify password (works for both hashed and plain text during transition)
         $authenticated = false;
         
         if ($isHashed) {
-            // New user - verify hash
             $authenticated = password_verify($password, $user['Password']);
         } else {
-            // Old user - compare plain text
             $authenticated = ($password === $user['Password']);
         }
         
         if ($authenticated) {
-            // Upgrade old user to hashed password if needed
+            // Upgrade to hashed password if old plain text
             if (!$isHashed) {
                 $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
                 $update = $conn->prepare("UPDATE user SET Password = ? WHERE UserId = ?");
@@ -85,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $update->execute();
             }
             
-            // Reset security settings and update last login time
+            // Reset attempts and update last login
             $resetSql = "UPDATE user SET 
                         login_attempts = 0, 
                         is_locked = 0, 
@@ -95,27 +111,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $resetStmt->bind_param('i', $user['UserId']);
             $resetStmt->execute();
             
-            // Regenerate session ID
-            session_regenerate_id(true);
+            // ------------------------------
+            // Secure session setup
+            // ------------------------------
+            session_regenerate_id(true); // prevent session fixation
             
-            // Set session variables (including last login time)
-            $_SESSION['user_id'] = $user['UserId'];
-            $_SESSION['user_name'] = $user['UserName'];
-            $_SESSION['user_email'] = $user['email'];
-            $_SESSION['last_login'] = $user['last_login']; // Previous login time
-            $_SESSION['current_login'] = date('Y-m-d H:i:s'); // Current login time
-            $_SESSION['logged_in'] = true;
+            $_SESSION['user_id']       = $user['UserId'];
+            $_SESSION['user_name']     = htmlspecialchars($user['UserName'], ENT_QUOTES, 'UTF-8'); // XSS safe
+            $_SESSION['user_email']    = htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8');    // XSS safe
+            $_SESSION['last_login']    = $user['last_login'];
+            $_SESSION['current_login'] = date('Y-m-d H:i:s');
+            $_SESSION['logged_in']     = true;
             $_SESSION['last_activity'] = time();
             
             header("Location: dashboard.php");
             exit();
         } else {
-            // Increment failed login attempts
+            // ------------------------------
+            // Failed login handling
+            // ------------------------------
             $attempts = $user['login_attempts'] + 1;
             $remainingAttempts = max(0, 4 - $attempts);
             
             if ($attempts >= 4) {
-                // Lock the account
+                // Lock account
                 $lockSql = "UPDATE user SET 
                            login_attempts = ?, 
                            is_locked = 1, 
@@ -143,7 +162,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             exit();
         }
     } else {
-        // User not found - generic error to prevent user enumeration
+        // ------------------------------
+        // User not found (generic error)
+        // ------------------------------
         $_SESSION['error'] = "Invalid email or password";
         header("Location: login.php");
         exit();

@@ -1,5 +1,7 @@
 <?php
 include 'db.php';
+include 'auth_check.php';
+
 
 // Function to check if a ticket is already refunded
 function isTicketRefunded($conn, $pnr, $ticket_number) {

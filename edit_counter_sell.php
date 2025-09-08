@@ -1,4 +1,5 @@
 <?php
+include 'auth_check.php';
 include 'db.php';
 
 // Check if ID is provided - handle both 'id' and 'sale_id' parameters

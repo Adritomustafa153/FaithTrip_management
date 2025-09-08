@@ -1,9 +1,7 @@
 <?php
 // Database connection
-$conn = new mysqli("localhost", "root", "", "faithtrip_accounts");
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
+include 'db.php';
+include 'auth_check.php';
 
 // Insert logic
 $message = '';

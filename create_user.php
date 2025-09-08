@@ -1,17 +1,6 @@
 <?php
-// Database connection
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "faithtrip_accounts";
-
-// Create connection
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-// Check connection
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
+include 'auth_check.php';
+include 'db.php';
 
 // Initialize variables
 $userName = $email = $dob = $nid = $password = $image = "";
@@ -97,7 +86,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-$conn->close();
+
 ?>
 
 <!DOCTYPE html>
@@ -378,3 +367,4 @@ $conn->close();
     </script>
 </body>
 </html>
+<?php $conn->close(); ?>

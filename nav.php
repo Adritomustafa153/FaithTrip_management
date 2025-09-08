@@ -1,6 +1,7 @@
 <?php 
-// require 'auth_check.php';
-require_once 'db.php'; // Make sure to include database connection
+require 'db.php';
+require 'auth_check.php';
+ // Make sure to include database connection
 
 // Function to calculate today's flights count
 function getTodaysFlightsCount($conn) {
@@ -65,6 +66,7 @@ if (isset($_SESSION['UserID'])) {
 $totalNotifications = 0;
 if ($notificationCount > 0) $totalNotifications += $notificationCount;
 if ($iataReminder['show_reminder']) $totalNotifications += 1;
+
 ?>
 <!DOCTYPE html>
 <html lang="en">

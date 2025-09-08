@@ -1,6 +1,7 @@
 <?php
 require 'vendor/autoload.php';
 include 'db.php';
+include 'auth_check.php';
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -13,6 +14,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 $source_filter = $_GET['source'] ?? '';
 $from_date = $_GET['from_date'] ?? '';
 $to_date = $_GET['to_date'] ?? '';
+$load_ledger = isset($_GET['load_ledger']) && $_GET['load_ledger'] == '1';
 
 $source_condition = "";
 $date_condition = "";
@@ -62,28 +64,48 @@ $query = "
         'refund' AS type
     FROM sales s
     WHERE s.Remarks = 'Refund' $source_condition $date_condition
-
-    UNION ALL
-
-    SELECT 
-        p.Source,
-        p.payment_date AS trans_date,
-        '' AS TicketRoute,
-        '' AS Airlines,
-        '' AS PNR,
-        '' AS TicketNumber,
-        0 AS credit,
-        p.amount AS debit,
-        p.remarks,
-        'paid' AS type
-    FROM paid p
-    WHERE 1=1 $source_condition
-    " . (!empty($from_date) && !empty($to_date) ? "AND p.payment_date BETWEEN '$from_date' AND '$to_date'" : "") . "
-
-    ORDER BY trans_date ASC
 ";
 
+// Only include payment records if ledger is requested
+if ($load_ledger) {
+    $query .= "
+        UNION ALL
+
+        SELECT 
+            p.Source,
+            p.payment_date AS trans_date,
+            '' AS TicketRoute,
+            '' AS Airlines,
+            '' AS PNR,
+            '' AS TicketNumber,
+            0 AS credit,
+            p.amount AS debit,
+            p.remarks,
+            'paid' AS type
+        FROM paid p
+        WHERE 1=1 $source_condition
+        " . (!empty($from_date) && !empty($to_date) ? "AND p.payment_date BETWEEN '$from_date' AND '$to_date'" : "") . "
+    ";
+}
+
+$query .= " ORDER BY trans_date ASC";
+
 $result = mysqli_query($conn, $query);
+
+// Calculate total credit and debit for the period
+$total_credit = 0;
+$total_debit = 0;
+
+if ($result && mysqli_num_rows($result) > 0) {
+    mysqli_data_seek($result, 0);
+    while ($row = mysqli_fetch_assoc($result)) {
+        $total_credit += floatval($row['credit']);
+        $total_debit += floatval($row['debit']);
+    }
+    mysqli_data_seek($result, 0); // Reset pointer for later use
+}
+
+$total_balance = $total_credit - $total_debit;
 
 // Handle Excel export
 if (isset($_GET['export'])) {
@@ -108,7 +130,7 @@ if (isset($_GET['export'])) {
     $sheet->setCellValue('C2', 'Abedin Tower (Level 5), Road 17, 35 Kamal Ataturk Avenue, Banani C/A, Banani Dhaka 1213');
     $sheet->setCellValue('C3', 'Email: info@faithtrip.net, director@faithtrip.net');
     $sheet->setCellValue('C4', 'Phone: +8801896459490, +8801896459495');
-    $sheet->setCellValue('C5', 'PAYABLE PARTY LIST');
+    $sheet->setCellValue('C5', $load_ledger ? 'PAYABLE PARTY LIST' : 'SALES RECORD');
     $sheet->setCellValue('C6', 'Period: ' . ($from_date ? $from_date : 'Start Date') . ' to ' . ($to_date ? $to_date : 'End Date'));
 
     // Merge cells for company info
@@ -167,7 +189,11 @@ if (isset($_GET['export'])) {
     while ($row = mysqli_fetch_assoc($result)) {
         $debit = floatval($row['debit']);
         $credit = floatval($row['credit']);
-        $balance += $credit - $debit;
+        
+        // Only calculate running balance if ledger is requested
+        if ($load_ledger) {
+            $balance += $credit - $debit;
+        }
 
         $sheet->setCellValue('A'.$rowNum, $sl++);
         $sheet->setCellValue('B'.$rowNum, $row['trans_date']);
@@ -183,7 +209,7 @@ if (isset($_GET['export'])) {
         
         $sheet->setCellValue('I'.$rowNum, number_format($debit, 2));
         $sheet->setCellValue('J'.$rowNum, number_format($credit, 2));
-        $sheet->setCellValue('K'.$rowNum, number_format($balance, 2));
+        $sheet->setCellValue('K'.$rowNum, $load_ledger ? number_format($balance, 2) : '');
         $sheet->setCellValue('L'.$rowNum, $row['remarks']);
 
         // Apply borders to data rows
@@ -192,9 +218,9 @@ if (isset($_GET['export'])) {
         $rowNum++;
     }
 
-    // Add total row
+    // Add total row for both ledger and sales view
     $sheet->setCellValue('I'.$rowNum, 'Total Payable Balance:');
-    $sheet->setCellValue('K'.$rowNum, number_format($balance, 2));
+    $sheet->setCellValue('K'.$rowNum, number_format($total_balance, 2));
     $sheet->mergeCells('I'.$rowNum.':J'.$rowNum);
     
     // Style total row
@@ -240,7 +266,7 @@ if (isset($_GET['export'])) {
     // Output Excel file
     $writer = new Xlsx($spreadsheet);
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    header('Content-Disposition: attachment;filename="payable_report_'.date('Y-m-d').'.xlsx"');
+    header('Content-Disposition: attachment;filename="'.($load_ledger ? 'payable_report' : 'sales_record').'_'.date('Y-m-d').'.xlsx"');
     header('Cache-Control: max-age=0');
     $writer->save('php://output');
     
@@ -274,6 +300,7 @@ if (isset($_GET['export'])) {
         tr:nth-child(even) { background-color: #f8f9fa; }
         .text-right { text-align: right; }
         .total-section { margin-top: 20px; padding: 10px; background-color: #e9ecef; border-radius: 4px; text-align: right; font-weight: 600; }
+        .checkbox-group { display: flex; align-items: center; gap: 8px; }
         @media (max-width: 1200px) {
             .container { max-width: 100%; padding: 10px; }
             table { font-size: 12px; }
@@ -319,6 +346,11 @@ if (isset($_GET['export'])) {
                 <input type="date" name="to_date" id="to_date" value="<?= htmlspecialchars($to_date) ?>">
             </div>
             
+            <div class="checkbox-group">
+                <input type="checkbox" name="load_ledger" id="load_ledger" value="1" <?= $load_ledger ? 'checked' : '' ?>>
+                <label for="load_ledger" style="min-width: auto;">Load Ledger</label>
+            </div>
+            
             <button type="submit" class="btn btn-search">Search</button>
             <button type="submit" name="export" value="1" class="btn btn-export">Export to Excel</button>
         </form>
@@ -337,7 +369,9 @@ if (isset($_GET['export'])) {
                 <th>Ticket No</th>
                 <th class="text-right">Debit (Paid)</th>
                 <th class="text-right">Credit (Bill)</th>
+                <?php if ($load_ledger): ?>
                 <th class="text-right">Balance</th>
+                <?php endif; ?>
                 <th>Remarks</th>
             </tr>
         </thead>
@@ -351,7 +385,10 @@ if (isset($_GET['export'])) {
                 while ($row = mysqli_fetch_assoc($result)):
                     $debit = floatval($row['debit']);
                     $credit = floatval($row['credit']);
-                    $balance += $credit - $debit;
+                    
+                    if ($load_ledger) {
+                        $balance += $credit - $debit;
+                    }
             ?>
             <tr>
                 <td><?= $sl++ ?></td>
@@ -364,12 +401,14 @@ if (isset($_GET['export'])) {
                 <td><?= htmlspecialchars($row['TicketNumber']) ?></td>
                 <td class="text-right"><?= number_format($debit, 2) ?></td>
                 <td class="text-right"><?= number_format($credit, 2) ?></td>
+                <?php if ($load_ledger): ?>
                 <td class="text-right"><?= number_format($balance, 2) ?></td>
+                <?php endif; ?>
                 <td><?= htmlspecialchars($row['remarks']) ?></td>
             </tr>
             <?php endwhile; 
             } else {
-                echo '<tr><td colspan="12" style="text-align: center;">No records found</td></tr>';
+                echo '<tr><td colspan="'.($load_ledger ? '12' : '11').'" style="text-align: center;">No records found</td></tr>';
             }
             ?>
         </tbody>
@@ -377,7 +416,7 @@ if (isset($_GET['export'])) {
     
     <?php if ($result && mysqli_num_rows($result) > 0): ?>
     <div class="total-section">
-        Total Payable Balance: <?= number_format($balance, 2) ?> Taka
+        Total Payable Balance: <?= number_format($total_balance, 2) ?> Taka
     </div>
     <?php endif; ?>
 </div>

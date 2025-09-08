@@ -1,5 +1,7 @@
 <?php
-session_start();
+
+// session_start();
+    include 'auth_check.php';
 include 'db.php';
 
 // Fetch all loans

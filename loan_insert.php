@@ -34,7 +34,10 @@
 </head>
 <body>
     <!-- Include navigation -->
-    <?php include 'nav.php'; ?>
+    <?php 
+    include 'auth_check.php';
+include 'db.php';
+    include 'nav.php'; ?>
 
     <div class="container mt-4">
         <div class="row">

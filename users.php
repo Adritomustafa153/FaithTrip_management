@@ -1,17 +1,6 @@
 <?php
-// Database connection
-$servername = "127.0.0.1";
-$username = "root"; // Replace with your database username
-$password = ""; // Replace with your database password
-$dbname = "faithtrip_accounts";
-
-// Create connection
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-// Check connection
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
+include 'auth_check.php';
+include 'db.php';
 
 // Handle unblock request
 if (isset($_GET['unblock']) && is_numeric($_GET['unblock'])) {

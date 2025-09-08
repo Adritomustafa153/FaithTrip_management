@@ -1,9 +1,10 @@
 <?php
+include 'auth_check.php';
+include 'db.php';
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-include 'db.php';
 
 // Initialize cart
 if (!isset($_SESSION['invoice_cart'])) {

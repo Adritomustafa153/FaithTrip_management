@@ -26,7 +26,7 @@ switch (strtolower($sale_type)) {
         header("Location: edit_agents.php?id=$sale_id");
         break;
     case 'corporate':
-        header("Location: edit_corporate.php?id=$sale_id");
+        header("Location: edit_corporate.php?sale_id=$sale_id");
         break;
     default:
         // If no specific section or unknown, redirect to general edit page

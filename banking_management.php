@@ -1,3 +1,4 @@
+<?php include 'auth_check.php'; ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -301,8 +302,11 @@
 <body>
     <?php
     // Include database connection and navbar
+    
     include 'db.php';
+
     include 'nav.php';
+    
     
     // Initialize variables
     $banks = [];

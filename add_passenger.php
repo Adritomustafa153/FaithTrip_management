@@ -50,7 +50,10 @@
 </head>
 <body>
 
-<?php include 'nav.php' ?>
+<?php 
+include 'auth_check.php';
+include 'nav.php';
+ ?>
   <!-- <h2>Add Passenger</h2>
   <form method="POST" action="add_passenger.php">
     <input type="text" name="pname" placeholder="Passenger Name" required>

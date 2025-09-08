@@ -1,13 +1,6 @@
 <?php
-$host = 'localhost';
-$user = 'root'; // change if needed
-$password = ''; // change if needed
-$db = 'faithtrip_accounts';
-
-$conn = new mysqli($host, $user, $password, $db);
-if ($conn->connect_error) {
-  die("Connection failed: " . $conn->connect_error);
-}
+include 'db.php';
+include 'auth_check.php';
 
 $sql = "SELECT * FROM passengers ORDER BY id DESC";
 $result = $conn->query($sql);
@@ -66,7 +59,7 @@ $result = $conn->query($sql);
   </style>
 
    <!-- MDB icon -->
- <link rel="icon" href="img/mdb-favicon.ico" type="image/x-icon" />
+ <link rel="icon" href="https://portal.faithtrip.net/companyLogo/JD0aa1748681597.jpg" type="image/x-icon" />
     <!-- Font Awesome -->
     <link
       rel="stylesheet"

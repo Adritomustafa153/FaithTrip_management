@@ -1,4 +1,5 @@
 <?php
+include 'auth_check.php';
 include 'db.php';
 $sale_id = $_GET['sale_id'] ?? null;
 

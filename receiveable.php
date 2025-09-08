@@ -1,6 +1,7 @@
 <?php
 // Database connection
 include 'db.php';
+include 'auth_check.php';
 
 // Initialize variables
 $section_filter = isset($_GET['section']) ? $_GET['section'] : '';

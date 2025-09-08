@@ -1,4 +1,6 @@
 <?php
+
+include 'auth_check.php';
 include 'db.php';
 $sources_query = "SELECT agency_name FROM sources";
 $sources_result = mysqli_query($conn, $sources_query);

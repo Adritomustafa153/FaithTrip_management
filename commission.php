@@ -1,5 +1,6 @@
 <?php
 require_once 'db.php';
+include 'auth_check.php';
 
 // Initialize variables
 $salesPerson = '';

@@ -1,6 +1,8 @@
 <?php
 // Database connection
+
 include 'db.php';
+include 'auth_check.php';
 // Start session for cart functionality
 session_start();
 

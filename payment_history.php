@@ -1,4 +1,5 @@
 <?php
+include 'auth_check.php';
 include 'db.php';
 
 if (isset($_GET['id'])) {

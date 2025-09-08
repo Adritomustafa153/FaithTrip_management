@@ -1,4 +1,5 @@
 <?php
+include 'auth_check.php';
 include 'db.php';
 
 // Fetch banks from database

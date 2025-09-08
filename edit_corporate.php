@@ -1,9 +1,8 @@
 <?php
 // Database connection
-$conn = new mysqli("localhost", "root", "", "faithtrip_accounts");
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
+include 'auth_check.php';
+include 'db.php';
+
 
 // Check if ID parameter is provided
 if (!isset($_GET['sale_id']) || empty($_GET['sale_id'])) {
