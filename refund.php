@@ -4,7 +4,7 @@
 include 'db.php';
 include 'auth_check.php';
 // Start session for cart functionality
-session_start();
+// session_start();
 
 // Initialize refund cart if not exists
 if (!isset($_SESSION['refund_cart'])) {

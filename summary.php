@@ -1,6 +1,6 @@
 <?php include 'db.php';
 include 'auth_check.php';
- include 'config.php'; ?>
+ include 'configs.php'; ?>
 
 <!DOCTYPE html>
 <html lang="en">

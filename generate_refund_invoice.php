@@ -205,7 +205,7 @@ $mail->isSMTP();
 $mail->Host = 'smtp.gmail.com';
 $mail->SMTPAuth = true;
 $mail->Username = 'faithtrip.net@gmail.com';
-$mail->Password = 'hprnbfnzkywrymqw';
+$mail->Password = 'hhbz fwis jioi fhpr';
 $mail->SMTPSecure = 'tls';
 $mail->Port = 587;
 $mail->setFrom('info@faithtrip.net', 'Faith Travels and Tours LTD');

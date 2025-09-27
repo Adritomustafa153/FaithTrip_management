@@ -2,7 +2,13 @@
 // Database connection
 include 'db.php';
 include 'auth_check.php';
-
+// Display success message if payment was recorded
+if (isset($_GET['payment']) && $_GET['payment'] == 'success') {
+    echo '<div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i>Payment recorded successfully!
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>';
+}
 // Initialize variables
 $section_filter = isset($_GET['section']) ? $_GET['section'] : '';
 $party_filter = isset($_GET['party']) ? $_GET['party'] : '';
@@ -312,6 +318,9 @@ if ($result->num_rows > 0) {
                         </button>
                         <a href="export_receivables.php?section=<?= urlencode($section_filter) ?>&party=<?= urlencode($party_filter) ?>&from_date=<?= urlencode($from_date) ?>&to_date=<?= urlencode($to_date) ?>&pnr=<?= urlencode($pnr_search) ?>" class="btn btn-success no-print">Excel
                             <i class="fas fa-file-excel"></i>
+                        </a>
+                        <a href="payment_history.php" class="btn btn-success no-print">Payments
+                            <i class="fa fa-money" style="font-size:48px;color:red"></i>
                         </a>
                     </div>
                 </div>

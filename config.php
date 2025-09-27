@@ -1,3 +1,5 @@
+
+
 <?php
 $host = '127.0.0.1';
 $db   = 'faithtrip_accounts';
@@ -18,3 +20,6 @@ try {
     throw new \PDOException($e->getMessage(), (int)$e->getCode());
 }
 ?>
+
+
+

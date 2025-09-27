@@ -1,7 +1,8 @@
 <?php 
 require 'db.php';
 require 'auth_check.php';
- // Make sure to include database connection
+include 'iata_reminder.php';
+// include 'iata_payments.php';
 
 // Function to calculate today's flights count
 function getTodaysFlightsCount($conn) {
@@ -30,25 +31,11 @@ function getTodaysFlightsCount($conn) {
 // Calculate the notification count
 $notificationCount = getTodaysFlightsCount($conn);
 
-// IATA reminder functionality (simplified version)
-$iataReminder = [
-    'show_reminder' => false,
-    'first_period' => 0,
-    'second_period' => 0,
-    'period' => ''
-];
-
-// Simple IATA reminder logic - you can expand this as needed
-$currentDay = date('j');
-if ($currentDay >= 10 && $currentDay <= 15) {
-    $iataReminder['show_reminder'] = true;
-    $iataReminder['first_period'] = 15000; // Example amount
-    $iataReminder['period'] = '1st Period';
-} elseif ($currentDay >= 25 && $currentDay <= 31) {
-    $iataReminder['show_reminder'] = true;
-    $iataReminder['second_period'] = 12000; // Example amount
-    $iataReminder['period'] = '2nd Period';
-}
+   if ($iataReminder['show_reminder']): ?>
+<?php endif; ?>
+<?php 
+// Initialize user image variable
+$img_src = 'https://via.placeholder.com/40x40/cccccc/999999?text=USER';
 
 if (isset($_SESSION['UserID'])) {
     $stmt = $conn->prepare("SELECT image FROM user WHERE UserID = ?");
@@ -58,8 +45,11 @@ if (isset($_SESSION['UserID'])) {
     $stmt->bind_result($user_img);
     $stmt->fetch();
     $stmt->close();
-    $img_src = !empty($user_img) ? 'data:image/jpeg;base64,'.base64_encode($user_img) : 'default.png';
-    echo '<img src="'.$img_src.'" alt="Profile" class="rounded-circle" width="40" height="40" style="object-fit: cover;">';
+    
+    // Set the image source without echoing it
+    if (!empty($user_img)) {
+        $img_src = 'data:image/jpeg;base64,'.base64_encode($user_img);
+    }
 }
 
 // Calculate total notifications
@@ -95,6 +85,16 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
         
         .dropdown-submenu:hover .dropdown-menu {
             display: block;
+        }
+        
+        .default-avatar {
+            background-color: #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-weight: bold;
+            border-radius: 50%;
         }
     </style>
 </head>
@@ -158,14 +158,15 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
           <a data-mdb-dropdown-init class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button" aria-expanded="false">
             invoice List
           </a>
-          <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
-            <li><a class="dropdown-item" href="invoice_list.php">Sales</a></li>
+          <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink"> 
+             <li><a class="dropdown-item" href="all_invoice.php">All invoices</a></li>
+            <!-- <li><a class="dropdown-item" href="invoice_list.php">Sales</a></li>
             <li><a class="dropdown-item" href="reissue.php">Reissue</a></li>
-            <li><a class="dropdown-item" href="refund.php">Refund</a></li>
+            <li><a class="dropdown-item" href="refund.php">Refund</a></li> -->
           </ul>
         </li>
 
-        <li class="nav-item dropdown">
+        <!-- <li class="nav-item dropdown">
           <a data-mdb-dropdown-init class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button" aria-expanded="false">
             Sales Flow
           </a>
@@ -174,10 +175,21 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
             <li><a class="dropdown-item" href="">Visa Processing</a></li>
             <li><a class="dropdown-item" href="">Tour Package</a></li>
           </ul>
-        </li>
+        </li> -->
 
-        <li class="nav-item">
-          <a class="nav-link" href="summary.php">Sell Summary</a>
+          <li class="nav-item dropdown">
+          <a data-mdb-dropdown-init class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button" aria-expanded="false">
+            Sales Record
+          </a>
+          <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+            <li><a class="dropdown-item" href="summary.php">Sale Summary</a></li>
+            <li><a class="dropdown-item" href="invoice_list.php">Ticket Sales</a></li>
+            <li><a class="dropdown-item" href="reissue.php">Ticket Reissue</a></li>
+            <li><a class="dropdown-item" href="refund.php">Ticket Refund</a></li>
+            <li><a class="dropdown-item" href="hotel_sales.php">Hotel</a></li>
+            <li><a class="dropdown-item" href="">Visa Processing</a></li>
+            <li><a class="dropdown-item" href="">Tour Package</a></li>
+          </ul>
         </li>
         
         <li class="nav-item dropdown">
@@ -231,7 +243,7 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
           </a>
           <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
             <li><a class="dropdown-item" href="add_passenger.php">Counter</a></li>
-            <li><a class="dropdown-item" href="corporate_insert.php">Corporate</a></li>
+            <li><a class="dropdown-item" href="view_corporates.php">Corporate</a></li>
             <li><a class="dropdown-item" href="insert_agent.php">Agents</a></li>
             <li><a class="dropdown-item" href="passenger_list.php">Passenger List</a></li>
             <li><a class="dropdown-item" href="insert_sources.php">Sourcing</a></li>
@@ -278,21 +290,27 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
                 </li>
             <?php endif; ?>
             
-            <?php if ($iataReminder['show_reminder']): ?>
-                <li>
-                    <a class="dropdown-item" href="iata_payments.php">
-                        <i class="fas fa-money-bill-wave me-2"></i>
-                        IATA Payment Due: 
-                        <?php 
-                        if (date('j') >= 10 && date('j') <= 15) {
-                            echo number_format($iataReminder['first_period'], 2) . ' ('.$iataReminder['period'].')';
-                        } else {
-                            echo number_format($iataReminder['second_period'], 2) . ' ('.$iataReminder['period'].')';
-                        }
-                        ?>
-                    </a>
-                </li>
-            <?php endif; ?>
+           <?php if ($iataReminder['show_reminder']): ?>
+    <li>
+        <a class="dropdown-item" href="iata_payments.php">
+            <i class="fas fa-money-bill-wave me-2"></i>
+            IATA Payment Due: 
+            <?php 
+            // Safely display the amount with fallback
+            $displayAmount = 0;
+            if (isset($iataReminder['amount']) && $iataReminder['amount'] > 0) {
+                $displayAmount = $iataReminder['amount'];
+            } elseif (isset($iataReminder['first_period']) && $iataReminder['first_period'] > 0) {
+                $displayAmount = $iataReminder['first_period'];
+            } elseif (isset($iataReminder['second_period']) && $iataReminder['second_period'] > 0) {
+                $displayAmount = $iataReminder['second_period'];
+            }
+            
+            echo number_format($displayAmount, 2) . ' (' . ($iataReminder['period'] ?? 'Period') . ')'; 
+            ?>
+        </a>
+    </li>
+<?php endif; ?>
             
             <?php if ($totalNotifications === 0): ?>
                 <li>
@@ -316,11 +334,13 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
           aria-expanded="false"
         >
           <img
-            src="https://mdbcdn.b-cdn.net/img/new/avatars/2.webp"
+            src="<?php echo $img_src; ?>"
             class="rounded-circle"
-            height="25"
-            alt="Black and White Portrait of a Man"
+            height="40"
+            width="40"
+            alt="User Profile"
             loading="lazy"
+            style="object-fit: cover;"
           />
         </a>
         <ul
