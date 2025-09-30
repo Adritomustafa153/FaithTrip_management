@@ -104,10 +104,29 @@ $yearlyPaymentQuery = "SELECT SUM(amount) as payment_amount FROM paid WHERE YEAR
 $yearlyPaymentResult = mysqli_query($conn, $yearlyPaymentQuery);
 $yearlyPaymentData = mysqli_fetch_assoc($yearlyPaymentResult);
 
-// Sales by section data
-$salesQuery = "SELECT section, SUM(BillAmount) AS total FROM sales 
-               WHERE MONTH(IssueDate) = MONTH(CURDATE()) AND YEAR(IssueDate) = YEAR(CURDATE())
-               GROUP BY section";
+// Sales by section data - Based on filter
+if ($filter === 'daily') {
+    $salesQuery = "SELECT section, SUM(BillAmount) AS total FROM sales 
+                   WHERE DATE(IssueDate) = CURDATE()
+                   GROUP BY section";
+    $pieChartTitle = "Sales by Section (Daily)";
+} elseif ($filter === 'yearly') {
+    $salesQuery = "SELECT section, SUM(BillAmount) AS total FROM sales 
+                   WHERE YEAR(IssueDate) = YEAR(CURDATE())
+                   GROUP BY section";
+    $pieChartTitle = "Sales by Section (Yearly)";
+} elseif ($filter === 'total') {
+    $salesQuery = "SELECT section, SUM(BillAmount) AS total FROM sales 
+                   GROUP BY section";
+    $pieChartTitle = "Sales by Section (Total)";
+} else {
+    // Default to monthly
+    $salesQuery = "SELECT section, SUM(BillAmount) AS total FROM sales 
+                   WHERE MONTH(IssueDate) = MONTH(CURDATE()) AND YEAR(IssueDate) = YEAR(CURDATE())
+                   GROUP BY section";
+    $pieChartTitle = "Sales by Section (Monthly)";
+}
+
 $salesResult = mysqli_query($conn, $salesQuery);
 
 $salesData = ['Agent' => 0, 'Counter' => 0, 'Corporate' => 0];
@@ -199,6 +218,12 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
             margin-left: 180px;
         }
         
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
         .filter-box {
             display: flex;
             align-items: center;
@@ -214,6 +239,21 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
             padding: 6px 10px;
             border-radius: 5px;
             border: 1px solid #ccc;
+        }
+        
+        .btn-fare-calculator {
+            background-color: var(--iata-blue);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-fare-calculator:hover {
+            background-color: var(--iata-light-blue);
         }
         
         .summary-cards {
@@ -410,8 +450,185 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
         .risk-high { color: var(--iata-orange); }
         .risk-critical { color: var(--iata-red); }
         
-        /* Responsive adjustments */
-        @media (max-width: 1200px) {
+        /* Fare Calculator Modal Styles */
+        .modal-content {
+            border-radius: 10px;
+            border: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .modal-header {
+            background-color: var(--iata-blue);
+            color: white;
+            border-bottom: none;
+            border-radius: 10px 10px 0 0;
+            padding: 15px 20px;
+        }
+        
+        .modal-title {
+            font-weight: 600;
+            text-align: center;
+            width: 100%;
+        }
+        
+        .modal-body {
+            padding: 20px;
+        }
+        
+        .calculator-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .calculator-title {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #2c3e50;
+            font-weight: bold;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #3498db;
+        }
+        
+        .form-label {
+            font-weight: 500;
+            color: #2c3e50;
+        }
+        
+        .base-fare-container {
+            text-align: right;
+        }
+        
+        .tax-container {
+            text-align: left;
+        }
+        
+        .result-container {
+            background-color: #e9f7ef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            border-left: 4px solid #27ae60;
+        }
+        
+        .result-label {
+            font-weight: 600;
+            color: #27ae60;
+        }
+        
+        .btn-calculate {
+            width: 48%;
+            margin-top: 25px;
+            background-color: #3498db;
+            border: none;
+            padding: 12px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            border-radius: 6px;
+            transition: all 0.3s;
+            margin-right: 2%;
+        }
+        
+        .btn-clear {
+            width: 48%;
+            margin-top: 25px;
+            background-color: #6c757d;
+            border: none;
+            padding: 12px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            border-radius: 6px;
+            transition: all 0.3s;
+            margin-left: 2%;
+        }
+        
+        .btn-calculate:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn-clear:hover {
+            background-color: #5a6268;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .input-group-text {
+            background-color: #f8f9fa;
+            color: #495057;
+        }
+        
+        .tax-column {
+            border-right: 1px dashed #dee2e6;
+            padding-right: 30px;
+        }
+        
+        .calculation-column {
+            padding-left: 30px;
+        }
+        
+        .section-title {
+            font-weight: 600;
+            color: #3498db;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .form-control {
+            border-radius: 5px;
+            border: 1px solid #ced4da;
+            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+        
+        .form-control:focus {
+            border-color: #3498db;
+            box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+        }
+        
+        .result-value {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 1.05rem;
+        }
+        
+        .calculator-buttons {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        @media (max-width: 768px) {
+            .tax-column {
+                border-right: none;
+                border-bottom: 1px dashed #dee2e6;
+                padding-right: 15px;
+                padding-bottom: 30px;
+                margin-bottom: 30px;
+            }
+            
+            .calculation-column {
+                padding-left: 15px;
+            }
+            
+            .dashboard-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .header-controls {
+                margin-top: 15px;
+                width: 100%;
+                justify-content: space-between;
+            }
+            
+            .filter-box {
+                width: 100%;
+            }
+            
+            select {
+                width: 100%;
+            }
+            
             .summary-cards {
                 flex-direction: column;
             }
@@ -419,21 +636,14 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
             .charts-row {
                 flex-direction: column;
             }
-        }
-        
-        @media (max-width: 768px) {
-            .dashboard-header {
+            
+            .calculator-buttons {
                 flex-direction: column;
-                align-items: flex-start;
             }
             
-            .filter-box {
-                margin-top: 15px;
+            .btn-calculate, .btn-clear {
                 width: 100%;
-            }
-            
-            select {
-                width: 100%;
+                margin: 5px 0;
             }
         }
     </style>
@@ -442,13 +652,19 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
     <?php include 'nav.php' ?>
     <div class="dashboard-header">
         <h2>Faith Travel and Tours LTD Dashboard</h2>
-        <div class="filter-box">
-            <label for="salesFilter">Filter by:</label>
-            <select id="salesFilter" onchange="updateDashboard()">
-                <option value="monthly" <?= $filter === 'monthly' ? 'selected' : '' ?>>Monthly</option>
-                <option value="yearly" <?= $filter === 'yearly' ? 'selected' : '' ?>>Yearly</option>
-                <option value="total" <?= $filter === 'total' ? 'selected' : '' ?>>Total</option>
-            </select>
+        <div class="header-controls">
+            <button class="btn-fare-calculator" data-bs-toggle="modal" data-bs-target="#fareCalculatorModal">
+                <i class="fas fa-calculator"></i> Fare Calculator
+            </button>
+            <div class="filter-box">
+                <label for="salesFilter">Filter by:</label>
+                <select id="salesFilter" onchange="updateDashboard()">
+                    <option value="monthly" <?= $filter === 'monthly' ? 'selected' : '' ?>>Monthly</option>
+                    <option value="daily" <?= $filter === 'daily' ? 'selected' : '' ?>>Daily</option>
+                    <option value="yearly" <?= $filter === 'yearly' ? 'selected' : '' ?>>Yearly</option>
+                    <option value="total" <?= $filter === 'total' ? 'selected' : '' ?>>Total</option>
+                </select>
+            </div>
         </div>
     </div>
 
@@ -552,7 +768,6 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
         <div class="charts-row">
             <!-- RHC Card -->
             <div class="chart-container">
-                <!-- <h4 class="chart-title">RHC Amount</h4> -->
                 <div class="rhc-card">
                     <div class="rhc-header">IATA RHC Meter</div>
                     <div class="rhc-body">
@@ -605,7 +820,7 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
             
             <!-- Sales Pie Chart -->
             <div class="chart-container">
-                <h4 class="chart-title">Sales by Section</h4>
+                <h4 class="chart-title"><?= $pieChartTitle ?></h4>
                 <canvas id="salesPieChart"></canvas>
             </div>
             
@@ -623,6 +838,196 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
         </div>
     </div>
 
+    <!-- Fare Calculator Modal -->
+    <div class="modal fade" id="fareCalculatorModal" tabindex="-1" aria-labelledby="fareCalculatorModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="fareCalculatorModalLabel">Fare Calculator</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="calculator-container">
+                        <div class="row">
+                            <!-- Left Column - Tax Inputs -->
+                            <div class="col-md-6 tax-column">
+                                <h5 class="section-title">Tax Details</h5>
+                                
+                                <form id="fareCalculatorForm">
+                                    <!-- Base Fare -->
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 base-fare-container">
+                                            <label for="baseFare" class="form-label">Base Fare</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="baseFare" step="0.01" min="0" value="0" required>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Commission -->
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 base-fare-container">
+                                            <label for="commission" class="form-label">Commission (%)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="commission" step="0.01" min="0" max="100" value="0">
+                                                <span class="input-group-text">%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Tax Fields -->
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="bd" class="form-label">BD (Embarkation Fee)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="bd" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="ut" class="form-label">UT (Travel Tax)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="ut" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="ow" class="form-label">OW (Excise Duty Tax)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="ow" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="e5" class="form-label">E5 (Value Added Tax on Embarkation Fees)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="e5" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="gb" class="form-label">GB (Air Passenger Duty)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="gb" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="ub" class="form-label">UB (Passenger Service Charge)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="ub" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="yr" class="form-label">YR (Fuel Charges)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="yr" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="p7" class="form-label">P7 (P7)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="p7" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="p8" class="form-label">P8 (Passenger Security Fee)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="p8" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                            
+                            <!-- Right Column - Calculations -->
+                            <div class="col-md-6 calculation-column">
+                                <h5 class="section-title">Calculations</h5>
+                                
+                                <!-- Calculation Results -->
+                                <div class="result-container">
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <span class="result-label">Total Tax:</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <span id="totalTax" class="result-value">0.00</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <span class="result-label">Total Fare:</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <span id="totalFare" class="result-value">0.00</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <span class="result-label">Commission:</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <span id="commissionAmount" class="result-value">0.00</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <span class="result-label">AIT (0.3%):</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <span id="ait" class="result-value">0.00</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <span class="result-label">Net Payment:</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <span id="netPayment" class="result-value">0.00</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="calculator-buttons">
+                                    <button type="button" class="btn btn-primary btn-calculate" id="calculateBtn">Calculate</button>
+                                    <button type="button" class="btn btn-secondary btn-clear" id="clearBtn">Clear</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
     function updateDashboard() {
         const filter = document.getElementById('salesFilter').value;
@@ -711,6 +1116,97 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
     // Initial RHC data fetch
     fetchRHCData();
 
+    // Fare Calculator functionality
+    document.getElementById('calculateBtn').addEventListener('click', function() {
+        calculateFare();
+    });
+    
+    // Clear button functionality
+    document.getElementById('clearBtn').addEventListener('click', function() {
+        clearCalculator();
+    });
+    
+    // Add event listeners to all input fields to recalculate when values change
+    document.querySelectorAll('#fareCalculatorForm input').forEach(input => {
+        input.addEventListener('input', calculateFare);
+    });
+    
+    function formatNumber(num) {
+        return new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(num);
+    }
+    
+    function calculateFare() {
+        // Get base fare value
+        const baseFare = parseFloat(document.getElementById('baseFare').value) || 0;
+        
+        // Get commission percentage
+        const commissionPercentage = parseFloat(document.getElementById('commission').value) || 0;
+        
+        // Calculate commission amount
+        const commissionAmount = baseFare * (commissionPercentage / 100);
+        
+        // Get all tax values
+        const bd = parseFloat(document.getElementById('bd').value) || 0;
+        const ut = parseFloat(document.getElementById('ut').value) || 0;
+        const ow = parseFloat(document.getElementById('ow').value) || 0;
+        const e5 = parseFloat(document.getElementById('e5').value) || 0;
+        const gb = parseFloat(document.getElementById('gb').value) || 0;
+        const ub = parseFloat(document.getElementById('ub').value) || 0;
+        const yr = parseFloat(document.getElementById('yr').value) || 0;
+        const p7 = parseFloat(document.getElementById('p7').value) || 0;
+        const p8 = parseFloat(document.getElementById('p8').value) || 0;
+        
+        // Calculate total tax
+        const totalTax = bd + ut + ow + e5 + gb + ub + yr + p7 + p8;
+        
+        // Calculate total fare
+        const totalFare = baseFare + totalTax;
+        
+        // Calculate AIT
+        const ait = (totalFare - (bd + ut + e5)) * 0.003;
+        
+        // Calculate net payment
+        const netPayment = (baseFare - commissionAmount) + totalTax + ait;
+        
+        // Update the display with calculated values
+        document.getElementById('totalTax').textContent = formatNumber(totalTax);
+        document.getElementById('totalFare').textContent = formatNumber(totalFare);
+        document.getElementById('commissionAmount').textContent = formatNumber(commissionAmount);
+        document.getElementById('ait').textContent = formatNumber(ait);
+        document.getElementById('netPayment').textContent = formatNumber(netPayment);
+    }
+    
+    function clearCalculator() {
+        // Clear all input fields
+        document.getElementById('baseFare').value = '';
+        document.getElementById('commission').value = '';
+        document.getElementById('bd').value = '';
+        document.getElementById('ut').value = '';
+        document.getElementById('ow').value = '';
+        document.getElementById('e5').value = '';
+        document.getElementById('gb').value = '';
+        document.getElementById('ub').value = '';
+        document.getElementById('yr').value = '';
+        document.getElementById('p7').value = '';
+        document.getElementById('p8').value = '';
+        
+        // Reset result values to 0
+        document.getElementById('totalTax').textContent = '0.00';
+        document.getElementById('totalFare').textContent = '0.00';
+        document.getElementById('commissionAmount').textContent = '0.00';
+        document.getElementById('ait').textContent = '0.00';
+        document.getElementById('netPayment').textContent = '0.00';
+    }
+    
+    // Initialize calculator with empty values when modal is shown
+    document.getElementById('fareCalculatorModal').addEventListener('show.bs.modal', function() {
+        clearCalculator();
+    });
+
+    // Charts
     const salesPieCtx = document.getElementById('salesPieChart').getContext('2d');
     new Chart(salesPieCtx, {
         type: 'pie',

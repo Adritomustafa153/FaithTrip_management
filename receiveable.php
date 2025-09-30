@@ -319,9 +319,9 @@ if ($result->num_rows > 0) {
                         <a href="export_receivables.php?section=<?= urlencode($section_filter) ?>&party=<?= urlencode($party_filter) ?>&from_date=<?= urlencode($from_date) ?>&to_date=<?= urlencode($to_date) ?>&pnr=<?= urlencode($pnr_search) ?>" class="btn btn-success no-print">Excel
                             <i class="fas fa-file-excel"></i>
                         </a>
-                        <a href="payment_history.php" class="btn btn-success no-print">Payments
+                        <!-- <a href="payment_history.php" class="btn btn-success no-print">Payments
                             <i class="fa fa-money" style="font-size:48px;color:red"></i>
-                        </a>
+                        </a> -->
                     </div>
                 </div>
             </form>
