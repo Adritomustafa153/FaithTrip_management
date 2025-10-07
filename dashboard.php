@@ -276,6 +276,9 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
             font-weight: bold;
             text-align: center;
             font-size: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         
         .summary-card-body {
@@ -450,166 +453,83 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
         .risk-high { color: var(--iata-orange); }
         .risk-critical { color: var(--iata-red); }
         
-        /* Fare Calculator Modal Styles */
-        .modal-content {
-            border-radius: 10px;
-            border: none;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        /* View All Button Styles */
+        .btn-view-all {
+            background: transparent;
+            border: 1px solid currentColor;
+            color: inherit;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
         }
         
-        .modal-header {
-            background-color: var(--iata-blue);
-            color: white;
-            border-bottom: none;
-            border-radius: 10px 10px 0 0;
-            padding: 15px 20px;
+        .btn-view-all:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
         }
         
-        .modal-title {
-            font-weight: 600;
-            text-align: center;
+        /* Report Modal Styles */
+        .report-table {
             width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
         }
         
-        .modal-body {
-            padding: 20px;
-        }
-        
-        .calculator-container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        
-        .calculator-title {
-            text-align: center;
-            margin-bottom: 30px;
-            color: #2c3e50;
-            font-weight: bold;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #3498db;
-        }
-        
-        .form-label {
-            font-weight: 500;
-            color: #2c3e50;
-        }
-        
-        .base-fare-container {
-            text-align: right;
-        }
-        
-        .tax-container {
+        .report-table th,
+        .report-table td {
+            padding: 8px 12px;
             text-align: left;
+            border-bottom: 1px solid #dee2e6;
         }
         
-        .result-container {
-            background-color: #e9f7ef;
-            border-radius: 8px;
-            padding: 20px;
-            margin-top: 20px;
-            border-left: 4px solid #27ae60;
-        }
-        
-        .result-label {
-            font-weight: 600;
-            color: #27ae60;
-        }
-        
-        .btn-calculate {
-            width: 48%;
-            margin-top: 25px;
-            background-color: #3498db;
-            border: none;
-            padding: 12px;
-            font-weight: 600;
-            font-size: 1.1rem;
-            border-radius: 6px;
-            transition: all 0.3s;
-            margin-right: 2%;
-        }
-        
-        .btn-clear {
-            width: 48%;
-            margin-top: 25px;
-            background-color: #6c757d;
-            border: none;
-            padding: 12px;
-            font-weight: 600;
-            font-size: 1.1rem;
-            border-radius: 6px;
-            transition: all 0.3s;
-            margin-left: 2%;
-        }
-        
-        .btn-calculate:hover {
-            background-color: #2980b9;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-        
-        .btn-clear:hover {
-            background-color: #5a6268;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-        
-        .input-group-text {
+        .report-table th {
             background-color: #f8f9fa;
+            font-weight: 600;
             color: #495057;
         }
         
-        .tax-column {
-            border-right: 1px dashed #dee2e6;
-            padding-right: 30px;
+        .report-table tr:hover {
+            background-color: #f8f9fa;
         }
         
-        .calculation-column {
-            padding-left: 30px;
+        .text-right {
+            text-align: right;
         }
         
-        .section-title {
-            font-weight: 600;
-            color: #3498db;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #e9ecef;
+        .text-center {
+            text-align: center;
         }
         
-        .form-control {
+        .modal-lg {
+            max-width: 95%;
+        }
+        
+        .sales-details {
+            background: #f8f9fa;
+            padding: 10px;
             border-radius: 5px;
-            border: 1px solid #ced4da;
-            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+            margin-bottom: 10px;
         }
         
-        .form-control:focus {
-            border-color: #3498db;
-            box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
-        }
-        
-        .result-value {
-            font-weight: 600;
-            color: #2c3e50;
-            font-size: 1.05rem;
-        }
-        
-        .calculator-buttons {
+        .sales-detail-row {
             display: flex;
             justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        
+        .sales-detail-label {
+            font-weight: 500;
+            color: #495057;
+        }
+        
+        .sales-detail-value {
+            color: #212529;
         }
         
         @media (max-width: 768px) {
-            .tax-column {
-                border-right: none;
-                border-bottom: 1px dashed #dee2e6;
-                padding-right: 15px;
-                padding-bottom: 30px;
-                margin-bottom: 30px;
-            }
-            
-            .calculation-column {
-                padding-left: 15px;
-            }
-            
             .dashboard-header {
                 flex-direction: column;
                 align-items: flex-start;
@@ -637,13 +557,18 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
                 flex-direction: column;
             }
             
-            .calculator-buttons {
-                flex-direction: column;
+            .modal-lg {
+                max-width: 100%;
+                margin: 10px;
             }
             
-            .btn-calculate, .btn-clear {
-                width: 100%;
-                margin: 5px 0;
+            .report-table {
+                font-size: 12px;
+            }
+            
+            .report-table th,
+            .report-table td {
+                padding: 6px 8px;
             }
         }
     </style>
@@ -671,7 +596,16 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
     <div class="summary-cards">
         <!-- Daily Summary Card -->
         <div class="summary-card card-daily">
-            <div class="summary-card-header">Daily Report</div>
+            <div class="summary-card-header">
+                <span>Daily Report</span>
+                <div>
+                    <button class="btn-view-all" onclick="viewReport('daily', 'sales')">Sales</button>
+                    <button class="btn-view-all" onclick="viewReport('daily', 'purchase')">Purchase</button>
+                    <button class="btn-view-all" onclick="viewReport('daily', 'payment')">Payment</button>
+                    <button class="btn-view-all" onclick="viewReport('daily', 'collection')">Collection</button>
+                    <button class="btn-view-all" onclick="viewReport('daily', 'expense')">Expense</button>
+                </div>
+            </div>
             <div class="summary-card-body">
                 <div class="metric-item">
                     <span>Sale Amount:</span>
@@ -702,7 +636,16 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
         
         <!-- Monthly Summary Card -->
         <div class="summary-card card-monthly">
-            <div class="summary-card-header">Monthly Report</div>
+            <div class="summary-card-header">
+                <span>Monthly Report</span>
+                <div>
+                    <button class="btn-view-all" onclick="viewReport('monthly', 'sales')">Sales</button>
+                    <button class="btn-view-all" onclick="viewReport('monthly', 'purchase')">Purchase</button>
+                    <button class="btn-view-all" onclick="viewReport('monthly', 'payment')">Payment</button>
+                    <button class="btn-view-all" onclick="viewReport('monthly', 'collection')">Collection</button>
+                    <button class="btn-view-all" onclick="viewReport('monthly', 'expense')">Expense</button>
+                </div>
+            </div>
             <div class="summary-card-body">
                 <div class="metric-item">
                     <span>Sale Amount:</span>
@@ -733,7 +676,16 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
         
         <!-- Yearly Summary Card -->
         <div class="summary-card card-yearly">
-            <div class="summary-card-header">Yearly Report</div>
+            <div class="summary-card-header">
+                <span>Yearly Report</span>
+                <div>
+                    <button class="btn-view-all" onclick="viewReport('yearly', 'sales')">Sales</button>
+                    <button class="btn-view-all" onclick="viewReport('yearly', 'purchase')">Purchase</button>
+                    <button class="btn-view-all" onclick="viewReport('yearly', 'payment')">Payment</button>
+                    <button class="btn-view-all" onclick="viewReport('yearly', 'collection')">Collection</button>
+                    <button class="btn-view-all" onclick="viewReport('yearly', 'expense')">Expense</button>
+                </div>
+            </div>
             <div class="summary-card-body">
                 <div class="metric-item">
                     <span>Sale Amount:</span>
@@ -838,472 +790,242 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
         </div>
     </div>
 
-    <!-- Fare Calculator Modal -->
-    <div class="modal fade" id="fareCalculatorModal" tabindex="-1" aria-labelledby="fareCalculatorModalLabel" aria-hidden="true">
+    <!-- Report Modal -->
+    <div class="modal fade" id="reportModal" tabindex="-1" aria-labelledby="reportModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="fareCalculatorModalLabel">Fare Calculator</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="modal-title" id="reportModalLabel">Report Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="calculator-container">
-                        <div class="row">
-                            <!-- Left Column - Tax Inputs -->
-                            <div class="col-md-6 tax-column">
-                                <h5 class="section-title">Tax Details</h5>
-                                
-                                <form id="fareCalculatorForm">
-                                    <!-- Base Fare -->
-                                    <div class="row mb-3">
-                                        <div class="col-md-6 base-fare-container">
-                                            <label for="baseFare" class="form-label">Base Fare</label>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="input-group">
-                                                <input type="number" class="form-control" id="baseFare" step="0.01" min="0" value="0" required>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Commission -->
-                                    <div class="row mb-3">
-                                        <div class="col-md-6 base-fare-container">
-                                            <label for="commission" class="form-label">Commission (%)</label>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="input-group">
-                                                <input type="number" class="form-control" id="commission" step="0.01" min="0" max="100" value="0">
-                                                <span class="input-group-text">%</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Tax Fields -->
-                                    <div class="row mb-3">
-                                        <div class="col-md-6 tax-container">
-                                            <label for="bd" class="form-label">BD (Embarkation Fee)</label>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <input type="number" class="form-control tax-input" id="bd" step="0.01" min="0" value="0">
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6 tax-container">
-                                            <label for="ut" class="form-label">UT (Travel Tax)</label>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <input type="number" class="form-control tax-input" id="ut" step="0.01" min="0" value="0">
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6 tax-container">
-                                            <label for="ow" class="form-label">OW (Excise Duty Tax)</label>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <input type="number" class="form-control tax-input" id="ow" step="0.01" min="0" value="0">
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6 tax-container">
-                                            <label for="e5" class="form-label">E5 (Value Added Tax on Embarkation Fees)</label>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <input type="number" class="form-control tax-input" id="e5" step="0.01" min="0" value="0">
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6 tax-container">
-                                            <label for="gb" class="form-label">GB (Air Passenger Duty)</label>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <input type="number" class="form-control tax-input" id="gb" step="0.01" min="0" value="0">
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6 tax-container">
-                                            <label for="ub" class="form-label">UB (Passenger Service Charge)</label>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <input type="number" class="form-control tax-input" id="ub" step="0.01" min="0" value="0">
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6 tax-container">
-                                            <label for="yr" class="form-label">YR (Fuel Charges)</label>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <input type="number" class="form-control tax-input" id="yr" step="0.01" min="0" value="0">
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6 tax-container">
-                                            <label for="p7" class="form-label">P7 (P7)</label>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <input type="number" class="form-control tax-input" id="p7" step="0.01" min="0" value="0">
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6 tax-container">
-                                            <label for="p8" class="form-label">P8 (Passenger Security Fee)</label>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <input type="number" class="form-control tax-input" id="p8" step="0.01" min="0" value="0">
-                                        </div>
-                                    </div>
-                                </form>
-                            </div>
-                            
-                            <!-- Right Column - Calculations -->
-                            <div class="col-md-6 calculation-column">
-                                <h5 class="section-title">Calculations</h5>
-                                
-                                <!-- Calculation Results -->
-                                <div class="result-container">
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <span class="result-label">Total Tax:</span>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <span id="totalTax" class="result-value">0.00</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <span class="result-label">Total Fare:</span>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <span id="totalFare" class="result-value">0.00</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <span class="result-label">Commission:</span>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <span id="commissionAmount" class="result-value">0.00</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <span class="result-label">AIT (0.3%):</span>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <span id="ait" class="result-value">0.00</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <span class="result-label">Net Payment:</span>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <span id="netPayment" class="result-value">0.00</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="calculator-buttons">
-                                    <button type="button" class="btn btn-primary btn-calculate" id="calculateBtn">Calculate</button>
-                                    <button type="button" class="btn btn-secondary btn-clear" id="clearBtn">Clear</button>
-                                </div>
-                            </div>
-                        </div>
+                    <div id="reportContent">
+                        <!-- Content will be loaded dynamically -->
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-    function updateDashboard() {
-        const filter = document.getElementById('salesFilter').value;
-        window.location.href = `dashboard.php?filter=${filter}`;
-    }
+        function updateDashboard() {
+            const filter = document.getElementById('salesFilter').value;
+            window.location.href = 'dashboard.php?filter=' + filter;
+        }
 
-    // RHC Card functionality
-    function fetchRHCData() {
-        fetch('get_rhc_data1.php')
-            .then(response => response.json())
-            .then(data => {
-                updateRHCData(data);
-            })
-            .catch(error => {
-                console.error('Error fetching RHC data:', error);
-                // Fallback to static data if server fails
-                updateRHCData({
-                    currentUsage: 1602911,
-                    paidThisMonth: 884009,
-                    fortnightPayment: 4500000,
-                    paymentDueDate: "30 Aug 2025",
-                    paymentDescription: "For tickets issued in Fortnight 1"
+        // RHC Card functionality
+        function fetchRHCData() {
+            fetch('get_rhc_data1.php')
+                .then(response => response.json())
+                .then(data => {
+                    updateRHCData(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching RHC data:', error);
+                    // Fallback to static data if server fails
+                    updateRHCData({
+                        currentUsage: 1602911,
+                        paidThisMonth: 884009,
+                        fortnightPayment: 4500000,
+                        paymentDueDate: "30 Aug 2025",
+                        paymentDescription: "For tickets issued in Fortnight 1"
+                    });
                 });
-            });
-    }
-    
-    function updateRHCData(data) {
-        // Hide loading, show content
-        document.getElementById('rhc-loading').style.display = 'none';
-        document.getElementById('rhc-content').style.display = 'block';
-        
-        // Constants
-        const RHC_LIMIT = 10000000;
-        const RHC_LIMITP = RHC_LIMIT * 0.90;
-        
-        // Calculate percentage based on current usage (capped at 90%)
-        const percentage = Math.min(90, (data.currentUsage / RHC_LIMIT * 100)).toFixed(0);
-        const remainingBalance = Math.max(0, RHC_LIMITP - data.currentUsage);
-        
-        // Format currency function
-        function formatCurrency(amount) {
-            return 'BDT ' + amount.toLocaleString('en-IN');
         }
         
-        // Update the display
-        document.getElementById('rhc-percentage').textContent = percentage + '%';
-        document.getElementById('rhc-current-usage').textContent = formatCurrency(data.currentUsage);
-        document.getElementById('rhc-remaining-balance').textContent = formatCurrency(remainingBalance);
-        document.getElementById('rhc-paid-amount').textContent = formatCurrency(data.paidThisMonth);
-        document.getElementById('rhc-fortnight-payment').textContent = formatCurrency(data.fortnightPayment);
-        document.getElementById('rhc-payment-due-date').textContent = data.paymentDueDate;
-        document.getElementById('rhc-payment-description').textContent = data.paymentDescription;
-        
-        // Update progress bar (capped at 90%)
-        const progressPercentage = Math.min(90, percentage);
-        document.getElementById('rhc-progress-bar').style.width = progressPercentage + '%';
-        
-        // Update risk color based on percentage
-        const percentageElement = document.getElementById('rhc-percentage');
-        percentageElement.className = 'rhc-percentage '; // Reset classes
-        
-        if (percentage < 25) {
-            percentageElement.classList.add('risk-low');
-        } else if (percentage < 50) {
-            percentageElement.classList.add('risk-medium');
-        } else if (percentage < 75) {
-            percentageElement.classList.add('risk-high');
-        } else {
-            percentageElement.classList.add('risk-critical');
-        }
-        
-        // Update last updated time
-        const now = new Date();
-        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        
-        const day = days[now.getDay()];
-        const dateNum = now.getDate();
-        const month = months[now.getMonth()];
-        const year = now.getFullYear();
-        
-        document.getElementById('rhc-last-updated').textContent = 
-            `${day}, ${dateNum} ${month} ${year}`;
-    }
-    
-    // Initial RHC data fetch
-    fetchRHCData();
-
-    // Fare Calculator functionality
-    document.getElementById('calculateBtn').addEventListener('click', function() {
-        calculateFare();
-    });
-    
-    // Clear button functionality
-    document.getElementById('clearBtn').addEventListener('click', function() {
-        clearCalculator();
-    });
-    
-    // Add event listeners to all input fields to recalculate when values change
-    document.querySelectorAll('#fareCalculatorForm input').forEach(input => {
-        input.addEventListener('input', calculateFare);
-    });
-    
-    function formatNumber(num) {
-        return new Intl.NumberFormat('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }).format(num);
-    }
-    
-    function calculateFare() {
-        // Get base fare value
-        const baseFare = parseFloat(document.getElementById('baseFare').value) || 0;
-        
-        // Get commission percentage
-        const commissionPercentage = parseFloat(document.getElementById('commission').value) || 0;
-        
-        // Calculate commission amount
-        const commissionAmount = baseFare * (commissionPercentage / 100);
-        
-        // Get all tax values
-        const bd = parseFloat(document.getElementById('bd').value) || 0;
-        const ut = parseFloat(document.getElementById('ut').value) || 0;
-        const ow = parseFloat(document.getElementById('ow').value) || 0;
-        const e5 = parseFloat(document.getElementById('e5').value) || 0;
-        const gb = parseFloat(document.getElementById('gb').value) || 0;
-        const ub = parseFloat(document.getElementById('ub').value) || 0;
-        const yr = parseFloat(document.getElementById('yr').value) || 0;
-        const p7 = parseFloat(document.getElementById('p7').value) || 0;
-        const p8 = parseFloat(document.getElementById('p8').value) || 0;
-        
-        // Calculate total tax
-        const totalTax = bd + ut + ow + e5 + gb + ub + yr + p7 + p8;
-        
-        // Calculate total fare
-        const totalFare = baseFare + totalTax;
-        
-        // Calculate AIT
-        const ait = (totalFare - (bd + ut + e5)) * 0.003;
-        
-        // Calculate net payment
-        const netPayment = (baseFare - commissionAmount) + totalTax + ait;
-        
-        // Update the display with calculated values
-        document.getElementById('totalTax').textContent = formatNumber(totalTax);
-        document.getElementById('totalFare').textContent = formatNumber(totalFare);
-        document.getElementById('commissionAmount').textContent = formatNumber(commissionAmount);
-        document.getElementById('ait').textContent = formatNumber(ait);
-        document.getElementById('netPayment').textContent = formatNumber(netPayment);
-    }
-    
-    function clearCalculator() {
-        // Clear all input fields
-        document.getElementById('baseFare').value = '';
-        document.getElementById('commission').value = '';
-        document.getElementById('bd').value = '';
-        document.getElementById('ut').value = '';
-        document.getElementById('ow').value = '';
-        document.getElementById('e5').value = '';
-        document.getElementById('gb').value = '';
-        document.getElementById('ub').value = '';
-        document.getElementById('yr').value = '';
-        document.getElementById('p7').value = '';
-        document.getElementById('p8').value = '';
-        
-        // Reset result values to 0
-        document.getElementById('totalTax').textContent = '0.00';
-        document.getElementById('totalFare').textContent = '0.00';
-        document.getElementById('commissionAmount').textContent = '0.00';
-        document.getElementById('ait').textContent = '0.00';
-        document.getElementById('netPayment').textContent = '0.00';
-    }
-    
-    // Initialize calculator with empty values when modal is shown
-    document.getElementById('fareCalculatorModal').addEventListener('show.bs.modal', function() {
-        clearCalculator();
-    });
-
-    // Charts
-    const salesPieCtx = document.getElementById('salesPieChart').getContext('2d');
-    new Chart(salesPieCtx, {
-        type: 'pie',
-        data: {
-            labels: ['Agent', 'Counter', 'Corporate'],
-            datasets: [{
-                data: [<?= $salesData['Agent'] ?>, <?= $salesData['Counter'] ?>, <?= $salesData['Corporate'] ?>],
-                backgroundColor: [
-                    'rgba(8, 180, 42, 0.7)',
-                    'rgba(54, 162, 235, 0.7)',
-                    'rgb(255, 64, 0)'
-                ],
-                borderColor: '#fff',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { position: 'bottom' }
+        function updateRHCData(data) {
+            // Hide loading, show content
+            document.getElementById('rhc-loading').style.display = 'none';
+            document.getElementById('rhc-content').style.display = 'block';
+            
+            // Constants
+            const RHC_LIMIT = 10000000;
+            const RHC_LIMITP = RHC_LIMIT * 0.90;
+            
+            // Calculate percentage based on current usage (capped at 90%)
+            const percentage = Math.min(90, (data.currentUsage / RHC_LIMIT * 100)).toFixed(0);
+            const remainingBalance = Math.max(0, RHC_LIMITP - data.currentUsage);
+            
+            // Format currency function
+            function formatCurrency(amount) {
+                return 'BDT ' + amount.toLocaleString('en-IN');
             }
+            
+            // Update the display
+            document.getElementById('rhc-percentage').textContent = percentage + '%';
+            document.getElementById('rhc-current-usage').textContent = formatCurrency(data.currentUsage);
+            document.getElementById('rhc-remaining-balance').textContent = formatCurrency(remainingBalance);
+            document.getElementById('rhc-paid-amount').textContent = formatCurrency(data.paidThisMonth);
+            document.getElementById('rhc-fortnight-payment').textContent = formatCurrency(data.fortnightPayment);
+            document.getElementById('rhc-payment-due-date').textContent = data.paymentDueDate;
+            document.getElementById('rhc-payment-description').textContent = data.paymentDescription;
+            
+            // Update progress bar (capped at 90%)
+            const progressPercentage = Math.min(90, percentage);
+            document.getElementById('rhc-progress-bar').style.width = progressPercentage + '%';
+            
+            // Update risk color based on percentage
+            const percentageElement = document.getElementById('rhc-percentage');
+            percentageElement.className = 'rhc-percentage '; // Reset classes
+            
+            if (percentage < 25) {
+                percentageElement.classList.add('risk-low');
+            } else if (percentage < 50) {
+                percentageElement.classList.add('risk-medium');
+            } else if (percentage < 75) {
+                percentageElement.classList.add('risk-high');
+            } else {
+                percentageElement.classList.add('risk-critical');
+            }
+            
+            // Update last updated time
+            const now = new Date();
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            
+            const day = days[now.getDay()];
+            const dateNum = now.getDate();
+            const month = months[now.getMonth()];
+            const year = now.getFullYear();
+            
+            document.getElementById('rhc-last-updated').textContent = 
+                `${day}, ${dateNum} ${month} ${year}`;
         }
-    });
+        
+        // Initial RHC data fetch
+        fetchRHCData();
 
-    const expenseBarCtx = document.getElementById('expenseBarChart').getContext('2d');
-    new Chart(expenseBarCtx, {
-        type: 'bar',
-        data: {
-            labels: <?= json_encode($expenseMonths) ?>,
-            datasets: [{
-                label: 'Expenses',
-                data: <?= json_encode($expenseTotals) ?>,
-                backgroundColor: 'rgb(0, 64, 255)',
-                borderColor: 'rgb(99, 255, 255)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return '৳' + value;
+        // View Report functionality
+        function viewReport(period, type) {
+            // Show loading state
+            document.getElementById('reportContent').innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading ${type} report...</p>
+                </div>
+            `;
+            
+            // Create and show modal
+            const modal = new bootstrap.Modal(document.getElementById('reportModal'));
+            document.getElementById('reportModalLabel').textContent = `${period.charAt(0).toUpperCase() + period.slice(1)} ${type.charAt(0).toUpperCase() + type.slice(1)} Report`;
+            modal.show();
+            
+            // Fetch data via AJAX
+            fetch(`get_report_data.php?period=${period}&type=${type}`)
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById('reportContent').innerHTML = data;
+                })
+                .catch(error => {
+                    document.getElementById('reportContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            Error loading report: ${error}
+                        </div>
+                    `;
+                });
+        }
+
+        // Charts
+        const salesPieCtx = document.getElementById('salesPieChart').getContext('2d');
+        new Chart(salesPieCtx, {
+            type: 'pie',
+            data: {
+                labels: ['Agent', 'Counter', 'Corporate'],
+                datasets: [{
+                    data: [<?= $salesData['Agent'] ?>, <?= $salesData['Counter'] ?>, <?= $salesData['Corporate'] ?>],
+                    backgroundColor: [
+                        'rgba(8, 180, 42, 0.7)',
+                        'rgba(54, 162, 235, 0.7)',
+                        'rgb(255, 64, 0)'
+                    ],
+                    borderColor: '#fff',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+
+        const expenseBarCtx = document.getElementById('expenseBarChart').getContext('2d');
+        new Chart(expenseBarCtx, {
+            type: 'bar',
+            data: {
+                labels: <?= json_encode($expenseMonths) ?>,
+                datasets: [{
+                    label: 'Expenses',
+                    data: <?= json_encode($expenseTotals) ?>,
+                    backgroundColor: 'rgb(0, 64, 255)',
+                    borderColor: 'rgb(99, 255, 255)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '৳' + value;
+                            }
                         }
                     }
-                }
-            },
-            plugins: {
-                legend: { display: false }
-            }
-        }
-    });
-
-    // New chart for monthly sales vs profit
-    const salesProfitCtx = document.getElementById('salesProfitChart').getContext('2d');
-    new Chart(salesProfitCtx, {
-        type: 'bar',
-        data: {
-            labels: <?= json_encode($monthlyLabels) ?>,
-            datasets: [
-                {
-                    label: 'Sales',
-                    data: <?= json_encode($monthlySales) ?>,
-                    backgroundColor: 'rgba(0, 255, 89, 0.66)',
-                    borderColor: 'rgba(0, 255, 89, 0.66)',
-                    borderWidth: 1
                 },
-                {
-                    label: 'Profit',
-                    data: <?= json_encode($monthlyProfit) ?>,
-                    backgroundColor: 'rgba(54, 162, 235, 0.7)',
-                    borderColor: 'rgba(54, 162, 235, 0.7)',
-                    borderWidth: 1
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return '৳' + value;
-                        }
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    position: 'bottom'
+                plugins: {
+                    legend: { display: false }
                 }
             }
-        }
-    });
+        });
+
+        // New chart for monthly sales vs profit
+        const salesProfitCtx = document.getElementById('salesProfitChart').getContext('2d');
+        new Chart(salesProfitCtx, {
+            type: 'bar',
+            data: {
+                labels: <?= json_encode($monthlyLabels) ?>,
+                datasets: [
+                    {
+                        label: 'Sales',
+                        data: <?= json_encode($monthlySales) ?>,
+                        backgroundColor: 'rgba(0, 255, 89, 0.66)',
+                        borderColor: 'rgba(0, 255, 89, 0.66)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Profit',
+                        data: <?= json_encode($monthlyProfit) ?>,
+                        backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                        borderColor: 'rgba(54, 162, 235, 0.7)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '৳' + value;
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
     </script>
 </body>
 </html>

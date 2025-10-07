@@ -199,8 +199,10 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
           <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
             <li><a class="dropdown-item" href="#">Summary</a></li>
             <li><a class="dropdown-item" href="payable.php">Payable</a></li>
-            <li><a class="dropdown-item" href="receiveable.php">Receiveable</a></li>
+            
             <li><a class="dropdown-item" href="paid.php">Paid</a></li>
+            <li><a class="dropdown-item" href="receiveable.php">Receiveable</a></li>
+            <li><a class="dropdown-item" href="received_payments.php">Received Payments</a></li>
              <!-- <li><a class="dropdown-item" href="payment_history.php">Payment History</a></li> -->
             <li><a class="dropdown-item" href="commission.php">Sales Performance</a></li>
             <li class="dropdown-submenu">
