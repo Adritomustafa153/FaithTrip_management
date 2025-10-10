@@ -174,11 +174,28 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
     $monthlySales[] = (float)$row['total_sales'];
     $monthlyProfit[] = (float)$row['total_profit'];
 }
+
+// FIXED: Get bookings count for notifications (time limit within 30 minutes)
+$currentDateTime = date('Y-m-d H:i:s');
+$notificationTimeLimit = date('Y-m-d H:i:s', strtotime('+30 minutes'));
+
+$bookingsNotificationQuery = "SELECT COUNT(*) as notification_count 
+                              FROM bookings 
+                              WHERE time_limit BETWEEN ? AND ? 
+                              AND status NOT IN ('Cancelled', 'Completed')";
+$stmt = mysqli_prepare($conn, $bookingsNotificationQuery);
+mysqli_stmt_bind_param($stmt, "ss", $currentDateTime, $notificationTimeLimit);
+mysqli_stmt_execute($stmt);
+$bookingsNotificationResult = mysqli_stmt_get_result($stmt);
+$bookingsNotificationData = mysqli_fetch_assoc($bookingsNotificationResult);
+mysqli_stmt_close($stmt);
+
+$bookingsNotificationCount = $bookingsNotificationData['notification_count'] ?? 0;
 ?>
 <!DOCTYPE html>
 <html>
 <head>
-        <link rel="icon" href="logo.jpg">
+    <link rel="icon" href="logo.jpg">
     <title>Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -254,6 +271,38 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
         
         .btn-fare-calculator:hover {
             background-color: var(--iata-light-blue);
+        }
+
+        .btn-bookings {
+            background-color: var(--iata-green);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            position: relative;
+        }
+        
+        .btn-bookings:hover {
+            background-color: #008a45;
+        }
+        
+        .booking-notification-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background-color: var(--iata-red);
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
         }
         
         .summary-cards {
@@ -506,6 +555,10 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
             max-width: 95%;
         }
         
+        .modal-xl {
+            max-width: 90%;
+        }
+        
         .sales-details {
             background: #f8f9fa;
             padding: 10px;
@@ -527,6 +580,273 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
         
         .sales-detail-value {
             color: #212529;
+        }
+
+        /* Bookings Table Styles */
+        .bookings-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        
+        .bookings-table th,
+        .bookings-table td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+            vertical-align: middle;
+        }
+        
+        .bookings-table th {
+            background-color: var(--iata-blue);
+            color: white;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+        
+        .bookings-table tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .status-pending { color: #ffc107; font-weight: bold; }
+        .status-confirmed { color: #28a745; font-weight: bold; }
+        .status-cancelled { color: #dc3545; font-weight: bold; }
+        .status-completed { color: #17a2b8; font-weight: bold; }
+        .status-on-hold { color: #6c757d; font-weight: bold; }
+        
+        .time-critical {
+            background-color: #fff3cd !important;
+            color: #856404;
+            font-weight: bold;
+        }
+        
+        .btn-action {
+            padding: 4px 8px;
+            margin: 2px;
+            font-size: 12px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-edit {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        
+        .btn-edit:hover {
+            background-color: #e0a800;
+        }
+        
+        .btn-delete {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .btn-delete:hover {
+            background-color: #c82333;
+        }
+        
+        .btn-add {
+            background-color: var(--iata-green);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-bottom: 15px;
+        }
+        
+        .btn-add:hover {
+            background-color: #008a45;
+        }
+        
+        .table-container {
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+        }
+        
+        .urgency-badge {
+            background-color: #dc3545;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+
+        /* Search Bar Styles */
+        .search-container {
+            margin-bottom: 15px;
+        }
+        
+        .search-input {
+            width: 300px;
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: var(--iata-blue);
+            box-shadow: 0 0 0 2px rgba(0, 51, 160, 0.25);
+        }
+        
+        /* Fare Calculator Styles */
+        .modal-content {
+            border-radius: 10px;
+            border: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .modal-header {
+            background-color: var(--iata-blue);
+            color: white;
+            border-bottom: none;
+            border-radius: 10px 10px 0 0;
+            padding: 15px 20px;
+        }
+        
+        .modal-title {
+            font-weight: 600;
+            text-align: center;
+            width: 100%;
+        }
+        
+        .modal-body {
+            padding: 20px;
+        }
+        
+        .calculator-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .calculator-title {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #2c3e50;
+            font-weight: bold;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #3498db;
+        }
+        
+        .form-label {
+            font-weight: 500;
+            color: #2c3e50;
+        }
+        
+        .base-fare-container {
+            text-align: right;
+        }
+        
+        .tax-container {
+            text-align: left;
+        }
+        
+        .result-container {
+            background-color: #e9f7ef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            border-left: 4px solid #27ae60;
+        }
+        
+        .result-label {
+            font-weight: 600;
+            color: #27ae60;
+        }
+        
+        .btn-calculate {
+            width: 48%;
+            margin-top: 25px;
+            background-color: #3498db;
+            border: none;
+            padding: 12px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            border-radius: 6px;
+            transition: all 0.3s;
+            margin-right: 2%;
+        }
+        
+        .btn-clear {
+            width: 48%;
+            margin-top: 25px;
+            background-color: #6c757d;
+            border: none;
+            padding: 12px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            border-radius: 6px;
+            transition: all 0.3s;
+            margin-left: 2%;
+        }
+        
+        .btn-calculate:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn-clear:hover {
+            background-color: #5a6268;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .input-group-text {
+            background-color: #f8f9fa;
+            color: #495057;
+        }
+        
+        .tax-column {
+            border-right: 1px dashed #dee2e6;
+            padding-right: 30px;
+        }
+        
+        .calculation-column {
+            padding-left: 30px;
+        }
+        
+        .section-title {
+            font-weight: 600;
+            color: #3498db;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .form-control {
+            border-radius: 5px;
+            border: 1px solid #ced4da;
+            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+        
+        .form-control:focus {
+            border-color: #3498db;
+            box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+        }
+        
+        .result-value {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 1.05rem;
+        }
+        
+        .calculator-buttons {
+            display: flex;
+            justify-content: space-between;
         }
         
         @media (max-width: 768px) {
@@ -562,13 +882,52 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
                 margin: 10px;
             }
             
+            .modal-xl {
+                max-width: 100%;
+                margin: 10px;
+            }
+            
             .report-table {
+                font-size: 12px;
+            }
+            
+            .bookings-table {
                 font-size: 12px;
             }
             
             .report-table th,
             .report-table td {
                 padding: 6px 8px;
+            }
+            
+            .bookings-table th,
+            .bookings-table td {
+                padding: 6px 8px;
+            }
+            
+            .search-input {
+                width: 100%;
+            }
+            
+            .tax-column {
+                border-right: none;
+                border-bottom: 1px dashed #dee2e6;
+                padding-right: 15px;
+                padding-bottom: 30px;
+                margin-bottom: 30px;
+            }
+            
+            .calculation-column {
+                padding-left: 15px;
+            }
+            
+            .calculator-buttons {
+                flex-direction: column;
+            }
+            
+            .btn-calculate, .btn-clear {
+                width: 100%;
+                margin: 5px 0;
             }
         }
     </style>
@@ -578,6 +937,12 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
     <div class="dashboard-header">
         <h2>Faith Travel and Tours LTD Dashboard</h2>
         <div class="header-controls">
+            <button class="btn-bookings" data-bs-toggle="modal" data-bs-target="#bookingsModal">
+                <i class="fas fa-ticket-alt"></i> Bookings
+                <?php if ($bookingsNotificationCount > 0): ?>
+                    <span class="booking-notification-badge"><?php echo $bookingsNotificationCount; ?></span>
+                <?php endif; ?>
+            </button>
             <button class="btn-fare-calculator" data-bs-toggle="modal" data-bs-target="#fareCalculatorModal">
                 <i class="fas fa-calculator"></i> Fare Calculator
             </button>
@@ -790,6 +1155,242 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
         </div>
     </div>
 
+    <!-- Bookings Modal -->
+    <div class="modal fade" id="bookingsModal" tabindex="-1" aria-labelledby="bookingsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="bookingsModalLabel">
+                        <i class="fas fa-ticket-alt me-2"></i>All Bookings
+                        <?php if ($bookingsNotificationCount > 0): ?>
+                            <span class="urgency-badge"><?php echo $bookingsNotificationCount; ?> Urgent</span>
+                        <?php endif; ?>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <button class="btn-add" onclick="window.open('insert_booking.php', '_blank')">
+                            <i class="fas fa-plus me-2"></i>Add New Booking
+                        </button>
+                        <div class="d-flex gap-2 align-items-center">
+                            <div class="search-container">
+                                <input type="text" id="pnrSearch" class="search-input" placeholder="Search by PNR..." onkeyup="searchBookings()">
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="refreshBookings()">
+                                <i class="fas fa-sync-alt me-1"></i>Refresh
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="exportBookings()">
+                                <i class="fas fa-download me-1"></i>Export
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-container">
+                        <div id="bookingsLoading" class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Loading bookings...</p>
+                        </div>
+                        <div id="bookingsContent" style="display: none;">
+                            <!-- Bookings content will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fare Calculator Modal -->
+    <div class="modal fade" id="fareCalculatorModal" tabindex="-1" aria-labelledby="fareCalculatorModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="fareCalculatorModalLabel">Fare Calculator</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="calculator-container">
+                        <div class="row">
+                            <!-- Left Column - Tax Inputs -->
+                            <div class="col-md-6 tax-column">
+                                <h5 class="section-title">Tax Details</h5>
+                                
+                                <form id="fareCalculatorForm">
+                                    <!-- Base Fare -->
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 base-fare-container">
+                                            <label for="baseFare" class="form-label">Base Fare</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="baseFare" step="0.01" min="0" value="0" required>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Commission -->
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 base-fare-container">
+                                            <label for="commission" class="form-label">Commission (%)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="commission" step="0.01" min="0" max="100" value="0">
+                                                <span class="input-group-text">%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Tax Fields -->
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="bd" class="form-label">BD (Embarkation Fee)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="bd" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="ut" class="form-label">UT (Travel Tax)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="ut" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="ow" class="form-label">OW (Excise Duty Tax)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="ow" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="e5" class="form-label">E5 (Value Added Tax on Embarkation Fees)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="e5" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="gb" class="form-label">GB (Air Passenger Duty)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="gb" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="ub" class="form-label">UB (Passenger Service Charge)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="ub" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="yr" class="form-label">YR (Fuel Charges)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="yr" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="p7" class="form-label">P7 (P7)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="p7" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 tax-container">
+                                            <label for="p8" class="form-label">P8 (Passenger Security Fee)</label>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="number" class="form-control tax-input" id="p8" step="0.01" min="0" value="0">
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                            
+                            <!-- Right Column - Calculations -->
+                            <div class="col-md-6 calculation-column">
+                                <h5 class="section-title">Calculations</h5>
+                                
+                                <!-- Calculation Results -->
+                                <div class="result-container">
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <span class="result-label">Total Tax:</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <span id="totalTax" class="result-value">0.00</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <span class="result-label">Total Fare:</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <span id="totalFare" class="result-value">0.00</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <span class="result-label">Commission:</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <span id="commissionAmount" class="result-value">0.00</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <span class="result-label">AIT (0.3%):</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <span id="ait" class="result-value">0.00</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <span class="result-label">Net Payment:</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <span id="netPayment" class="result-value">0.00</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="calculator-buttons">
+                                    <button type="button" class="btn btn-primary btn-calculate" id="calculateBtn">Calculate</button>
+                                    <button type="button" class="btn btn-secondary btn-clear" id="clearBtn">Clear</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Report Modal -->
     <div class="modal fade" id="reportModal" tabindex="-1" aria-labelledby="reportModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
@@ -813,6 +1414,107 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
             const filter = document.getElementById('salesFilter').value;
             window.location.href = 'dashboard.php?filter=' + filter;
         }
+
+        // Bookings functionality
+        function loadBookings() {
+            fetch('get_bookings.php')
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById('bookingsLoading').style.display = 'none';
+                    document.getElementById('bookingsContent').style.display = 'block';
+                    document.getElementById('bookingsContent').innerHTML = data;
+                })
+                .catch(error => {
+                    document.getElementById('bookingsLoading').innerHTML = `
+                        <div class="alert alert-danger">
+                            Error loading bookings: ${error}
+                        </div>
+                    `;
+                });
+        }
+
+        function refreshBookings() {
+            document.getElementById('bookingsLoading').style.display = 'block';
+            document.getElementById('bookingsContent').style.display = 'none';
+            document.getElementById('pnrSearch').value = ''; // Clear search
+            loadBookings();
+        }
+
+        function searchBookings() {
+            const searchTerm = document.getElementById('pnrSearch').value.toLowerCase();
+            const rows = document.querySelectorAll('.bookings-table tbody tr');
+            
+            rows.forEach(row => {
+                const pnrCell = row.cells[9]; // PNR is in the 10th column (index 9)
+                if (pnrCell) {
+                    const pnrText = pnrCell.textContent.toLowerCase();
+                    if (pnrText.includes(searchTerm)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                }
+            });
+        }
+
+        function exportBookings() {
+            // Simple CSV export functionality
+            const table = document.querySelector('.bookings-table');
+            if (!table) return;
+            
+            let csv = [];
+            const rows = table.querySelectorAll('tr');
+            
+            for (let i = 0; i < rows.length; i++) {
+                const row = [], cols = rows[i].querySelectorAll('td, th');
+                
+                for (let j = 0; j < cols.length - 1; j++) { // Exclude action column
+                    row.push(cols[j].innerText);
+                }
+                
+                csv.push(row.join(','));
+            }
+            
+            // Download CSV file
+            const csvFile = new Blob([csv.join('\n')], {type: 'text/csv'});
+            const downloadLink = document.createElement('a');
+            downloadLink.download = 'bookings_export.csv';
+            downloadLink.href = window.URL.createObjectURL(csvFile);
+            downloadLink.style.display = 'none';
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        }
+
+        function editBooking(bookingId) {
+            // Open edit page in new tab
+            window.open(`edit_booking.php?id=${bookingId}`, '_blank');
+        }
+
+        function deleteBooking(bookingId) {
+            if (confirm('Are you sure you want to delete this booking? This action cannot be undone.')) {
+                fetch(`delete_booking.php?id=${bookingId}`, {
+                    method: 'DELETE',
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Booking deleted successfully!');
+                        refreshBookings();
+                    } else {
+                        alert('Error deleting booking: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    alert('Error deleting booking: ' + error);
+                });
+            }
+        }
+
+        // Load bookings when modal is shown
+        document.getElementById('bookingsModal').addEventListener('show.bs.modal', function() {
+            loadBookings();
+        });
 
         // RHC Card functionality
         function fetchRHCData() {
@@ -927,6 +1629,96 @@ while ($row = mysqli_fetch_assoc($monthlySalesProfitResult)) {
                     `;
                 });
         }
+
+        // Fare Calculator functionality
+        document.getElementById('calculateBtn').addEventListener('click', function() {
+            calculateFare();
+        });
+        
+        // Clear button functionality
+        document.getElementById('clearBtn').addEventListener('click', function() {
+            clearCalculator();
+        });
+        
+        // Add event listeners to all input fields to recalculate when values change
+        document.querySelectorAll('#fareCalculatorForm input').forEach(input => {
+            input.addEventListener('input', calculateFare);
+        });
+        
+        function formatNumber(num) {
+            return new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(num);
+        }
+        
+        function calculateFare() {
+            // Get base fare value
+            const baseFare = parseFloat(document.getElementById('baseFare').value) || 0;
+            
+            // Get commission percentage
+            const commissionPercentage = parseFloat(document.getElementById('commission').value) || 0;
+            
+            // Calculate commission amount
+            const commissionAmount = baseFare * (commissionPercentage / 100);
+            
+            // Get all tax values
+            const bd = parseFloat(document.getElementById('bd').value) || 0;
+            const ut = parseFloat(document.getElementById('ut').value) || 0;
+            const ow = parseFloat(document.getElementById('ow').value) || 0;
+            const e5 = parseFloat(document.getElementById('e5').value) || 0;
+            const gb = parseFloat(document.getElementById('gb').value) || 0;
+            const ub = parseFloat(document.getElementById('ub').value) || 0;
+            const yr = parseFloat(document.getElementById('yr').value) || 0;
+            const p7 = parseFloat(document.getElementById('p7').value) || 0;
+            const p8 = parseFloat(document.getElementById('p8').value) || 0;
+            
+            // Calculate total tax
+            const totalTax = bd + ut + ow + e5 + gb + ub + yr + p7 + p8;
+            
+            // Calculate total fare
+            const totalFare = baseFare + totalTax;
+            
+            // Calculate AIT
+            const ait = (totalFare - (bd + ut + e5)) * 0.003;
+            
+            // Calculate net payment
+            const netPayment = (baseFare - commissionAmount) + totalTax + ait;
+            
+            // Update the display with calculated values
+            document.getElementById('totalTax').textContent = formatNumber(totalTax);
+            document.getElementById('totalFare').textContent = formatNumber(totalFare);
+            document.getElementById('commissionAmount').textContent = formatNumber(commissionAmount);
+            document.getElementById('ait').textContent = formatNumber(ait);
+            document.getElementById('netPayment').textContent = formatNumber(netPayment);
+        }
+        
+        function clearCalculator() {
+            // Clear all input fields
+            document.getElementById('baseFare').value = '';
+            document.getElementById('commission').value = '';
+            document.getElementById('bd').value = '';
+            document.getElementById('ut').value = '';
+            document.getElementById('ow').value = '';
+            document.getElementById('e5').value = '';
+            document.getElementById('gb').value = '';
+            document.getElementById('ub').value = '';
+            document.getElementById('yr').value = '';
+            document.getElementById('p7').value = '';
+            document.getElementById('p8').value = '';
+            
+            // Reset result values to 0
+            document.getElementById('totalTax').textContent = '0.00';
+            document.getElementById('totalFare').textContent = '0.00';
+            document.getElementById('commissionAmount').textContent = '0.00';
+            document.getElementById('ait').textContent = '0.00';
+            document.getElementById('netPayment').textContent = '0.00';
+        }
+        
+        // Initialize calculator with empty values when modal is shown
+        document.getElementById('fareCalculatorModal').addEventListener('show.bs.modal', function() {
+            clearCalculator();
+        });
 
         // Charts
         const salesPieCtx = document.getElementById('salesPieChart').getContext('2d');
