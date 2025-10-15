@@ -317,6 +317,7 @@ if (isset($_GET['delete'])) {
                         <span class="small-text">
                             <b> Method:</b> <span class="highlight"><?= htmlspecialchars($row['PaymentMethod']) ?></span><br>
                             <b>Received in:</b> <span class="highlight"><?= htmlspecialchars($row['BankName']) ?></span><br>
+                            <b>Received :</b> <span class="highlight"><?= htmlspecialchars($row['PaidAmount']) ?></span><br>
                             <b>Receive Date:</b> <span class="highlight"><?= htmlspecialchars($row['ReceivedDate']) ?></span>
                         </span>
                     </td>
