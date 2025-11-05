@@ -20,6 +20,11 @@ if (isset($_GET['pnr']) && !empty($_GET['pnr'])) {
     $pnr_ = $conn->real_escape_string($_GET['pnr']);
     $where .= ($where ? " AND" : " WHERE") . " PNR LIKE '%$pnr_%'";
 }
+if (isset($_GET['from_date']) && !empty($_GET['from_date']) && isset($_GET['to_date']) && !empty($_GET['to_date'])) {
+    $from_date = $conn->real_escape_string($_GET['from_date']);
+    $to_date = $conn->real_escape_string($_GET['to_date']);
+    $where .= ($where ? " AND" : " WHERE") . " IssueDate BETWEEN '$from_date' AND '$to_date'";
+}
 if (!empty($where)) {
     $where .= " AND Remarks = 'Air Ticket Sale'";
 } else {
@@ -52,17 +57,12 @@ if (isset($_GET['delete'])) {
     <style>
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            /* margin: 0;  */
-            /* padding: 20px;  */
             background-color: #f5f7fa;
             color: #333;
         }
         
         .container {
-            /* max-width: 1400px; */
-            /* margin: 0 auto; */
             background: white;
-            /* padding: 20px; */
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
@@ -124,6 +124,22 @@ if (isset($_GET['delete'])) {
         
         .search-container button:hover {
             background: #3a5fd9;
+        }
+        
+        .export-btn {
+            padding: 10px 20px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .export-btn:hover {
+            background: #218838;
         }
         
         .btn { 
@@ -204,6 +220,11 @@ if (isset($_GET['delete'])) {
             min-width: 120px;
         }
         
+        .export-container {
+            text-align: center;
+            margin: 15px 0;
+        }
+        
         @media (max-width: 1200px) {
             .container {
                 overflow-x: auto;
@@ -247,8 +268,35 @@ if (isset($_GET['delete'])) {
         <input type="text" name="pnr" placeholder="Search PNR" 
             value="<?= isset($_GET['pnr']) ? htmlspecialchars($_GET['pnr']) : '' ?>">
             
+        <input type="date" name="from_date" placeholder="From Date" 
+            value="<?= isset($_GET['from_date']) ? htmlspecialchars($_GET['from_date']) : '' ?>">
+            
+        <input type="date" name="to_date" placeholder="To Date" 
+            value="<?= isset($_GET['to_date']) ? htmlspecialchars($_GET['to_date']) : '' ?>">
+            
         <button type="submit">Search</button>
     </form>
+
+    <!-- Export Button -->
+    <div class="export-container">
+        <?php
+        $export_params = [];
+        if (isset($_GET['company']) && !empty($_GET['company'])) {
+            $export_params[] = "company=" . urlencode($_GET['company']);
+        }
+        if (isset($_GET['from_date']) && !empty($_GET['from_date'])) {
+            $export_params[] = "from_date=" . urlencode($_GET['from_date']);
+        }
+        if (isset($_GET['to_date']) && !empty($_GET['to_date'])) {
+            $export_params[] = "to_date=" . urlencode($_GET['to_date']);
+        }
+        $export_url = "export_invoice_excel.php";
+        if (!empty($export_params)) {
+            $export_url .= "?" . implode("&", $export_params);
+        }
+        ?>
+        <a href="<?= $export_url ?>" class="export-btn">Export to Excel</a>
+    </div>
 
     <!-- Sales Records Table -->
     <div class="result">

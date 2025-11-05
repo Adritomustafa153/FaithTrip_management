@@ -176,24 +176,24 @@ function calculateSales($conn, $startDate, $endDate) {
     return $result;
 }
 
-// Get date parameters from request or use current date
-$date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
-$month = isset($_GET['month']) ? $_GET['month'] : date('Y-m');
-$year = isset($_GET['year']) ? $_GET['year'] : date('Y');
+// Set current dates automatically
+$current_date = date('Y-m-d');
+$current_month = date('Y-m');
+$current_year = date('Y');
 
-// Calculate daily sales
-$daily_start = $date;
-$daily_end = $date;
+// Calculate daily sales (today)
+$daily_start = $current_date;
+$daily_end = $current_date;
 $daily_sales = calculateSales($conn, $daily_start, $daily_end);
 
-// Calculate monthly sales
-$monthly_start = date('Y-m-01', strtotime($month));
-$monthly_end = date('Y-m-t', strtotime($month));
+// Calculate monthly sales (current month)
+$monthly_start = date('Y-m-01');
+$monthly_end = date('Y-m-t');
 $monthly_sales = calculateSales($conn, $monthly_start, $monthly_end);
 
-// Calculate yearly sales
-$yearly_start = $year . '-01-01';
-$yearly_end = $year . '-12-31';
+// Calculate yearly sales (current year)
+$yearly_start = $current_year . '-01-01';
+$yearly_end = $current_year . '-12-31';
 $yearly_sales = calculateSales($conn, $yearly_start, $yearly_end);
 
 // Format numbers for display
@@ -208,79 +208,212 @@ function formatCurrency($amount) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales Report - FaithTrip Accounts</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .period-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .period-title {
+            background-color: #007bff;
+            color: white;
+            padding: 10px;
+            margin: -20px -20px 20px -20px;
+            border-radius: 5px 5px 0 0;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .summary-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .summary-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        .summary-card .amount {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+        .category-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+        }
+        .category-item {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 3px;
+            text-align: center;
+        }
+        .category-item .label {
+            font-size: 12px;
+            color: #666;
+        }
+        .category-item .value {
+            font-weight: bold;
+            color: #333;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+    </style>
 </head>
 <body>
     <h1>Sales Report - FaithTrip Accounts</h1>
     
-    <!-- Filters -->
-    <div>
-        <form method="GET">
-            <label for="date">Daily Date:</label>
-            <input type="date" id="date" name="date" value="<?php echo $date; ?>">
-            
-            <label for="month">Monthly:</label>
-            <input type="month" id="month" name="month" value="<?php echo $month; ?>">
-            
-            <label for="year">Yearly:</label>
-            <input type="number" id="year" name="year" value="<?php echo $year; ?>" min="2020" max="2030">
-            
-            <button type="submit">Update Report</button>
-        </form>
-    </div>
-
     <!-- Daily Sales -->
-    <div>
-        <h2>Daily Sales Report - <?php echo $date; ?></h2>
+    <div class="period-section">
+        <div class="period-title">
+            <h2>Daily Sales Report - <?php echo date('F j, Y', strtotime($current_date)); ?> (Today)</h2>
+        </div>
         
-        <h3>Summary</h3>
-        <p><strong>Total Sales:</strong> BDT <?php echo formatCurrency($daily_sales['total_sales']); ?></p>
-        <p><strong>Total Purchase:</strong> BDT <?php echo formatCurrency($daily_sales['total_purchase']); ?></p>
-        <p><strong>Total Profit:</strong> BDT <?php echo formatCurrency($daily_sales['total_profit']); ?></p>
+        <div class="summary-grid">
+            <div class="summary-card">
+                <h3>Total Sales</h3>
+                <div class="amount">BDT <?php echo formatCurrency($daily_sales['total_sales']); ?></div>
+            </div>
+            <div class="summary-card">
+                <h3>Total Purchase</h3>
+                <div class="amount">BDT <?php echo formatCurrency($daily_sales['total_purchase']); ?></div>
+            </div>
+            <div class="summary-card">
+                <h3>Total Profit</h3>
+                <div class="amount">BDT <?php echo formatCurrency($daily_sales['total_profit']); ?></div>
+            </div>
+        </div>
 
         <h3>Sales by Category</h3>
-        <p><strong>Ticket:</strong> BDT <?php echo formatCurrency($daily_sales['category_sales']['ticket']); ?></p>
-        <p><strong>Visa:</strong> BDT <?php echo formatCurrency($daily_sales['category_sales']['visa']); ?></p>
-        <p><strong>Student Visa:</strong> BDT <?php echo formatCurrency($daily_sales['category_sales']['student_visa']); ?></p>
-        <p><strong>Umrah:</strong> BDT <?php echo formatCurrency($daily_sales['category_sales']['umrah']); ?></p>
-        <p><strong>Hotel:</strong> BDT <?php echo formatCurrency($daily_sales['category_sales']['hotel']); ?></p>
+        <div class="category-grid">
+            <div class="category-item">
+                <div class="label">Ticket</div>
+                <div class="value">BDT <?php echo formatCurrency($daily_sales['category_sales']['ticket']); ?></div>
+            </div>
+            <div class="category-item">
+                <div class="label">Visa</div>
+                <div class="value">BDT <?php echo formatCurrency($daily_sales['category_sales']['visa']); ?></div>
+            </div>
+            <div class="category-item">
+                <div class="label">Student Visa</div>
+                <div class="value">BDT <?php echo formatCurrency($daily_sales['category_sales']['student_visa']); ?></div>
+            </div>
+            <div class="category-item">
+                <div class="label">Umrah</div>
+                <div class="value">BDT <?php echo formatCurrency($daily_sales['category_sales']['umrah']); ?></div>
+            </div>
+            <div class="category-item">
+                <div class="label">Hotel</div>
+                <div class="value">BDT <?php echo formatCurrency($daily_sales['category_sales']['hotel']); ?></div>
+            </div>
+        </div>
     </div>
-
-    <hr>
 
     <!-- Monthly Sales -->
-    <div>
-        <h2>Monthly Sales Report - <?php echo date('F Y', strtotime($month)); ?></h2>
+    <div class="period-section">
+        <div class="period-title">
+            <h2>Monthly Sales Report - <?php echo date('F Y'); ?> (Current Month)</h2>
+        </div>
         
-        <h3>Summary</h3>
-        <p><strong>Total Sales:</strong> BDT <?php echo formatCurrency($monthly_sales['total_sales']); ?></p>
-        <p><strong>Total Purchase:</strong> BDT <?php echo formatCurrency($monthly_sales['total_purchase']); ?></p>
-        <p><strong>Total Profit:</strong> BDT <?php echo formatCurrency($monthly_sales['total_profit']); ?></p>
+        <div class="summary-grid">
+            <div class="summary-card">
+                <h3>Total Sales</h3>
+                <div class="amount">BDT <?php echo formatCurrency($monthly_sales['total_sales']); ?></div>
+            </div>
+            <div class="summary-card">
+                <h3>Total Purchase</h3>
+                <div class="amount">BDT <?php echo formatCurrency($monthly_sales['total_purchase']); ?></div>
+            </div>
+            <div class="summary-card">
+                <h3>Total Profit</h3>
+                <div class="amount">BDT <?php echo formatCurrency($monthly_sales['total_profit']); ?></div>
+            </div>
+        </div>
 
         <h3>Sales by Category</h3>
-        <p><strong>Ticket:</strong> BDT <?php echo formatCurrency($monthly_sales['category_sales']['ticket']); ?></p>
-        <p><strong>Visa:</strong> BDT <?php echo formatCurrency($monthly_sales['category_sales']['visa']); ?></p>
-        <p><strong>Student Visa:</strong> BDT <?php echo formatCurrency($monthly_sales['category_sales']['student_visa']); ?></p>
-        <p><strong>Umrah:</strong> BDT <?php echo formatCurrency($monthly_sales['category_sales']['umrah']); ?></p>
-        <p><strong>Hotel:</strong> BDT <?php echo formatCurrency($monthly_sales['category_sales']['hotel']); ?></p>
+        <div class="category-grid">
+            <div class="category-item">
+                <div class="label">Ticket</div>
+                <div class="value">BDT <?php echo formatCurrency($monthly_sales['category_sales']['ticket']); ?></div>
+            </div>
+            <div class="category-item">
+                <div class="label">Visa</div>
+                <div class="value">BDT <?php echo formatCurrency($monthly_sales['category_sales']['visa']); ?></div>
+            </div>
+            <div class="category-item">
+                <div class="label">Student Visa</div>
+                <div class="value">BDT <?php echo formatCurrency($monthly_sales['category_sales']['student_visa']); ?></div>
+            </div>
+            <div class="category-item">
+                <div class="label">Umrah</div>
+                <div class="value">BDT <?php echo formatCurrency($monthly_sales['category_sales']['umrah']); ?></div>
+            </div>
+            <div class="category-item">
+                <div class="label">Hotel</div>
+                <div class="value">BDT <?php echo formatCurrency($monthly_sales['category_sales']['hotel']); ?></div>
+            </div>
+        </div>
     </div>
 
-    <hr>
-
     <!-- Yearly Sales -->
-    <div>
-        <h2>Yearly Sales Report - <?php echo $year; ?></h2>
+    <div class="period-section">
+        <div class="period-title">
+            <h2>Yearly Sales Report - <?php echo $current_year; ?> (Current Year)</h2>
+        </div>
         
-        <h3>Summary</h3>
-        <p><strong>Total Sales:</strong> BDT <?php echo formatCurrency($yearly_sales['total_sales']); ?></p>
-        <p><strong>Total Purchase:</strong> BDT <?php echo formatCurrency($yearly_sales['total_purchase']); ?></p>
-        <p><strong>Total Profit:</strong> BDT <?php echo formatCurrency($yearly_sales['total_profit']); ?></p>
+        <div class="summary-grid">
+            <div class="summary-card">
+                <h3>Total Sales</h3>
+                <div class="amount">BDT <?php echo formatCurrency($yearly_sales['total_sales']); ?></div>
+            </div>
+            <div class="summary-card">
+                <h3>Total Purchase</h3>
+                <div class="amount">BDT <?php echo formatCurrency($yearly_sales['total_purchase']); ?></div>
+            </div>
+            <div class="summary-card">
+                <h3>Total Profit</h3>
+                <div class="amount">BDT <?php echo formatCurrency($yearly_sales['total_profit']); ?></div>
+            </div>
+        </div>
 
         <h3>Sales by Category</h3>
-        <p><strong>Ticket:</strong> BDT <?php echo formatCurrency($yearly_sales['category_sales']['ticket']); ?></p>
-        <p><strong>Visa:</strong> BDT <?php echo formatCurrency($yearly_sales['category_sales']['visa']); ?></p>
-        <p><strong>Student Visa:</strong> BDT <?php echo formatCurrency($yearly_sales['category_sales']['student_visa']); ?></p>
-        <p><strong>Umrah:</strong> BDT <?php echo formatCurrency($yearly_sales['category_sales']['umrah']); ?></p>
-        <p><strong>Hotel:</strong> BDT <?php echo formatCurrency($yearly_sales['category_sales']['hotel']); ?></p>
+        <div class="category-grid">
+            <div class="category-item">
+                <div class="label">Ticket</div>
+                <div class="value">BDT <?php echo formatCurrency($yearly_sales['category_sales']['ticket']); ?></div>
+            </div>
+            <div class="category-item">
+                <div class="label">Visa</div>
+                <div class="value">BDT <?php echo formatCurrency($yearly_sales['category_sales']['visa']); ?></div>
+            </div>
+            <div class="category-item">
+                <div class="label">Student Visa</div>
+                <div class="value">BDT <?php echo formatCurrency($yearly_sales['category_sales']['student_visa']); ?></div>
+            </div>
+            <div class="category-item">
+                <div class="label">Umrah</div>
+                <div class="value">BDT <?php echo formatCurrency($yearly_sales['category_sales']['umrah']); ?></div>
+            </div>
+            <div class="category-item">
+                <div class="label">Hotel</div>
+                <div class="value">BDT <?php echo formatCurrency($yearly_sales['category_sales']['hotel']); ?></div>
+            </div>
+        </div>
     </div>
 
     <?php

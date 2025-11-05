@@ -151,7 +151,7 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
         </li>
 
         <li class="nav-item">
-          <a class="nav-link" href="#">Generate Invoice</a>
+          <a class="nav-link" href="combined_cart_search.php">Generate Invoice</a>
         </li>
         
         <li class="nav-item dropdown">
