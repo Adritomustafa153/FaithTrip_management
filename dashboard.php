@@ -104,6 +104,243 @@ $yearlyPaymentQuery = "SELECT SUM(amount) as payment_amount FROM paid WHERE YEAR
 $yearlyPaymentResult = mysqli_query($conn, $yearlyPaymentQuery);
 $yearlyPaymentData = mysqli_fetch_assoc($yearlyPaymentResult);
 
+// NEW: Calculate comprehensive sales data from sales_record.php
+function calculateComprehensiveSales($conn, $startDate, $endDate) {
+    $result = [
+        'total_sales' => 0,
+        'total_purchase' => 0,
+        'total_profit' => 0,
+        'total_due' => 0,
+        'total_reissue' => 0,
+        'total_refund' => 0,
+        'total_collection' => 0,
+        'category_sales' => [
+            'ticket' => 0,
+            'visa' => 0,
+            'student_visa' => 0,
+            'umrah' => 0,
+            'hotel' => 0
+        ]
+    ];
+
+    // Calculate for SALES table (Air Tickets)
+    $sales_sql = "SELECT 
+                    COALESCE(SUM(CASE 
+                        WHEN Remarks = 'Refund' THEN 0 
+                        WHEN Remarks = 'Reissue' THEN BillAmount 
+                        ELSE BillAmount 
+                    END), 0) as total_sales,
+                    COALESCE(SUM(CASE 
+                        WHEN Remarks = 'Refund' THEN 0 
+                        ELSE NetPayment 
+                    END), 0) as total_net,
+                    COALESCE(SUM(CASE 
+                        WHEN Remarks = 'Refund' THEN 0 
+                        ELSE Profit 
+                    END), 0) as total_profit,
+                    COALESCE(SUM(CASE WHEN Remarks = 'Refund' THEN BillAmount ELSE 0 END), 0) as total_refund,
+                    COALESCE(SUM(CASE WHEN Remarks = 'Reissue' THEN BillAmount ELSE 0 END), 0) as total_reissue,
+                    COALESCE(SUM(CASE 
+                        WHEN PaymentStatus IN ('Due', 'Partially Paid') THEN DueAmount 
+                        ELSE 0 
+                    END), 0) as total_due
+                  FROM sales 
+                  WHERE IssueDate BETWEEN '$startDate' AND '$endDate'";
+    
+    $sales_result = $conn->query($sales_sql);
+    if ($sales_result && $sales_row = $sales_result->fetch_assoc()) {
+        $ticket_sales = $sales_row['total_sales'];
+        $result['total_sales'] += $ticket_sales;
+        $result['total_profit'] += $sales_row['total_profit'];
+        $result['total_refund'] += $sales_row['total_refund'];
+        $result['total_reissue'] += $sales_row['total_reissue'];
+        $result['total_due'] += $sales_row['total_due'];
+        $result['category_sales']['ticket'] = $ticket_sales;
+        
+        // Calculate purchase for tickets (NetPayment where Source is not IATA and not refund)
+        $ticket_purchase_sql = "SELECT COALESCE(SUM(NetPayment), 0) as total_net 
+                               FROM sales 
+                               WHERE IssueDate BETWEEN '$startDate' AND '$endDate' 
+                               AND Source != 'IATA' 
+                               AND Source IS NOT NULL 
+                               AND Source != ''
+                               AND Remarks != 'Refund'";
+        $purchase_result = $conn->query($ticket_purchase_sql);
+        if ($purchase_result && $purchase_row = $purchase_result->fetch_assoc()) {
+            $result['total_purchase'] += $purchase_row['total_net'];
+        }
+    }
+
+    // Calculate collection amount from payments table
+    $collection_sql = "SELECT COALESCE(SUM(Amount), 0) as total_collection 
+                      FROM payments 
+                      WHERE PaymentDate BETWEEN '$startDate' AND '$endDate'";
+    $collection_result = $conn->query($collection_sql);
+    if ($collection_result && $collection_row = $collection_result->fetch_assoc()) {
+        $result['total_collection'] += $collection_row['total_collection'];
+    }
+
+    // Calculate for HOTEL table
+    $hotel_sql = "SELECT 
+                    COALESCE(SUM(selling_price), 0) as total_sales,
+                    COALESCE(SUM(net_price), 0) as total_net,
+                    COALESCE(SUM(profit), 0) as total_profit,
+                    COALESCE(SUM(refund_to_client), 0) as total_refund,
+                    COALESCE(SUM(CASE 
+                        WHEN payment_status IN ('Due', 'Partially Paid') THEN due_amount 
+                        ELSE 0 
+                    END), 0) as total_due
+                  FROM hotel 
+                  WHERE issue_date BETWEEN '$startDate' AND '$endDate'";
+    
+    $hotel_result = $conn->query($hotel_sql);
+    if ($hotel_result && $hotel_row = $hotel_result->fetch_assoc()) {
+        $hotel_sales = $hotel_row['total_sales'] - $hotel_row['total_refund'];
+        $result['total_sales'] += $hotel_sales;
+        $result['total_profit'] += $hotel_row['total_profit'];
+        $result['total_refund'] += $hotel_row['total_refund'];
+        $result['total_due'] += $hotel_row['total_due'];
+        $result['category_sales']['hotel'] = $hotel_sales;
+        
+        // Calculate purchase for hotel (net_price where source is not "OWN")
+        $hotel_purchase_sql = "SELECT COALESCE(SUM(net_price), 0) as total_net 
+                              FROM hotel 
+                              WHERE issue_date BETWEEN '$startDate' AND '$endDate' 
+                              AND source != 'OWN' 
+                              AND source IS NOT NULL 
+                              AND source != ''";
+        $hotel_purchase_result = $conn->query($hotel_purchase_sql);
+        if ($hotel_purchase_result && $hotel_purchase_row = $hotel_purchase_result->fetch_assoc()) {
+            $result['total_purchase'] += $hotel_purchase_row['total_net'];
+        }
+    }
+
+    // Calculate for STUDENT table
+    $student_sql = "SELECT 
+                    COALESCE(SUM(Selling), 0) as total_sales,
+                    COALESCE(SUM(net), 0) as total_net,
+                    COALESCE(SUM(profit), 0) as total_profit,
+                    COALESCE(SUM(refund_to_client), 0) as total_refund,
+                    COALESCE(SUM(CASE 
+                        WHEN payment_status IN ('Due', 'Partially Paid') THEN due 
+                        ELSE 0 
+                    END), 0) as total_due
+                  FROM student 
+                  WHERE `received date` BETWEEN '$startDate' AND '$endDate'";
+    
+    $student_result = $conn->query($student_sql);
+    if ($student_result && $student_row = $student_result->fetch_assoc()) {
+        $student_sales = $student_row['total_sales'] - $student_row['total_refund'];
+        $result['total_sales'] += $student_sales;
+        $result['total_profit'] += $student_row['total_profit'];
+        $result['total_refund'] += $student_row['total_refund'];
+        $result['total_due'] += $student_row['total_due'];
+        $result['category_sales']['student_visa'] = $student_sales;
+        
+        // Calculate purchase for student (net where source is not "OWN")
+        $student_purchase_sql = "SELECT COALESCE(SUM(net), 0) as total_net 
+                               FROM student 
+                               WHERE `received date` BETWEEN '$startDate' AND '$endDate' 
+                               AND source != 'OWN' 
+                               AND source IS NOT NULL 
+                               AND source != ''";
+        $student_purchase_result = $conn->query($student_purchase_sql);
+        if ($student_purchase_result && $student_purchase_row = $student_purchase_result->fetch_assoc()) {
+            $result['total_purchase'] += $student_purchase_row['total_net'];
+        }
+    }
+
+    // Calculate for UMRAH table
+    $umrah_sql = "SELECT 
+                    COALESCE(SUM(`selling price`), 0) as total_sales,
+                    COALESCE(SUM(`net payment`), 0) as total_net,
+                    COALESCE(SUM(profit), 0) as total_profit,
+                    COALESCE(SUM(`refund to client`), 0) as total_refund,
+                    COALESCE(SUM(CASE 
+                        WHEN payment_status IN ('Due', 'Partially Paid') THEN due 
+                        ELSE 0 
+                    END), 0) as total_due
+                  FROM umrah 
+                  WHERE orderdate BETWEEN '$startDate' AND '$endDate'";
+    
+    $umrah_result = $conn->query($umrah_sql);
+    if ($umrah_result && $umrah_row = $umrah_result->fetch_assoc()) {
+        $umrah_sales = $umrah_row['total_sales'] - $umrah_row['total_refund'];
+        $result['total_sales'] += $umrah_sales;
+        $result['total_profit'] += $umrah_row['total_profit'];
+        $result['total_refund'] += $umrah_row['total_refund'];
+        $result['total_due'] += $umrah_row['total_due'];
+        $result['category_sales']['umrah'] = $umrah_sales;
+        
+        // Calculate purchase for umrah (net payment where source is not "OWN")
+        $umrah_purchase_sql = "SELECT COALESCE(SUM(`net payment`), 0) as total_net 
+                              FROM umrah 
+                              WHERE orderdate BETWEEN '$startDate' AND '$endDate' 
+                              AND source != 'OWN' 
+                              AND source IS NOT NULL 
+                              AND source != ''";
+        $umrah_purchase_result = $conn->query($umrah_purchase_sql);
+        if ($umrah_purchase_result && $umrah_purchase_row = $umrah_purchase_result->fetch_assoc()) {
+            $result['total_purchase'] += $umrah_purchase_row['total_net'];
+        }
+    }
+
+    // Calculate for VISA table
+    $visa_sql = "SELECT 
+                    COALESCE(SUM(`selling price`), 0) as total_sales,
+                    COALESCE(SUM(`Net Payment`), 0) as total_net,
+                    COALESCE(SUM(profit), 0) as total_profit,
+                    COALESCE(SUM(`refund to client`), 0) as total_refund,
+                    COALESCE(SUM(CASE 
+                        WHEN payment_status IN ('Due', 'Partially Paid') THEN due 
+                        ELSE 0 
+                    END), 0) as total_due
+                  FROM visa 
+                  WHERE orderdate BETWEEN '$startDate' AND '$endDate'";
+    
+    $visa_result = $conn->query($visa_sql);
+    if ($visa_result && $visa_row = $visa_result->fetch_assoc()) {
+        $visa_sales = $visa_row['total_sales'] - $visa_row['total_refund'];
+        $result['total_sales'] += $visa_sales;
+        $result['total_profit'] += $visa_row['total_profit'];
+        $result['total_refund'] += $visa_row['total_refund'];
+        $result['total_due'] += $visa_row['total_due'];
+        $result['category_sales']['visa'] = $visa_sales;
+        
+        // Calculate purchase for visa (Net Payment where source is not "OWN")
+        $visa_purchase_sql = "SELECT COALESCE(SUM(`Net Payment`), 0) as total_net 
+                             FROM visa 
+                             WHERE orderdate BETWEEN '$startDate' AND '$endDate' 
+                             AND source != 'OWN' 
+                             AND source IS NOT NULL 
+                             AND source != ''";
+        $visa_purchase_result = $conn->query($visa_purchase_sql);
+        if ($visa_purchase_result && $visa_purchase_row = $visa_purchase_result->fetch_assoc()) {
+            $result['total_purchase'] += $visa_purchase_row['total_net'];
+        }
+    }
+
+    return $result;
+}
+
+// Set current dates automatically
+$current_date = date('Y-m-d');
+$current_month = date('Y-m');
+$current_year = date('Y');
+
+// Calculate comprehensive sales data
+$daily_start = $current_date;
+$daily_end = $current_date;
+$daily_comprehensive_sales = calculateComprehensiveSales($conn, $daily_start, $daily_end);
+
+$monthly_start = date('Y-m-01');
+$monthly_end = date('Y-m-t');
+$monthly_comprehensive_sales = calculateComprehensiveSales($conn, $monthly_start, $monthly_end);
+
+$yearly_start = $current_year . '-01-01';
+$yearly_end = $current_year . '-12-31';
+$yearly_comprehensive_sales = calculateComprehensiveSales($conn, $yearly_start, $yearly_end);
+
 // Sales by section data - Based on filter
 if ($filter === 'daily') {
     $salesQuery = "SELECT section, SUM(BillAmount) AS total FROM sales 
@@ -201,6 +438,7 @@ $bookingsNotificationCount = $bookingsNotificationData['notification_count'] ?? 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* ALL YOUR EXISTING CSS STYLES REMAIN EXACTLY THE SAME */
         :root {
             --iata-blue: #0033a0;
             --iata-light-blue: #0099d7;
@@ -974,15 +1212,15 @@ $bookingsNotificationCount = $bookingsNotificationData['notification_count'] ?? 
             <div class="summary-card-body">
                 <div class="metric-item">
                     <span>Sale Amount:</span>
-                    <span class="metric-value">৳<?= number_format($dailySalesData['sale_amount'] ?? 0, 2) ?></span>
+                    <span class="metric-value">৳<?= number_format($daily_comprehensive_sales['total_sales'] ?? 0, 2) ?></span>
                 </div>
                 <div class="metric-item">
                     <span>Collection Amount:</span>
-                    <span class="metric-value">৳<?= number_format($dailyCollectionData['collection_amount'] ?? 0, 2) ?></span>
+                    <span class="metric-value">৳<?= number_format($daily_comprehensive_sales['total_collection'] ?? 0, 2) ?></span>
                 </div>
                 <div class="metric-item">
                     <span>Purchase Amount:</span>
-                    <span class="metric-value">৳<?= number_format($dailyPurchaseData['purchase_amount'] ?? 0, 2) ?></span>
+                    <span class="metric-value">৳<?= number_format($daily_comprehensive_sales['total_purchase'] ?? 0, 2) ?></span>
                 </div>
                 <div class="metric-item">
                     <span>Expense Amount:</span>
@@ -994,7 +1232,20 @@ $bookingsNotificationCount = $bookingsNotificationData['notification_count'] ?? 
                 </div>
                 <div class="metric-item">
                     <span>Profit:</span>
-                    <span class="metric-value">৳<?= number_format($dailySalesData['profit_amount'] ?? 0, 2) ?></span>
+                    <span class="metric-value">৳<?= number_format($daily_comprehensive_sales['total_profit'] ?? 0, 2) ?></span>
+                </div>
+                <!-- NEW FIELDS FROM SALES_RECORD.PHP -->
+                <div class="metric-item">
+                    <span>Due Amount:</span>
+                    <span class="metric-value">৳<?= number_format($daily_comprehensive_sales['total_due'] ?? 0, 2) ?></span>
+                </div>
+                <div class="metric-item">
+                    <span>Reissue Amount:</span>
+                    <span class="metric-value">৳<?= number_format($daily_comprehensive_sales['total_reissue'] ?? 0, 2) ?></span>
+                </div>
+                <div class="metric-item">
+                    <span>Refund Amount:</span>
+                    <span class="metric-value">৳<?= number_format($daily_comprehensive_sales['total_refund'] ?? 0, 2) ?></span>
                 </div>
             </div>
         </div>
@@ -1014,15 +1265,15 @@ $bookingsNotificationCount = $bookingsNotificationData['notification_count'] ?? 
             <div class="summary-card-body">
                 <div class="metric-item">
                     <span>Sale Amount:</span>
-                    <span class="metric-value">৳<?= number_format($monthlySalesData['sale_amount'] ?? 0, 2) ?></span>
+                    <span class="metric-value">৳<?= number_format($monthly_comprehensive_sales['total_sales'] ?? 0, 2) ?></span>
                 </div>
                 <div class="metric-item">
                     <span>Collection Amount:</span>
-                    <span class="metric-value">৳<?= number_format($monthlyCollectionData['collection_amount'] ?? 0, 2) ?></span>
+                    <span class="metric-value">৳<?= number_format($monthly_comprehensive_sales['total_collection'] ?? 0, 2) ?></span>
                 </div>
                 <div class="metric-item">
                     <span>Purchase Amount:</span>
-                    <span class="metric-value">৳<?= number_format($monthlyPurchaseData['purchase_amount'] ?? 0, 2) ?></span>
+                    <span class="metric-value">৳<?= number_format($monthly_comprehensive_sales['total_purchase'] ?? 0, 2) ?></span>
                 </div>
                 <div class="metric-item">
                     <span>Expense Amount:</span>
@@ -1034,7 +1285,20 @@ $bookingsNotificationCount = $bookingsNotificationData['notification_count'] ?? 
                 </div>
                 <div class="metric-item">
                     <span>Profit:</span>
-                    <span class="metric-value">৳<?= number_format($monthlySalesData['profit_amount'] ?? 0, 2) ?></span>
+                    <span class="metric-value">৳<?= number_format($monthly_comprehensive_sales['total_profit'] ?? 0, 2) ?></span>
+                </div>
+                <!-- NEW FIELDS FROM SALES_RECORD.PHP -->
+                <div class="metric-item">
+                    <span>Due Amount:</span>
+                    <span class="metric-value">৳<?= number_format($monthly_comprehensive_sales['total_due'] ?? 0, 2) ?></span>
+                </div>
+                <div class="metric-item">
+                    <span>Reissue Amount:</span>
+                    <span class="metric-value">৳<?= number_format($monthly_comprehensive_sales['total_reissue'] ?? 0, 2) ?></span>
+                </div>
+                <div class="metric-item">
+                    <span>Refund Amount:</span>
+                    <span class="metric-value">৳<?= number_format($monthly_comprehensive_sales['total_refund'] ?? 0, 2) ?></span>
                 </div>
             </div>
         </div>
@@ -1054,15 +1318,15 @@ $bookingsNotificationCount = $bookingsNotificationData['notification_count'] ?? 
             <div class="summary-card-body">
                 <div class="metric-item">
                     <span>Sale Amount:</span>
-                    <span class="metric-value">৳<?= number_format($yearlySalesData['sale_amount'] ?? 0, 2) ?></span>
+                    <span class="metric-value">৳<?= number_format($yearly_comprehensive_sales['total_sales'] ?? 0, 2) ?></span>
                 </div>
                 <div class="metric-item">
                     <span>Collection Amount:</span>
-                    <span class="metric-value">৳<?= number_format($yearlyCollectionData['collection_amount'] ?? 0, 2) ?></span>
+                    <span class="metric-value">৳<?= number_format($yearly_comprehensive_sales['total_collection'] ?? 0, 2) ?></span>
                 </div>
                 <div class="metric-item">
                     <span>Purchase Amount:</span>
-                    <span class="metric-value">৳<?= number_format($yearlyPurchaseData['purchase_amount'] ?? 0, 2) ?></span>
+                    <span class="metric-value">৳<?= number_format($yearly_comprehensive_sales['total_purchase'] ?? 0, 2) ?></span>
                 </div>
                 <div class="metric-item">
                     <span>Expense Amount:</span>
@@ -1074,12 +1338,26 @@ $bookingsNotificationCount = $bookingsNotificationData['notification_count'] ?? 
                 </div>
                 <div class="metric-item">
                     <span>Profit:</span>
-                    <span class="metric-value">৳<?= number_format($yearlySalesData['profit_amount'] ?? 0, 2) ?></span>
+                    <span class="metric-value">৳<?= number_format($yearly_comprehensive_sales['total_profit'] ?? 0, 2) ?></span>
+                </div>
+                <!-- NEW FIELDS FROM SALES_RECORD.PHP -->
+                <div class="metric-item">
+                    <span>Due Amount:</span>
+                    <span class="metric-value">৳<?= number_format($yearly_comprehensive_sales['total_due'] ?? 0, 2) ?></span>
+                </div>
+                <div class="metric-item">
+                    <span>Reissue Amount:</span>
+                    <span class="metric-value">৳<?= number_format($yearly_comprehensive_sales['total_reissue'] ?? 0, 2) ?></span>
+                </div>
+                <div class="metric-item">
+                    <span>Refund Amount:</span>
+                    <span class="metric-value">৳<?= number_format($yearly_comprehensive_sales['total_refund'] ?? 0, 2) ?></span>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- ALL YOUR EXISTING CHARTS, MODALS, AND FUNCTIONALITY REMAIN EXACTLY THE SAME -->
     <div class="charts-section">
         <!-- First row of charts -->
         <div class="charts-row">
@@ -1410,6 +1688,7 @@ $bookingsNotificationCount = $bookingsNotificationData['notification_count'] ?? 
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // ALL YOUR EXISTING JAVASCRIPT FUNCTIONS REMAIN EXACTLY THE SAME
         function updateDashboard() {
             const filter = document.getElementById('salesFilter').value;
             window.location.href = 'dashboard.php?filter=' + filter;
