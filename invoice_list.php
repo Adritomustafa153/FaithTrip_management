@@ -2,11 +2,19 @@
 include 'auth_check.php';
 include 'db.php';
 
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 // Fetch company names for dropdown
-$companyQuery = "SELECT DISTINCT PartyName FROM sales";
+$companyQuery = "SELECT DISTINCT PartyName FROM sales WHERE PartyName IS NOT NULL AND PartyName != ''";
 $companyResult = $conn->query($companyQuery);
 
-// Fetch sales records
+// Get hide options from GET parameters
+$hide_net = isset($_GET['hide_net']) && $_GET['hide_net'] == '1';
+$hide_profit = isset($_GET['hide_profit']) && $_GET['hide_profit'] == '1';
+
+// Fetch sales records - Include all records
 $where = "";
 if (isset($_GET['company']) && !empty($_GET['company'])) {
     $company = $conn->real_escape_string($_GET['company']);
@@ -25,13 +33,8 @@ if (isset($_GET['from_date']) && !empty($_GET['from_date']) && isset($_GET['to_d
     $to_date = $conn->real_escape_string($_GET['to_date']);
     $where .= ($where ? " AND" : " WHERE") . " IssueDate BETWEEN '$from_date' AND '$to_date'";
 }
-if (!empty($where)) {
-    $where .= " AND Remarks = 'Air Ticket Sale'";
-} else {
-    $where = " WHERE Remarks = 'Air Ticket Sale'";
-}
 
-$salesQuery = "SELECT * FROM sales" . $where;
+$salesQuery = "SELECT * FROM sales" . $where . " ORDER BY SaleID DESC";
 $salesResult = $conn->query($salesQuery);
 
 // Delete record
@@ -45,84 +48,137 @@ if (isset($_GET['delete'])) {
     }
 }
 
-// Process void request
+// Process void request - FIXED SYNTAX ERROR
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
     $sale_id = intval($_POST['sale_id']);
     $void_charge = floatval($_POST['void_charge']);
-    $net_price = floatval($_POST['net_price']);
     $notes = $conn->real_escape_string($_POST['notes']);
     
     // Fetch original sale data
     $originalQuery = "SELECT * FROM sales WHERE SaleID = $sale_id";
     $originalResult = $conn->query($originalQuery);
-    $originalData = $originalResult->fetch_assoc();
     
-    if ($originalData) {
-        $profit = $void_charge - $net_price;
+    if ($originalResult && $originalData = $originalResult->fetch_assoc()) {
         
-        // Update original record to mark as voided and update amounts
-        $updateQuery = "UPDATE sales SET 
-                        BillAmount = BillAmount - {$originalData['BillAmount']},
-                        NetPayment = NetPayment - {$originalData['NetPayment']},
-                        Profit = Profit - {$originalData['Profit']},
-                        Remarks = 'Voided',
-                        Notes = CONCAT(Notes, ' | VOIDED: {$notes}')
-                        WHERE SaleID = $sale_id";
+        // Check if already has a void transaction
+        $checkVoidQuery = "SELECT * FROM sales WHERE TicketNumber = '" . $conn->real_escape_string($originalData['TicketNumber']) . " VOID' AND Remarks = 'Void Transaction'";
+        $checkResult = $conn->query($checkVoidQuery);
         
-        // Insert void record
-        $insertQuery = "INSERT INTO sales (
-            section, PartyName, PassengerName, airlines, TicketRoute, TicketNumber, 
-            Class, IssueDate, FlightDate, ReturnDate, PNR, BillAmount, NetPayment, 
-            Profit, Source, system, PaymentStatus, PaidAmount, DueAmount, 
-            PaymentMethod, BankName, SalesPersonName, invoice_number, Remarks, Notes
+        if ($checkResult && $checkResult->num_rows > 0) {
+            echo "<script>alert('This ticket already has a void transaction!'); window.location='invoice_list.php';</script>";
+            exit();
+        }
+        
+        $original_bill = floatval($originalData['BillAmount']);
+        $original_net = floatval($originalData['NetPayment']);
+        
+        // CORRECTED: Debit amount = Original Net - Void Charge
+        $debit_amount = $original_net - $void_charge;
+        
+        // Calculate profit for the void transaction
+        $void_profit = 0;
+        
+        $currentDate = date('Y-m-d');
+        
+        // Create void transaction entry - FIXED SYNTAX
+        $voidSQL = "INSERT INTO sales (
+            section, 
+            PartyName, 
+            PassengerName, 
+            airlines, 
+            TicketRoute, 
+            TicketNumber, 
+            Class, 
+            IssueDate, 
+            FlightDate, 
+            ReturnDate, 
+            PNR, 
+            BillAmount, 
+            NetPayment, 
+            Profit, 
+            Source, 
+            system, 
+            PaymentStatus, 
+            PaidAmount, 
+            DueAmount, 
+            PaymentMethod, 
+            BankName, 
+            SalesPersonName, 
+            invoice_number, 
+            Remarks, 
+            Notes, 
+            ReceivedDate,
+            VoidCharge,
+            VoidNetPrice,
+            OriginalBillAmount,
+            OriginalNetAmount
         ) VALUES (
-            '{$originalData['section']}',
-            '{$conn->real_escape_string($originalData['PartyName'])}',
-            '{$conn->real_escape_string($originalData['PassengerName'])}',
-            '{$conn->real_escape_string($originalData['airlines'])}',
-            '{$conn->real_escape_string($originalData['TicketRoute'])}',
-            '{$conn->real_escape_string($originalData['TicketNumber'])} VOID',
-            '{$conn->real_escape_string($originalData['Class'])}',
-            CURDATE(),
-            '{$originalData['FlightDate']}',
-            '{$originalData['ReturnDate']}',
-            '{$conn->real_escape_string($originalData['PNR'])}',
-            $void_charge,
-            $net_price,
-            $profit,
-            '{$conn->real_escape_string($originalData['Source'])}',
-            '{$conn->real_escape_string($originalData['system'])}',
+            '" . $conn->real_escape_string($originalData['section'] ?? '') . "',
+            '" . $conn->real_escape_string($originalData['PartyName'] ?? '') . "',
+            '" . $conn->real_escape_string($originalData['PassengerName'] ?? '') . "',
+            '" . $conn->real_escape_string($originalData['airlines'] ?? '') . "',
+            '" . $conn->real_escape_string($originalData['TicketRoute'] ?? '') . "',
+            '" . $conn->real_escape_string($originalData['TicketNumber'] ?? '') . " VOID',
+            '" . $conn->real_escape_string($originalData['Class'] ?? '') . "',
+            '$currentDate',
+            '" . ($originalData['FlightDate'] ?? '') . "',
+            '" . ($originalData['ReturnDate'] ?? '') . "',
+            '" . $conn->real_escape_string($originalData['PNR'] ?? '') . "',
+            0,
+            $debit_amount,
+            $void_profit,
+            '" . $conn->real_escape_string($originalData['Source'] ?? '') . "',
+            '" . $conn->real_escape_string($originalData['system'] ?? '') . "',
             'Due',
-            0.00,
-            $void_charge,
+            0,
+            $debit_amount,
             'Cash Payment',
             'Void Processing',
-            '{$conn->real_escape_string($originalData['SalesPersonName'])}',
-            CONCAT('VOID-', '{$originalData['invoice_number']}'),
+            '" . $conn->real_escape_string($originalData['SalesPersonName'] ?? '') . "',
+            'VOID-" . ($originalData['invoice_number'] ?? '') . "',
             'Void Transaction',
-            '{$notes}'
+            'Void reversal with " . number_format($void_charge, 2) . " tk charge | Original Net: " . number_format($original_net, 2) . " | New Debit: " . number_format($debit_amount, 2) . " | Reason: $notes',
+            '$currentDate',
+            $void_charge,
+            $void_charge,
+            $original_bill,
+            $original_net
         )";
         
-        // Start transaction
-        $conn->begin_transaction();
+        // Execute query
+        $voidResult = $conn->query($voidSQL);
         
-        try {
-            // Update original record
-            $conn->query($updateQuery);
-            
-            // Insert void record
-            $conn->query($insertQuery);
-            
-            // Commit transaction
-            $conn->commit();
-            
-            echo "<script>alert('Ticket voided successfully!'); window.location='invoice_list.php';</script>";
-        } catch (Exception $e) {
-            // Rollback transaction on error
-            $conn->rollback();
-            echo "<script>alert('Error voiding ticket: " . $conn->error . "');</script>";
+        if ($voidResult) {
+            $new_id = $conn->insert_id;
+            echo "<script>
+                alert('Void transaction created successfully!\\n\\n' +
+                      'Original Ticket: " . $originalData['TicketNumber'] . "\\n' +
+                      'Original Net: " . number_format($original_net, 2) . "\\n\\n' +
+                      'Void Charge: " . number_format($void_charge, 2) . "\\n' +
+                      'New Debit Amount: " . number_format($debit_amount, 2) . "\\n\\n' +
+                      'Ledger Effect:\\n' +
+                      '• Original Ticket: CREDIT " . number_format($original_bill, 2) . "\\n' +
+                      '• Original Net: " . number_format($original_net, 2) . "\\n' +
+                      '• Void Transaction: DEBIT " . number_format($debit_amount, 2) . "\\n' +
+                      '• Balance Reduction: " . number_format($void_charge, 2) . "\\n\\n' +
+                      'Void transaction record created with ID: $new_id\\n' +
+                      'Original ticket remains unchanged.');
+                window.location='invoice_list.php';
+            </script>";
+            exit();
+        } else {
+            echo "<script>alert('Error creating void transaction: " . $conn->error . "'); window.location='invoice_list.php';</script>";
+            exit();
         }
+    } else {
+        echo "<script>alert('Original ticket not found!'); window.location='invoice_list.php';</script>";
+        exit();
     }
+}
+
+// Function to safely escape HTML
+function safeHtml($str) {
+    return htmlspecialchars($str ?? '', ENT_QUOTES, 'UTF-8');
 }
 ?>
 
@@ -223,6 +279,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
             background: #218838;
         }
         
+        .hide-options {
+            display: inline-flex;
+            gap: 15px;
+            margin-left: 20px;
+            align-items: center;
+        }
+        
+        .hide-options label {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #555;
+        }
+        
+        .hide-options input[type="checkbox"] {
+            width: auto;
+            cursor: pointer;
+        }
+        
         .btn { 
             padding: 6px 12px; 
             border: none; 
@@ -259,7 +336,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
             opacity: 0.9; 
         }
 
-        /* Alternating row colors */
         tr:nth-child(odd) {
             background-color: #f8f9ff; 
         }
@@ -267,8 +343,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
         tr:nth-child(even) {
             background-color: #ffffff; 
         }
+        
+        tr.void-transaction-row {
+            background-color: #fff3e0 !important;
+        }
 
-        /* Soft line separator between rows */
         tr {
             border-bottom: 1px solid #eaeaea;
         }
@@ -301,7 +380,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
         .danger { background-color: #dc3545; color: white; }
         .warning { background-color: #ffc107; color: #212529; }
         .secondary { background-color: #6c757d; color: white; }
-        .void { background-color: #ff6b6b; color: white; }
         
         .action-cell {
             min-width: 120px;
@@ -310,9 +388,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
         .export-container {
             text-align: center;
             margin: 15px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
         }
         
-        /* Modal styles */
         .modal {
             display: none;
             position: fixed;
@@ -396,17 +478,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
             font-size: 14px;
         }
         
-        .calculation-result {
-            background-color: #e8f5e8;
+        .calculation-info {
+            background-color: #e3f2fd;
             padding: 15px;
             border-radius: 5px;
             margin: 15px 0;
-            border: 1px solid #c3e6cb;
+            border: 1px solid #90caf9;
         }
         
-        .calculation-result p {
+        .calculation-info p {
             margin: 5px 0;
-            font-weight: bold;
         }
         
         .modal-buttons {
@@ -441,6 +522,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
             margin-top: 3px;
         }
         
+        .debit-text {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .credit-text {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
         @media (max-width: 1200px) {
             .container {
                 overflow-x: auto;
@@ -460,6 +551,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
                 width: 95%;
                 margin: 10% auto;
             }
+            
+            .export-container {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
@@ -476,29 +571,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
         <select name="company">
             <option value="">Select Company</option>
             <?php while ($row = $companyResult->fetch_assoc()) : ?>
-                <option value="<?= htmlspecialchars($row['PartyName']) ?>" 
+                <option value="<?= safeHtml($row['PartyName']) ?>" 
                     <?= (isset($_GET['company']) && $_GET['company'] == $row['PartyName']) ? 'selected' : '' ?>>
-                    <?= htmlspecialchars($row['PartyName']) ?>
+                    <?= safeHtml($row['PartyName']) ?>
                 </option>
             <?php endwhile; ?>
         </select>
         
         <input type="text" name="invoice" placeholder="Search Invoice Number" 
-            value="<?= isset($_GET['invoice']) ? htmlspecialchars($_GET['invoice']) : '' ?>">
+            value="<?= isset($_GET['invoice']) ? safeHtml($_GET['invoice']) : '' ?>">
 
         <input type="text" name="pnr" placeholder="Search PNR" 
-            value="<?= isset($_GET['pnr']) ? htmlspecialchars($_GET['pnr']) : '' ?>">
+            value="<?= isset($_GET['pnr']) ? safeHtml($_GET['pnr']) : '' ?>">
             
         <input type="date" name="from_date" placeholder="From Date" 
-            value="<?= isset($_GET['from_date']) ? htmlspecialchars($_GET['from_date']) : '' ?>">
+            value="<?= isset($_GET['from_date']) ? safeHtml($_GET['from_date']) : '' ?>">
             
         <input type="date" name="to_date" placeholder="To Date" 
-            value="<?= isset($_GET['to_date']) ? htmlspecialchars($_GET['to_date']) : '' ?>">
+            value="<?= isset($_GET['to_date']) ? safeHtml($_GET['to_date']) : '' ?>">
             
         <button type="submit">Search</button>
     </form>
 
-    <!-- Export Button -->
+    <!-- Export Button with Hide Options -->
     <div class="export-container">
         <?php
         $export_params = [];
@@ -511,12 +606,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
         if (isset($_GET['to_date']) && !empty($_GET['to_date'])) {
             $export_params[] = "to_date=" . urlencode($_GET['to_date']);
         }
+        if ($hide_net) {
+            $export_params[] = "hide_net=1";
+        }
+        if ($hide_profit) {
+            $export_params[] = "hide_profit=1";
+        }
         $export_url = "export_invoice_excel.php";
         if (!empty($export_params)) {
             $export_url .= "?" . implode("&", $export_params);
         }
         ?>
         <a href="<?= $export_url ?>" class="export-btn">Export to Excel</a>
+        
+        <div class="hide-options">
+            <label>
+                <input type="checkbox" id="hide_net_checkbox" <?= $hide_net ? 'checked' : '' ?> onchange="toggleHideOption('hide_net', this.checked)">
+                Hide Net Fare
+            </label>
+            <label>
+                <input type="checkbox" id="hide_profit_checkbox" <?= $hide_profit ? 'checked' : '' ?> onchange="toggleHideOption('hide_profit', this.checked)">
+                Hide Profit
+            </label>
+        </div>
     </div>
 
     <!-- Void Modal -->
@@ -535,23 +647,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
                 </div>
                 
                 <div class="form-group">
-                    <label for="void_charge">Void Charge (Sales Price):</label>
+                    <label for="void_charge">Void Charge (Amount to Deduct from Net):</label>
                     <input type="number" step="0.01" id="void_charge" name="void_charge" required 
                            placeholder="Enter void charge amount">
+                    <small style="color: #666;">This amount will be deducted from the Net Price</small>
+                </div>
+                
+                <div class="calculation-info" id="calculationInfo" style="display: none;">
+                    <p><strong>Void Transaction Calculation:</strong></p>
+                    <p>Original Net: <span id="orig_net" class="credit-text">0.00</span></p>
+                    <p>Void Charge: <span id="void_charge_display">0.00</span></p>
+                    <p><strong class="debit-text">New Debit Amount: <span id="debit_amount">0.00</span></strong></p>
+                    <p><small>This amount will appear in the DEBIT (Paid) column</small></p>
+                    <hr>
+                    <p><strong>Balance Reduction: <span id="net_balance">0.00</span></strong></p>
                 </div>
                 
                 <div class="form-group">
-                    <label for="net_price">Net Price:</label>
-                    <input type="number" step="0.01" id="net_price" name="net_price" required 
-                           placeholder="Enter net price">
-                </div>
-                
-                <div class="calculation-result" id="profitCalculation" style="display: none;">
-                    <p>Profit: <span id="calculated_profit">0.00</span></p>
-                </div>
-                
-                <div class="form-group">
-                    <label for="notes">Notes:</label>
+                    <label for="notes">Void Remarks:</label>
                     <textarea id="notes" name="notes" placeholder="Enter reason for void..." required></textarea>
                 </div>
                 
@@ -565,106 +678,117 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
 
     <!-- Sales Records Table -->
     <div class="result">
-        <table>
-            <tr>
-                <th>Company Name</th>
-                <th>Passenger Name</th>
-                <th>Invoice Number</th>
-                <th>Route</th>
-                <th>Airlines</th>
-                <th>PNR</th>
-                <th>Ticket Number</th>
-                <th>Issue Date</th>
-                <th>Day Passes</th>
-                <th>Payment Status</th>
-                <th>Pricing</th>
-                <th>Sales Person</th>
-                <th>Actions</th>
-            </tr>
-            <?php while ($row = $salesResult->fetch_assoc()) : 
+         <table>
+            <thead>
+                 <tr>
+                    <th>Company Name</th>
+                    <th>Passenger Name</th>
+                    <th>Invoice Number</th>
+                    <th>Route</th>
+                    <th>Airlines</th>
+                    <th>PNR</th>
+                    <th>Ticket Number</th>
+                    <th>Issue Date</th>
+                    <th>Day Passes</th>
+                    <th>Payment Status</th>
+                    <th>Pricing</th>
+                    <th>Sales Person</th>
+                    <th>Actions</th>
+                 </tr>
+            </thead>
+            <tbody>
+            <?php 
+            $hasResults = false;
+            while ($row = $salesResult->fetch_assoc()) : 
+                $hasResults = true;
                 $issue_date = new DateTime($row['IssueDate']);
                 $today = new DateTime();
                 $interval = $issue_date->diff($today);
                 $day_passes = $interval->days;
-                $deperture_date = new DateTime($row['FlightDate']);
-                $return_date = new DateTime($row['ReturnDate']);
-                $paidAmount = (float) $row['PaidAmount'];
-                $paid = isset($row['PaidAmount']) ? (float) $row['PaidAmount'] : 0.00;
-                $due = number_format($paid, 2, '.', '');
-                $isVoided = strpos($row['TicketNumber'], 'VOID') !== false || $row['Remarks'] == 'Voided';
+                $isVoidTransaction = ($row['Remarks'] ?? '') == 'Void Transaction';
+                
+                if ($isVoidTransaction) {
+                    $rowClass = 'void-transaction-row';
+                } else {
+                    $rowClass = '';
+                }
                 ?>
-                <tr>
-                    <td><?= htmlspecialchars($row['PartyName']) ?></td>
-                    <td><?= htmlspecialchars($row['PassengerName']) ?></td>
-                    <td>
-                        <?= htmlspecialchars($row['invoice_number']) ?>
-                        <?php if (!empty($row['invoice_number'])): ?>
+                <tr class="<?= $rowClass ?>">
+                     <td><?= safeHtml($row['PartyName']) ?></td>
+                     <td><?= safeHtml($row['PassengerName']) ?></td>
+                     <td>
+                        <?= safeHtml($row['invoice_number']) ?>
+                        <?php if (!$isVoidTransaction && !empty($row['invoice_number'])): ?>
                             <div>
                                 <a href="redirect_reissue.php?id=<?= $row['SaleID'] ?>" class="btn btn-primary">Reissue</a>
                                 <a href="redirect_refund.php?id=<?= $row['SaleID'] ?>" class="btn btn-primary">Refund</a>
-                                <?php if (!$isVoided): ?>
-                                    <a href="#" class="btn void-btn void-ticket-btn" 
-                                       data-sale-id="<?= $row['SaleID'] ?>"
-                                       data-passenger="<?= htmlspecialchars($row['PassengerName']) ?>"
-                                       data-ticket="<?= htmlspecialchars($row['TicketNumber']) ?>"
-                                       data-pnr="<?= htmlspecialchars($row['PNR']) ?>"
-                                       data-route="<?= htmlspecialchars($row['TicketRoute']) ?>"
-                                       data-airline="<?= htmlspecialchars($row['airlines']) ?>"
-                                       data-selling="<?= $row['BillAmount'] ?>"
-                                       data-net="<?= $row['NetPayment'] ?>">Void</a>
-                                <?php endif; ?>
+                                <a href="#" class="btn void-btn void-ticket-btn" 
+                                   data-sale-id="<?= $row['SaleID'] ?>"
+                                   data-passenger="<?= safeHtml($row['PassengerName']) ?>"
+                                   data-ticket="<?= safeHtml($row['TicketNumber']) ?>"
+                                   data-pnr="<?= safeHtml($row['PNR']) ?>"
+                                   data-route="<?= safeHtml($row['TicketRoute']) ?>"
+                                   data-airline="<?= safeHtml($row['airlines']) ?>"
+                                   data-selling="<?= $row['BillAmount'] ?>"
+                                   data-net="<?= $row['NetPayment'] ?>">Void</a>
                             </div>
                         <?php endif; ?>
-                    </td>
-                    <td><?= htmlspecialchars($row['TicketRoute']) ?></td>
-                    <td>
-                        <?= htmlspecialchars($row['airlines']) ?><br>
+                     </td>
+                     <td><?= safeHtml($row['TicketRoute']) ?></td>
+                     <td>
+                        <?= safeHtml($row['airlines']) ?><br>
                         <span class="small-text">
-                            <b>Issued From:</b> <span class="highlight"><?= htmlspecialchars($row['Source']) ?></span><br>
-                            <b>System:</b> <span class="highlight"><?= htmlspecialchars($row['system']) ?></span>
+                            <b>Issued From:</b> <span class="highlight"><?= safeHtml($row['Source']) ?></span><br>
+                            <b>System:</b> <span class="highlight"><?= safeHtml($row['system']) ?></span>
                         </span>
-                    </td>
-                    <td><?= htmlspecialchars($row['PNR']) ?></td>
-                    <td>
-                        <?= htmlspecialchars($row['TicketNumber']) ?>
-                        <?php if ($isVoided): ?>
-                            <span class="void-indicator">VOIDED</span>
+                     </td>
+                     <td><?= safeHtml($row['PNR']) ?></td>
+                     <td>
+                        <?= safeHtml($row['TicketNumber']) ?>
+                        <?php if ($isVoidTransaction): ?>
+                            <span class="void-indicator">VOID TRANSACTION (DEBIT)</span>
                         <?php endif; ?>
-                    </td>
-                    <td><b>Issue Date : </b><?= htmlspecialchars($row['IssueDate']) ?> <br><b>Deperture : </b><?= htmlspecialchars($row['FlightDate']) ?><br><b>Return Date : </b><?= htmlspecialchars($row['ReturnDate']) ?></td>
-                    <td><?= $day_passes ?> days</td>
-                    <td>
+                     </td>
+                     <td><b>Issue Date : </b><?= safeHtml($row['IssueDate']) ?> <br><b>Departure : </b><?= safeHtml($row['FlightDate']) ?><br><b>Return Date : </b><?= safeHtml($row['ReturnDate']) ?></td>
+                     <td><?= $day_passes ?> days</td>
+                     <td>
                         <?php 
                         $statusClass = '';
-                        switch($row['PaymentStatus']) {
+                        switch($row['PaymentStatus'] ?? '') {
                             case 'Paid': $statusClass = 'success'; break;
                             case 'Due': $statusClass = 'danger'; break;
                             case 'Partially Paid': $statusClass = 'warning'; break;
                             default: $statusClass = 'secondary';
                         }
                         ?>
-                        <span class="badge <?= $statusClass ?>"><?= substr($row['PaymentStatus'], 0, 1) ?></span><br>
+                        <span class="badge <?= $statusClass ?>"><?= substr($row['PaymentStatus'] ?? '', 0, 1) ?></span><br>
                         <span class="small-text">
-                            <b> Method:</b> <span class="highlight"><?= htmlspecialchars($row['PaymentMethod']) ?></span><br>
-                            <b>Received in:</b> <span class="highlight"><?= htmlspecialchars($row['BankName']) ?></span><br>
-                            <b>Received :</b> <span class="highlight"><?= htmlspecialchars($row['PaidAmount']) ?></span><br>
-                            <b>Receive Date:</b> <span class="highlight"><?= htmlspecialchars($row['ReceivedDate']) ?></span>
+                            <b> Method:</b> <span class="highlight"><?= safeHtml($row['PaymentMethod']) ?></span><br>
+                            <b>Received in:</b> <span class="highlight"><?= safeHtml($row['BankName']) ?></span><br>
+                            <b>Received :</b> <span class="highlight"><?= number_format($row['PaidAmount'] ?? 0, 2) ?></span><br>
+                            <b>Receive Date:</b> <span class="highlight"><?= safeHtml($row['ReceivedDate']) ?></span>
                         </span>
-                    </td>
-                    <td>
+                     </td>
+                     <td>
                         <span class="small-text">
-                            <b>Selling:</b> <?= number_format($row['BillAmount'], 2) ?><br>
-                            <b>Net:</b> <?= number_format($row['NetPayment'], 2) ?><br>
-                            <b>Profit:</b> <?= number_format($row['Profit'], 2) ?>
+                            <?php if (!$isVoidTransaction): ?>
+                                <b class="credit-text">Selling (CREDIT):</b> <?= number_format($row['BillAmount'] ?? 0, 2) ?><br>
+                                <b>Net:</b> <?= number_format($row['NetPayment'] ?? 0, 2) ?><br>
+                                <b>Profit:</b> <?= number_format($row['Profit'] ?? 0, 2) ?>
+                            <?php else: ?>
+                                <b class="debit-text">Debit (Paid):</b> <?= number_format($row['NetPayment'] ?? 0, 2) ?><br>
+                                <b>Void Charge:</b> <?= number_format($row['VoidCharge'] ?? 0, 2) ?><br>
+                                <b>Original Net:</b> <?= number_format($row['OriginalNetAmount'] ?? 0, 2) ?>
+                            <?php endif; ?>
                         </span>
-                    </td>
-                    <td><?= htmlspecialchars($row['SalesPersonName']) ?></td>
+                     </td>
+                     <td><?= safeHtml($row['SalesPersonName']) ?></td>
                     <td class="action-cell">
-                        <?php if (isset($row['SaleID'])): ?>
-                            <a href="redirect_edit.php?id=<?php echo htmlspecialchars($row['SaleID']); ?>" class="btn edit-btn">
+                        <?php if (!$isVoidTransaction && isset($row['SaleID'])): ?>
+                            <a href="redirect_edit.php?id=<?= $row['SaleID'] ?>" class="btn edit-btn">
                                 Edit
                             </a><br>
-                            <a href="invoice_list.php?delete=<?php echo htmlspecialchars($row['SaleID']); ?>" class="btn delete-btn" 
+                            <a href="invoice_list.php?delete=<?= $row['SaleID'] ?>" class="btn delete-btn" 
                                onclick="return confirm('Are you sure you want to delete this record?')">
                                 Delete
                             </a>
@@ -672,26 +796,48 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
                                 <input type="hidden" name="sell_id" value="<?= $row['SaleID'] ?>">
                                 <button type="submit" class="btn btn-primary">Add to Invoice</button>
                             </form>
-                        <?php else: ?>
-                            <span style="color: red;">Error: No ID Found</span>
+                        <?php elseif ($isVoidTransaction): ?>
+                            <span class="void-indicator">Void Transaction (Debit Entry)</span>
                         <?php endif; ?>
-                    </td>
-                </tr>
+                     </td>
+                 </tr>
             <?php endwhile; ?>
-        </table>
+            <?php if (!$hasResults): ?>
+                 <tr>
+                    <td colspan="13" style="text-align: center; padding: 40px;">
+                        No records found. Please adjust your search criteria.
+                     </td>
+                 </tr>
+            <?php endif; ?>
+            </tbody>
+         </table>
     </div>
 </div>
 
 <script>
+    // Toggle hide options and reload page
+    function toggleHideOption(option, isChecked) {
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        if (isChecked) {
+            urlParams.set(option, '1');
+        } else {
+            urlParams.delete(option);
+        }
+        
+        window.location.search = urlParams.toString();
+    }
+    
     // Void Modal functionality
     const modal = document.getElementById('voidModal');
     const closeBtn = document.getElementsByClassName('close')[0];
     const cancelBtn = document.getElementById('cancelVoid');
     const voidForm = document.getElementById('voidForm');
     const voidChargeInput = document.getElementById('void_charge');
-    const netPriceInput = document.getElementById('net_price');
-    const profitCalculation = document.getElementById('profitCalculation');
-    const calculatedProfit = document.getElementById('calculated_profit');
+    const calculationInfo = document.getElementById('calculationInfo');
+    
+    let originalBill = 0;
+    let originalNet = 0;
 
     // Open modal when void button is clicked
     document.querySelectorAll('.void-ticket-btn').forEach(button => {
@@ -704,11 +850,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
             const pnr = this.getAttribute('data-pnr');
             const route = this.getAttribute('data-route');
             const airline = this.getAttribute('data-airline');
-            const selling = this.getAttribute('data-selling');
-            const net = this.getAttribute('data-net');
+            const selling = parseFloat(this.getAttribute('data-selling'));
+            const net = parseFloat(this.getAttribute('data-net'));
+            
+            // Store original values for calculation
+            originalBill = selling;
+            originalNet = net;
             
             // Set hidden sale ID
             document.getElementById('void_sale_id').value = saleId;
+            
+            // Set default values
+            voidChargeInput.value = 0;
+            
+            // Trigger calculation
+            calculatePreview();
             
             // Display ticket details
             document.getElementById('ticketDetails').innerHTML = `
@@ -717,8 +873,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
                 <p><strong>PNR:</strong> ${pnr}</p>
                 <p><strong>Route:</strong> ${route}</p>
                 <p><strong>Airline:</strong> ${airline}</p>
-                <p><strong>Original Selling:</strong> ${selling}</p>
-                <p><strong>Original Net:</strong> ${net}</p>
+                <p><strong>Original Selling:</strong> ${selling.toFixed(2)}</p>
+                <p><strong>Original Net:</strong> ${net.toFixed(2)}</p>
+                <p><strong>Original Profit:</strong> ${(selling - net).toFixed(2)}</p>
             `;
             
             // Show modal
@@ -729,33 +886,46 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
     // Close modal
     closeBtn.onclick = function() {
         modal.style.display = 'none';
+        voidForm.reset();
+        calculationInfo.style.display = 'none';
     }
 
     cancelBtn.onclick = function() {
         modal.style.display = 'none';
+        voidForm.reset();
+        calculationInfo.style.display = 'none';
     }
 
     // Close modal when clicking outside
     window.onclick = function(event) {
         if (event.target == modal) {
             modal.style.display = 'none';
+            voidForm.reset();
+            calculationInfo.style.display = 'none';
         }
     }
 
-    // Calculate profit when void charge or net price changes
-    voidChargeInput.addEventListener('input', calculateProfit);
-    netPriceInput.addEventListener('input', calculateProfit);
+    // Calculate preview when void charge changes
+    voidChargeInput.addEventListener('input', calculatePreview);
 
-    function calculateProfit() {
+    function calculatePreview() {
         const voidCharge = parseFloat(voidChargeInput.value) || 0;
-        const netPrice = parseFloat(netPriceInput.value) || 0;
-        const profit = voidCharge - netPrice;
         
-        if (voidCharge > 0 && netPrice > 0) {
-            calculatedProfit.textContent = profit.toFixed(2);
-            profitCalculation.style.display = 'block';
+        // Calculate debit amount = Original Net - Void Charge
+        const debitAmount = originalNet - voidCharge;
+        
+        // Calculate balance reduction (void charge)
+        const balanceReduction = voidCharge;
+        
+        document.getElementById('orig_net').textContent = originalNet.toFixed(2);
+        document.getElementById('void_charge_display').textContent = voidCharge.toFixed(2);
+        document.getElementById('debit_amount').textContent = debitAmount.toFixed(2);
+        document.getElementById('net_balance').textContent = balanceReduction.toFixed(2);
+        
+        if (voidCharge > 0) {
+            calculationInfo.style.display = 'block';
         } else {
-            profitCalculation.style.display = 'none';
+            calculationInfo.style.display = 'none';
         }
     }
 
@@ -764,19 +934,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
         e.preventDefault();
         
         const voidCharge = parseFloat(voidChargeInput.value);
-        const netPrice = parseFloat(netPriceInput.value);
-        const profit = voidCharge - netPrice;
+        const debitAmount = originalNet - voidCharge;
         
-        if (voidCharge <= 0 || netPrice <= 0) {
-            alert('Please enter valid void charge and net price');
+        if (voidCharge <= 0) {
+            alert('Please enter valid void charge amount');
             return;
         }
         
-        const confirmMsg = `Are you sure you want to void this ticket?\n\n` +
-                          `Void Charge: ${voidCharge.toFixed(2)}\n` +
-                          `Net Price: ${netPrice.toFixed(2)}\n` +
-                          `Profit: ${profit.toFixed(2)}\n\n` +
-                          `This will create a void transaction and update the original record.`;
+        const notes = document.getElementById('notes').value.trim();
+        if (!notes) {
+            alert('Please enter void remarks/reason');
+            return;
+        }
+        
+        const confirmMsg = `Confirm Void Transaction\n\n` +
+                          `Original Net: ${originalNet.toFixed(2)}\n` +
+                          `Void Charge: ${voidCharge.toFixed(2)}\n\n` +
+                          `New Void Entry:\n` +
+                          `• Debit Amount: ${debitAmount.toFixed(2)}\n` +
+                          `• Remarks: ${notes}\n\n` +
+                          `Balance Reduction: ${voidCharge.toFixed(2)}\n\n` +
+                          `This will create a new VOID transaction record.\n` +
+                          `Original ticket remains unchanged.\n\n` +
+                          `This action cannot be undone!`;
         
         if (confirm(confirmMsg)) {
             this.submit();
