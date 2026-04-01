@@ -136,6 +136,9 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
             <li><a class="dropdown-item" href="agents_auto_insert.php">Agents</a></li>
             <li><a class="dropdown-item" href="corporate_auto_insert.php">Corporate</a></li>
             <li><a class="dropdown-item" href="counter_auto_insert.php">Counter Sell</a></li>
+            <li><a class="dropdown-item" href="visa_insert.php">Visa Agents</a></li>
+            <li><a class="dropdown-item" href="">Visa Corporate</a></li>
+            <li><a class="dropdown-item" href="">Visa Counter Sell</a></li>
           </ul>
         </li>
 
@@ -144,9 +147,12 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
             Manual Insert
           </a>
           <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
-            <li><a class="dropdown-item" href="manual_insert.php">Agents</a></li>
-            <li><a class="dropdown-item" href="corporate_manual_insert.php">Corporate</a></li>
-            <li><a class="dropdown-item" href="counter_sell_manual_insert.php">Counter Sell</a></li>
+            <li><a class="dropdown-item" href="manual_insert.php">Ticket Agents</a></li>
+            <li><a class="dropdown-item" href="corporate_manual_insert.php">Ticket Corporate</a></li>
+            <li><a class="dropdown-item" href="counter_sell_manual_insert.php">Ticket Counter Sell</a></li>
+            <li><a class="dropdown-item" href="visa_insert.php">Visa Agents</a></li>
+            <li><a class="dropdown-item" href="">Visa Corporate</a></li>
+            <li><a class="dropdown-item" href="">Visa Counter Sell</a></li>
           </ul>
         </li>
 
@@ -187,7 +193,7 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
             <li><a class="dropdown-item" href="reissue.php">Ticket Reissue</a></li>
             <li><a class="dropdown-item" href="refund.php">Ticket Refund</a></li>
             <li><a class="dropdown-item" href="hotel_sales.php">Hotel</a></li>
-            <li><a class="dropdown-item" href="">Visa Processing</a></li>
+            <li><a class="dropdown-item" href="visa_list.php">Visa Processing</a></li>
             <li><a class="dropdown-item" href="">Tour Package</a></li>
           </ul>
         </li>

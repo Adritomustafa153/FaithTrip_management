@@ -33,8 +33,116 @@ while ($row = mysqli_fetch_assoc($source_query)) {
     $sources[] = $row['agency_name'];
 }
 
-// Main query - Modified to handle refunds properly
+// ========== CALCULATE FORWARD BALANCE (Balance before from_date) ==========
+$forward_balance = 0;
+
+if ($load_ledger && !empty($from_date)) {
+    // Query to get all transactions BEFORE the from_date for the selected source
+    $forward_query = "
+        SELECT SUM(credit - debit) as forward_balance
+        FROM (
+            -- Regular Sales
+            SELECT 
+                s.Source,
+                s.IssueDate AS trans_date,
+                s.NetPayment AS credit,
+                0 AS debit
+            FROM sales s
+            WHERE s.Remarks NOT IN ('Refund', 'Void Transaction', 'Voided', 'Reissue', 'Reissued') 
+                $source_condition
+                AND s.IssueDate < '$from_date'
+
+            UNION ALL
+
+            -- Refunds
+            SELECT 
+                s.Source,
+                s.IssueDate AS trans_date,
+                0 AS credit,
+                s.refundtc AS debit
+            FROM sales s
+            WHERE s.Remarks = 'Refund' 
+                $source_condition
+                AND s.refundtc > 0
+                AND s.IssueDate < '$from_date'
+
+            UNION ALL
+
+            -- Reissue Charges
+            SELECT 
+                s.Source,
+                s.IssueDate AS trans_date,
+                s.NetPayment AS credit,
+                0 AS debit
+            FROM sales s
+            WHERE s.Remarks = 'Reissue' 
+                $source_condition
+                AND s.IssueDate < '$from_date'
+
+            UNION ALL
+
+            -- Reissue Reversals
+            SELECT 
+                s.Source,
+                s.IssueDate AS trans_date,
+                0 AS credit,
+                s.NetPayment AS debit
+            FROM sales s
+            WHERE s.Remarks = 'Reissued' 
+                $source_condition
+                AND s.TicketNumber NOT LIKE '%REISSUE%'
+                AND s.IssueDate < '$from_date'
+
+            UNION ALL
+
+            -- Void Transactions
+            SELECT 
+                s.Source,
+                s.IssueDate AS trans_date,
+                s.NetPayment AS credit,
+                0 AS debit
+            FROM sales s
+            WHERE s.Remarks = 'Void Transaction' 
+                $source_condition
+                AND s.IssueDate < '$from_date'
+
+            UNION ALL
+
+            -- Void Reversals
+            SELECT 
+                s.Source,
+                s.IssueDate AS trans_date,
+                s.NetPayment AS credit,
+                s.BillAmount AS debit
+            FROM sales s
+            WHERE s.Remarks = 'Voided' 
+                $source_condition
+                AND s.TicketNumber NOT LIKE '%VOID%'
+                AND s.IssueDate < '$from_date'
+
+            UNION ALL
+
+            -- Payment Records (if ledger is loaded)
+            SELECT 
+                p.Source,
+                p.payment_date AS trans_date,
+                0 AS credit,
+                p.amount AS debit
+            FROM paid p
+            WHERE 1=1 $source_condition
+                AND p.payment_date < '$from_date'
+        ) AS forward_transactions
+    ";
+    
+    $forward_result = mysqli_query($conn, $forward_query);
+    if ($forward_result && $forward_row = mysqli_fetch_assoc($forward_result)) {
+        $forward_balance = floatval($forward_row['forward_balance']);
+    }
+}
+
+// Main query - UPDATED with Reissue, Void & Refund handling
 $query = "
+    -- Regular Sales (excluding refunds, void, and reissue transactions)
     SELECT 
         s.Source,
         s.IssueDate AS trans_date,
@@ -47,10 +155,11 @@ $query = "
         s.Remarks AS remarks,
         'sale' AS type
     FROM sales s
-    WHERE s.Remarks != 'Refund' $source_condition $date_condition
+    WHERE s.Remarks NOT IN ('Refund', 'Void Transaction', 'Voided', 'Reissue', 'Reissued') $source_condition $date_condition
 
     UNION ALL
 
+    -- Refunds (deduct refund amount)
     SELECT 
         s.Source,
         s.IssueDate AS trans_date,
@@ -59,11 +168,82 @@ $query = "
         s.PNR,
         s.TicketNumber,
         0 AS credit,
-        s.NetPayment AS debit,
-        s.Remarks AS remarks,
+        s.refundtc AS debit,  -- Use refundtc amount as debit
+        CONCAT('REFUND: ', s.Notes) AS remarks,
         'refund' AS type
     FROM sales s
     WHERE s.Remarks = 'Refund' $source_condition $date_condition
+    AND s.refundtc > 0
+
+    UNION ALL
+
+    -- Reissue Charges (add reissue charge as credit)
+    SELECT 
+        s.Source,
+        s.IssueDate AS trans_date,
+        s.TicketRoute,
+        s.Airlines,
+        s.PNR,
+        CONCAT(s.TicketNumber, ' REISSUE') AS TicketNumber,
+        s.NetPayment AS credit,  -- Reissue charge is a credit
+        0 AS debit,
+        CONCAT('REISSUE CHARGE: ', s.Notes) AS remarks,
+        'reissue' AS type
+    FROM sales s
+    WHERE s.Remarks = 'Reissue' $source_condition $date_condition
+
+    UNION ALL
+
+    -- Reissue Reversals (deduct original sale)
+    SELECT 
+        s.Source,
+        s.IssueDate AS trans_date,
+        s.TicketRoute,
+        s.Airlines,
+        s.PNR,
+        s.TicketNumber,
+        0 AS credit,
+        s.NetPayment AS debit,  -- Original sale amount as debit
+        CONCAT('REISSUE REVERSAL: Original sale reversed for reissue') AS remarks,
+        'reissue_reversal' AS type
+    FROM sales s
+    WHERE s.Remarks = 'Reissued' $source_condition $date_condition
+    AND s.TicketNumber NOT LIKE '%REISSUE%'  -- Exclude the reissue transaction records
+
+    UNION ALL
+
+    -- Void Transactions (void charge as credit)
+    SELECT 
+        s.Source,
+        s.IssueDate AS trans_date,
+        s.TicketRoute,
+        s.Airlines,
+        s.PNR,
+        CONCAT(s.TicketNumber, ' VOID') AS TicketNumber,
+        s.NetPayment AS credit,  -- Void charge is a credit (new bill)
+        0 AS debit,
+        CONCAT('VOID CHARGE: ', s.Notes) AS remarks,
+        'void' AS type
+    FROM sales s
+    WHERE s.Remarks = 'Void Transaction' $source_condition $date_condition
+
+    UNION ALL
+
+    -- Void Reversals (deduct original sale amount as debit AND original net as credit)
+    SELECT 
+        s.Source,
+        s.IssueDate AS trans_date,
+        s.TicketRoute,
+        s.Airlines,
+        s.PNR,
+        s.TicketNumber,
+        s.NetPayment AS credit,   -- Original net payment as credit (to be deducted)
+        s.BillAmount AS debit,    -- Original sale amount as debit (to be deducted)
+        CONCAT('VOID REVERSAL: Original sale & net payment reversed') AS remarks,
+        'void_reversal' AS type
+    FROM sales s
+    WHERE s.Remarks = 'Voided' $source_condition $date_condition
+    AND s.TicketNumber NOT LIKE '%VOID%'  -- Exclude the void transaction records
 ";
 
 // Only include payment records if ledger is requested
@@ -105,7 +285,8 @@ if ($result && mysqli_num_rows($result) > 0) {
     mysqli_data_seek($result, 0); // Reset pointer for later use
 }
 
-$total_balance = $total_credit - $total_debit;
+$period_balance = $total_credit - $total_debit;
+$closing_balance = $forward_balance + $period_balance;
 
 // Handle Excel export
 if (isset($_GET['export'])) {
@@ -132,6 +313,11 @@ if (isset($_GET['export'])) {
     $sheet->setCellValue('C4', 'Phone: +8801896459490, +8801896459495');
     $sheet->setCellValue('C5', $load_ledger ? 'PAYABLE PARTY LIST' : 'SALES RECORD');
     $sheet->setCellValue('C6', 'Period: ' . ($from_date ? $from_date : 'Start Date') . ' to ' . ($to_date ? $to_date : 'End Date'));
+    
+    // Add forward balance info if ledger is loaded
+    if ($load_ledger && !empty($from_date)) {
+        $sheet->setCellValue('C7', 'Forward Balance (as of ' . $from_date . '): ' . number_format($forward_balance, 2));
+    }
 
     // Merge cells for company info
     $sheet->mergeCells('C1:L1');
@@ -140,6 +326,9 @@ if (isset($_GET['export'])) {
     $sheet->mergeCells('C4:L4');
     $sheet->mergeCells('C5:L5');
     $sheet->mergeCells('C6:L6');
+    if ($load_ledger && !empty($from_date)) {
+        $sheet->mergeCells('C7:L7');
+    }
 
     // Style company information
     $companyStyle = [
@@ -152,15 +341,20 @@ if (isset($_GET['export'])) {
             'wrapText' => true,
         ]
     ];
-    $sheet->getStyle('C1:L6')->applyFromArray($companyStyle);
+    $startRow = $load_ledger && !empty($from_date) ? 7 : 6;
+    $sheet->getStyle('C1:L' . $startRow)->applyFromArray($companyStyle);
     
     // Make company name and title bold
     $sheet->getStyle('C1')->getFont()->setBold(true);
     $sheet->getStyle('C5')->getFont()->setBold(true)->setSize(14);
+    if ($load_ledger && !empty($from_date)) {
+        $sheet->getStyle('C7')->getFont()->setBold(true);
+    }
 
-    // Set headers (row 8)
+    // Set headers (row 8 or 9 depending on forward balance)
+    $headerRow = $load_ledger && !empty($from_date) ? 9 : 8;
     $headers = ['SL', 'Date', 'Type', 'Source', 'Route', 'Airlines', 'PNR', 'Ticket No', 'Debit (Paid)', 'Credit (Bill)', 'Balance', 'Remarks'];
-    $sheet->fromArray($headers, null, 'A8');
+    $sheet->fromArray($headers, null, 'A' . $headerRow);
 
     // Style headers
     $headerStyle = [
@@ -179,51 +373,120 @@ if (isset($_GET['export'])) {
             ]
         ]
     ];
-    $sheet->getStyle('A8:L8')->applyFromArray($headerStyle);
+    $sheet->getStyle('A' . $headerRow . ':L' . $headerRow)->applyFromArray($headerStyle);
+
+    // Add forward balance row if ledger is loaded
+    $currentRow = $headerRow + 1;
+    if ($load_ledger && !empty($from_date)) {
+        $sheet->setCellValue('A' . $currentRow, '');
+        $sheet->setCellValue('B' . $currentRow, $from_date);
+        $sheet->setCellValue('C' . $currentRow, 'Forward Balance');
+        $sheet->setCellValue('D' . $currentRow, $source_filter ?: 'ALL');
+        $sheet->setCellValue('E' . $currentRow, '');
+        $sheet->setCellValue('F' . $currentRow, '');
+        $sheet->setCellValue('G' . $currentRow, '');
+        $sheet->setCellValue('H' . $currentRow, '');
+        $sheet->setCellValue('I' . $currentRow, '');
+        $sheet->setCellValue('J' . $currentRow, '');
+        $sheet->setCellValue('K' . $currentRow, number_format($forward_balance, 2));
+        $sheet->setCellValue('L' . $currentRow, 'Opening Balance');
+        
+        // Style forward balance row
+        $forwardStyle = [
+            'font' => [
+                'bold' => true,
+                'color' => ['rgb' => '2a5885']
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['rgb' => 'E8F0F8']
+            ],
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => Border::BORDER_THIN,
+                    'color' => ['rgb' => '000000']
+                ]
+            ]
+        ];
+        $sheet->getStyle('A' . $currentRow . ':L' . $currentRow)->applyFromArray($forwardStyle);
+        $currentRow++;
+    }
 
     // Add data rows
     $sl = 1;
-    $balance = 0;
-    $rowNum = 9;
+    $balance = $forward_balance;
     mysqli_data_seek($result, 0);
     while ($row = mysqli_fetch_assoc($result)) {
         $debit = floatval($row['debit']);
         $credit = floatval($row['credit']);
         
-        // Only calculate running balance if ledger is requested
+        // Calculate running balance
         if ($load_ledger) {
             $balance += $credit - $debit;
         }
 
-        $sheet->setCellValue('A'.$rowNum, $sl++);
-        $sheet->setCellValue('B'.$rowNum, $row['trans_date']);
-        $sheet->setCellValue('C'.$rowNum, ucfirst($row['type']));
-        $sheet->setCellValue('D'.$rowNum, $row['Source']);
-        $sheet->setCellValue('E'.$rowNum, $row['TicketRoute']);
-        $sheet->setCellValue('F'.$rowNum, $row['Airlines']);
-        $sheet->setCellValue('G'.$rowNum, $row['PNR']);
+        $sheet->setCellValue('A'.$currentRow, $sl++);
+        $sheet->setCellValue('B'.$currentRow, $row['trans_date']);
+        
+        // Format type for display
+        $displayType = ucfirst($row['type']);
+        if ($row['type'] == 'void_reversal') {
+            $displayType = 'Void Reversal';
+        } elseif ($row['type'] == 'reissue') {
+            $displayType = 'Reissue';
+        } elseif ($row['type'] == 'reissue_reversal') {
+            $displayType = 'Reissue Reversal';
+        }
+        $sheet->setCellValue('C'.$currentRow, $displayType);
+        
+        $sheet->setCellValue('D'.$currentRow, $row['Source']);
+        $sheet->setCellValue('E'.$currentRow, $row['TicketRoute']);
+        $sheet->setCellValue('F'.$currentRow, $row['Airlines']);
+        $sheet->setCellValue('G'.$currentRow, $row['PNR']);
         
         // Format TicketNumber as text to prevent scientific notation
         $ticketNumber = $row['TicketNumber'];
-        $sheet->setCellValueExplicit('H'.$rowNum, $ticketNumber, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValueExplicit('H'.$currentRow, $ticketNumber, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
         
-        $sheet->setCellValue('I'.$rowNum, number_format($debit, 2));
-        $sheet->setCellValue('J'.$rowNum, number_format($credit, 2));
-        $sheet->setCellValue('K'.$rowNum, $load_ledger ? number_format($balance, 2) : '');
-        $sheet->setCellValue('L'.$rowNum, $row['remarks']);
+        $sheet->setCellValue('I'.$currentRow, number_format($debit, 2));
+        $sheet->setCellValue('J'.$currentRow, number_format($credit, 2));
+        $sheet->setCellValue('K'.$currentRow, $load_ledger ? number_format($balance, 2) : '');
+        $sheet->setCellValue('L'.$currentRow, $row['remarks']);
 
         // Apply borders to data rows
-        $sheet->getStyle('A'.$rowNum.':L'.$rowNum)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('A'.$currentRow.':L'.$currentRow)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
         
-        $rowNum++;
+        // Highlight special transactions
+        if (in_array($row['type'], ['void', 'void_reversal'])) {
+            $sheet->getStyle('A'.$currentRow.':L'.$currentRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFF2F2');
+        } elseif (in_array($row['type'], ['reissue', 'reissue_reversal'])) {
+            $sheet->getStyle('A'.$currentRow.':L'.$currentRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('F0FFF0');
+        } elseif ($row['type'] == 'refund') {
+            $sheet->getStyle('A'.$currentRow.':L'.$currentRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFF0F0');
+        }
+        
+        $currentRow++;
     }
 
-    // Add total row for both ledger and sales view
-    $sheet->setCellValue('I'.$rowNum, 'Total Payable Balance:');
-    $sheet->setCellValue('K'.$rowNum, number_format($total_balance, 2));
-    $sheet->mergeCells('I'.$rowNum.':J'.$rowNum);
+    // Add total row
+    $sheet->setCellValue('I'.$currentRow, 'Total for Period:');
+    $sheet->setCellValue('J'.$currentRow, number_format($period_balance, 2));
+    $sheet->mergeCells('I'.$currentRow.':J'.$currentRow);
     
-    // Style total row
+    $currentRow++;
+    
+    if ($load_ledger && !empty($from_date)) {
+        $sheet->setCellValue('I'.$currentRow, 'Forward Balance:');
+        $sheet->setCellValue('J'.$currentRow, number_format($forward_balance, 2));
+        $sheet->mergeCells('I'.$currentRow.':J'.$currentRow);
+        $currentRow++;
+    }
+    
+    $sheet->setCellValue('I'.$currentRow, 'Closing Balance:');
+    $sheet->setCellValue('K'.$currentRow, number_format($closing_balance, 2));
+    $sheet->mergeCells('I'.$currentRow.':J'.$currentRow);
+    
+    // Style total rows
     $totalStyle = [
         'font' => [
             'bold' => true,
@@ -239,13 +502,13 @@ if (isset($_GET['export'])) {
             ]
         ]
     ];
-    $sheet->getStyle('I'.$rowNum.':L'.$rowNum)->applyFromArray($totalStyle);
-    $sheet->getStyle('I'.$rowNum.':K'.$rowNum)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+    $sheet->getStyle('I'.($currentRow-2).':L'.$currentRow)->applyFromArray($totalStyle);
+    $sheet->getStyle('I'.($currentRow-2).':K'.$currentRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
     // Set column widths
     $sheet->getColumnDimension('A')->setWidth(5);  // SL
     $sheet->getColumnDimension('B')->setWidth(12); // Date
-    $sheet->getColumnDimension('C')->setWidth(8);  // Type
+    $sheet->getColumnDimension('C')->setWidth(12); // Type
     $sheet->getColumnDimension('D')->setWidth(15); // Source
     $sheet->getColumnDimension('E')->setWidth(20); // Route
     $sheet->getColumnDimension('F')->setWidth(25); // Airlines
@@ -257,11 +520,11 @@ if (isset($_GET['export'])) {
     $sheet->getColumnDimension('L')->setWidth(20); // Remarks
 
     // Set number formatting for currency columns
-    $sheet->getStyle('I9:K'.$rowNum)->getNumberFormat()->setFormatCode('#,##0.00');
+    $sheet->getStyle('I' . ($headerRow + 1) . ':K'.$currentRow)->getNumberFormat()->setFormatCode('#,##0.00');
 
     // Set row heights
     $sheet->getRowDimension(1)->setRowHeight(25);
-    $sheet->getRowDimension(8)->setRowHeight(20);
+    $sheet->getRowDimension($headerRow)->setRowHeight(20);
 
     // Output Excel file
     $writer = new Xlsx($spreadsheet);
@@ -300,7 +563,21 @@ if (isset($_GET['export'])) {
         tr:nth-child(even) { background-color: #f8f9fa; }
         .text-right { text-align: right; }
         .total-section { margin-top: 20px; padding: 10px; background-color: #e9ecef; border-radius: 4px; text-align: right; font-weight: 600; }
+        .forward-balance-section { margin-top: 15px; padding: 10px; background-color: #e8f0f8; border-radius: 4px; border-left: 4px solid #2a5885; }
         .checkbox-group { display: flex; align-items: center; gap: 8px; }
+        .void-row { background-color: #fff2f2 !important; }
+        .void-reversal-row { background-color: #f0f8ff !important; }
+        .reissue-row { background-color: #f0fff0 !important; }
+        .reissue-reversal-row { background-color: #f8f0ff !important; }
+        .refund-row { background-color: #fff0f0 !important; }
+        .forward-row { background-color: #e8f0f8 !important; font-weight: bold; }
+        .type-void { color: #dc3545; font-weight: bold; }
+        .type-void-reversal { color: #007bff; font-weight: bold; }
+        .type-reissue { color: #28a745; font-weight: bold; }
+        .type-reissue-reversal { color: #6f42c1; font-weight: bold; }
+        .type-refund { color: #fd7e14; font-weight: bold; }
+        .balance-positive { color: #28a745; font-weight: bold; }
+        .balance-negative { color: #dc3545; font-weight: bold; }
         @media (max-width: 1200px) {
             .container { max-width: 100%; padding: 10px; }
             table { font-size: 12px; }
@@ -356,6 +633,17 @@ if (isset($_GET['export'])) {
         </form>
     </div>
 
+    <?php if ($load_ledger && !empty($from_date) && $forward_balance != 0): ?>
+    <div class="forward-balance-section">
+        <strong>Forward Balance (as of <?= htmlspecialchars($from_date) ?>):</strong> 
+        <span class="<?= $forward_balance >= 0 ? 'balance-positive' : 'balance-negative' ?>">
+            <?= number_format($forward_balance, 2) ?> Taka
+        </span>
+        <br>
+        <small style="color: #666;">* This is the balance from before the selected start date.</small>
+    </div>
+    <?php endif; ?>
+
     <table>
         <thead>
             <tr>
@@ -378,7 +666,34 @@ if (isset($_GET['export'])) {
         <tbody>
             <?php
             $sl = 1;
-            $balance = 0;
+            $balance = $forward_balance;
+            $has_forward_displayed = false;
+            
+            // Display forward balance as first row if ledger is loaded and from_date is set
+            if ($load_ledger && !empty($from_date) && $forward_balance != 0) {
+                $has_forward_displayed = true;
+                ?>
+                <tr class="forward-row">
+                    <td></td>
+                    <td><?= htmlspecialchars($from_date) ?></td>
+                    <td><strong>Forward Balance</strong></td>
+                    <td><?= htmlspecialchars($source_filter ?: 'ALL') ?></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td class="text-right"></td>
+                    <td class="text-right"></td>
+                    <?php if ($load_ledger): ?>
+                    <td class="text-right <?= $forward_balance >= 0 ? 'balance-positive' : 'balance-negative' ?>">
+                        <?= number_format($forward_balance, 2) ?>
+                    </td>
+                    <?php endif; ?>
+                    <td>Opening Balance</td>
+                </tr>
+                <?php
+            }
+            
             mysqli_data_seek($result, 0);
             
             if ($result && mysqli_num_rows($result) > 0) {
@@ -389,11 +704,44 @@ if (isset($_GET['export'])) {
                     if ($load_ledger) {
                         $balance += $credit - $debit;
                     }
+                    
+                    // Determine row class based on type
+                    $rowClass = '';
+                    $typeClass = '';
+                    switch ($row['type']) {
+                        case 'void':
+                            $rowClass = 'void-row';
+                            $typeClass = 'type-void';
+                            $displayType = 'Void';
+                            break;
+                        case 'void_reversal':
+                            $rowClass = 'void-reversal-row';
+                            $typeClass = 'type-void-reversal';
+                            $displayType = 'Void Reversal';
+                            break;
+                        case 'reissue':
+                            $rowClass = 'reissue-row';
+                            $typeClass = 'type-reissue';
+                            $displayType = 'Reissue';
+                            break;
+                        case 'reissue_reversal':
+                            $rowClass = 'reissue-reversal-row';
+                            $typeClass = 'type-reissue-reversal';
+                            $displayType = 'Reissue Reversal';
+                            break;
+                        case 'refund':
+                            $rowClass = 'refund-row';
+                            $typeClass = 'type-refund';
+                            $displayType = 'Refund';
+                            break;
+                        default:
+                            $displayType = ucfirst($row['type']);
+                    }
             ?>
-            <tr>
+            <tr class="<?= $rowClass ?>">
                 <td><?= $sl++ ?></td>
                 <td><?= htmlspecialchars($row['trans_date']) ?></td>
-                <td><?= htmlspecialchars(ucfirst($row['type'])) ?></td>
+                <td class="<?= $typeClass ?>"><?= htmlspecialchars($displayType) ?></td>
                 <td><?= htmlspecialchars($row['Source']) ?></td>
                 <td><?= htmlspecialchars($row['TicketRoute']) ?></td>
                 <td><?= htmlspecialchars($row['Airlines']) ?></td>
@@ -402,21 +750,29 @@ if (isset($_GET['export'])) {
                 <td class="text-right"><?= number_format($debit, 2) ?></td>
                 <td class="text-right"><?= number_format($credit, 2) ?></td>
                 <?php if ($load_ledger): ?>
-                <td class="text-right"><?= number_format($balance, 2) ?></td>
+                <td class="text-right <?= $balance >= 0 ? 'balance-positive' : 'balance-negative' ?>">
+                    <?= number_format($balance, 2) ?>
+                </td>
                 <?php endif; ?>
                 <td><?= htmlspecialchars($row['remarks']) ?></td>
             </tr>
             <?php endwhile; 
-            } else {
+            } else if (!$has_forward_displayed) {
                 echo '<tr><td colspan="'.($load_ledger ? '12' : '11').'" style="text-align: center;">No records found</td></tr>';
             }
             ?>
         </tbody>
     </table>
     
-    <?php if ($result && mysqli_num_rows($result) > 0): ?>
+    <?php if ($result && mysqli_num_rows($result) > 0 || ($load_ledger && !empty($from_date))): ?>
     <div class="total-section">
-        Total Payable Balance: <?= number_format($total_balance, 2) ?> Taka
+        <div><strong>Period Balance:</strong> <?= number_format($period_balance, 2) ?> Taka</div>
+        <?php if ($load_ledger && !empty($from_date)): ?>
+        <div><strong>Forward Balance:</strong> <?= number_format($forward_balance, 2) ?> Taka</div>
+        <div><strong>Closing Balance:</strong> <?= number_format($closing_balance, 2) ?> Taka</div>
+        <?php else: ?>
+        <div><strong>Total Payable Balance:</strong> <?= number_format($period_balance, 2) ?> Taka</div>
+        <?php endif; ?>
     </div>
     <?php endif; ?>
 </div>

@@ -44,6 +44,86 @@ if (isset($_GET['delete'])) {
         echo "Error deleting record: " . $conn->error;
     }
 }
+
+// Process void request
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['void_ticket'])) {
+    $sale_id = intval($_POST['sale_id']);
+    $void_charge = floatval($_POST['void_charge']);
+    $net_price = floatval($_POST['net_price']);
+    $notes = $conn->real_escape_string($_POST['notes']);
+    
+    // Fetch original sale data
+    $originalQuery = "SELECT * FROM sales WHERE SaleID = $sale_id";
+    $originalResult = $conn->query($originalQuery);
+    $originalData = $originalResult->fetch_assoc();
+    
+    if ($originalData) {
+        $profit = $void_charge - $net_price;
+        
+        // Update original record to mark as voided and update amounts
+        $updateQuery = "UPDATE sales SET 
+                        BillAmount = BillAmount - {$originalData['BillAmount']},
+                        NetPayment = NetPayment - {$originalData['NetPayment']},
+                        Profit = Profit - {$originalData['Profit']},
+                        Remarks = 'Voided',
+                        Notes = CONCAT(Notes, ' | VOIDED: {$notes}')
+                        WHERE SaleID = $sale_id";
+        
+        // Insert void record
+        $insertQuery = "INSERT INTO sales (
+            section, PartyName, PassengerName, airlines, TicketRoute, TicketNumber, 
+            Class, IssueDate, FlightDate, ReturnDate, PNR, BillAmount, NetPayment, 
+            Profit, Source, system, PaymentStatus, PaidAmount, DueAmount, 
+            PaymentMethod, BankName, SalesPersonName, invoice_number, Remarks, Notes
+        ) VALUES (
+            '{$originalData['section']}',
+            '{$conn->real_escape_string($originalData['PartyName'])}',
+            '{$conn->real_escape_string($originalData['PassengerName'])}',
+            '{$conn->real_escape_string($originalData['airlines'])}',
+            '{$conn->real_escape_string($originalData['TicketRoute'])}',
+            '{$conn->real_escape_string($originalData['TicketNumber'])} VOID',
+            '{$conn->real_escape_string($originalData['Class'])}',
+            CURDATE(),
+            '{$originalData['FlightDate']}',
+            '{$originalData['ReturnDate']}',
+            '{$conn->real_escape_string($originalData['PNR'])}',
+            $void_charge,
+            $net_price,
+            $profit,
+            '{$conn->real_escape_string($originalData['Source'])}',
+            '{$conn->real_escape_string($originalData['system'])}',
+            'Due',
+            0.00,
+            $void_charge,
+            'Cash Payment',
+            'Void Processing',
+            '{$conn->real_escape_string($originalData['SalesPersonName'])}',
+            CONCAT('VOID-', '{$originalData['invoice_number']}'),
+            'Void Transaction',
+            '{$notes}'
+        )";
+        
+        // Start transaction
+        $conn->begin_transaction();
+        
+        try {
+            // Update original record
+            $conn->query($updateQuery);
+            
+            // Insert void record
+            $conn->query($insertQuery);
+            
+            // Commit transaction
+            $conn->commit();
+            
+            echo "<script>alert('Ticket voided successfully!'); window.location='invoice_list.php';</script>";
+        } catch (Exception $e) {
+            // Rollback transaction on error
+            $conn->rollback();
+            echo "<script>alert('Error voiding ticket: " . $conn->error . "');</script>";
+        }
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -65,6 +145,7 @@ if (isset($_GET['delete'])) {
             background: white;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
         }
         
         h2 {
@@ -164,6 +245,11 @@ if (isset($_GET['delete'])) {
             color: white; 
         }
         
+        .void-btn {
+            background-color: #ff6b6b;
+            color: white;
+        }
+        
         .btn-primary {
             background-color: #4a71ff;
             color: white;
@@ -215,6 +301,7 @@ if (isset($_GET['delete'])) {
         .danger { background-color: #dc3545; color: white; }
         .warning { background-color: #ffc107; color: #212529; }
         .secondary { background-color: #6c757d; color: white; }
+        .void { background-color: #ff6b6b; color: white; }
         
         .action-cell {
             min-width: 120px;
@@ -223,6 +310,135 @@ if (isset($_GET['delete'])) {
         .export-container {
             text-align: center;
             margin: 15px 0;
+        }
+        
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 600px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        
+        .modal-header {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .modal-header h3 {
+            color: #333;
+            margin: 0;
+        }
+        
+        .close {
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            color: #aaa;
+            cursor: pointer;
+        }
+        
+        .close:hover {
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .form-group input[type="text"],
+        .form-group input[type="number"],
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .form-group textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        
+        .ticket-info {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #4a71ff;
+        }
+        
+        .ticket-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        
+        .calculation-result {
+            background-color: #e8f5e8;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .calculation-result p {
+            margin: 5px 0;
+            font-weight: bold;
+        }
+        
+        .modal-buttons {
+            text-align: right;
+            margin-top: 20px;
+        }
+        
+        .modal-buttons button {
+            padding: 10px 20px;
+            margin-left: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .btn-confirm {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .btn-cancel {
+            background-color: #6c757d;
+            color: white;
+        }
+        
+        .void-indicator {
+            color: #ff6b6b;
+            font-weight: bold;
+            font-size: 11px;
+            display: block;
+            margin-top: 3px;
         }
         
         @media (max-width: 1200px) {
@@ -238,6 +454,11 @@ if (isset($_GET['delete'])) {
             .search-container select, .search-container input {
                 width: 100%;
                 max-width: 300px;
+            }
+            
+            .modal-content {
+                width: 95%;
+                margin: 10% auto;
             }
         }
     </style>
@@ -298,6 +519,50 @@ if (isset($_GET['delete'])) {
         <a href="<?= $export_url ?>" class="export-btn">Export to Excel</a>
     </div>
 
+    <!-- Void Modal -->
+    <div id="voidModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Void Ticket</h3>
+                <span class="close">&times;</span>
+            </div>
+            <form id="voidForm" method="POST">
+                <input type="hidden" name="sale_id" id="void_sale_id">
+                <input type="hidden" name="void_ticket" value="1">
+                
+                <div class="ticket-info" id="ticketDetails">
+                    <!-- Ticket details will be loaded here -->
+                </div>
+                
+                <div class="form-group">
+                    <label for="void_charge">Void Charge (Sales Price):</label>
+                    <input type="number" step="0.01" id="void_charge" name="void_charge" required 
+                           placeholder="Enter void charge amount">
+                </div>
+                
+                <div class="form-group">
+                    <label for="net_price">Net Price:</label>
+                    <input type="number" step="0.01" id="net_price" name="net_price" required 
+                           placeholder="Enter net price">
+                </div>
+                
+                <div class="calculation-result" id="profitCalculation" style="display: none;">
+                    <p>Profit: <span id="calculated_profit">0.00</span></p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="notes">Notes:</label>
+                    <textarea id="notes" name="notes" placeholder="Enter reason for void..." required></textarea>
+                </div>
+                
+                <div class="modal-buttons">
+                    <button type="button" class="btn-cancel" id="cancelVoid">Cancel</button>
+                    <button type="submit" class="btn-confirm">Confirm Void</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Sales Records Table -->
     <div class="result">
         <table>
@@ -326,6 +591,7 @@ if (isset($_GET['delete'])) {
                 $paidAmount = (float) $row['PaidAmount'];
                 $paid = isset($row['PaidAmount']) ? (float) $row['PaidAmount'] : 0.00;
                 $due = number_format($paid, 2, '.', '');
+                $isVoided = strpos($row['TicketNumber'], 'VOID') !== false || $row['Remarks'] == 'Voided';
                 ?>
                 <tr>
                     <td><?= htmlspecialchars($row['PartyName']) ?></td>
@@ -336,6 +602,17 @@ if (isset($_GET['delete'])) {
                             <div>
                                 <a href="redirect_reissue.php?id=<?= $row['SaleID'] ?>" class="btn btn-primary">Reissue</a>
                                 <a href="redirect_refund.php?id=<?= $row['SaleID'] ?>" class="btn btn-primary">Refund</a>
+                                <?php if (!$isVoided): ?>
+                                    <a href="#" class="btn void-btn void-ticket-btn" 
+                                       data-sale-id="<?= $row['SaleID'] ?>"
+                                       data-passenger="<?= htmlspecialchars($row['PassengerName']) ?>"
+                                       data-ticket="<?= htmlspecialchars($row['TicketNumber']) ?>"
+                                       data-pnr="<?= htmlspecialchars($row['PNR']) ?>"
+                                       data-route="<?= htmlspecialchars($row['TicketRoute']) ?>"
+                                       data-airline="<?= htmlspecialchars($row['airlines']) ?>"
+                                       data-selling="<?= $row['BillAmount'] ?>"
+                                       data-net="<?= $row['NetPayment'] ?>">Void</a>
+                                <?php endif; ?>
                             </div>
                         <?php endif; ?>
                     </td>
@@ -348,7 +625,12 @@ if (isset($_GET['delete'])) {
                         </span>
                     </td>
                     <td><?= htmlspecialchars($row['PNR']) ?></td>
-                    <td><?= htmlspecialchars($row['TicketNumber']) ?></td>
+                    <td>
+                        <?= htmlspecialchars($row['TicketNumber']) ?>
+                        <?php if ($isVoided): ?>
+                            <span class="void-indicator">VOIDED</span>
+                        <?php endif; ?>
+                    </td>
                     <td><b>Issue Date : </b><?= htmlspecialchars($row['IssueDate']) ?> <br><b>Deperture : </b><?= htmlspecialchars($row['FlightDate']) ?><br><b>Return Date : </b><?= htmlspecialchars($row['ReturnDate']) ?></td>
                     <td><?= $day_passes ?> days</td>
                     <td>
@@ -399,6 +681,108 @@ if (isset($_GET['delete'])) {
         </table>
     </div>
 </div>
+
+<script>
+    // Void Modal functionality
+    const modal = document.getElementById('voidModal');
+    const closeBtn = document.getElementsByClassName('close')[0];
+    const cancelBtn = document.getElementById('cancelVoid');
+    const voidForm = document.getElementById('voidForm');
+    const voidChargeInput = document.getElementById('void_charge');
+    const netPriceInput = document.getElementById('net_price');
+    const profitCalculation = document.getElementById('profitCalculation');
+    const calculatedProfit = document.getElementById('calculated_profit');
+
+    // Open modal when void button is clicked
+    document.querySelectorAll('.void-ticket-btn').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const saleId = this.getAttribute('data-sale-id');
+            const passenger = this.getAttribute('data-passenger');
+            const ticket = this.getAttribute('data-ticket');
+            const pnr = this.getAttribute('data-pnr');
+            const route = this.getAttribute('data-route');
+            const airline = this.getAttribute('data-airline');
+            const selling = this.getAttribute('data-selling');
+            const net = this.getAttribute('data-net');
+            
+            // Set hidden sale ID
+            document.getElementById('void_sale_id').value = saleId;
+            
+            // Display ticket details
+            document.getElementById('ticketDetails').innerHTML = `
+                <p><strong>Passenger:</strong> ${passenger}</p>
+                <p><strong>Ticket Number:</strong> ${ticket}</p>
+                <p><strong>PNR:</strong> ${pnr}</p>
+                <p><strong>Route:</strong> ${route}</p>
+                <p><strong>Airline:</strong> ${airline}</p>
+                <p><strong>Original Selling:</strong> ${selling}</p>
+                <p><strong>Original Net:</strong> ${net}</p>
+            `;
+            
+            // Show modal
+            modal.style.display = 'block';
+        });
+    });
+
+    // Close modal
+    closeBtn.onclick = function() {
+        modal.style.display = 'none';
+    }
+
+    cancelBtn.onclick = function() {
+        modal.style.display = 'none';
+    }
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    // Calculate profit when void charge or net price changes
+    voidChargeInput.addEventListener('input', calculateProfit);
+    netPriceInput.addEventListener('input', calculateProfit);
+
+    function calculateProfit() {
+        const voidCharge = parseFloat(voidChargeInput.value) || 0;
+        const netPrice = parseFloat(netPriceInput.value) || 0;
+        const profit = voidCharge - netPrice;
+        
+        if (voidCharge > 0 && netPrice > 0) {
+            calculatedProfit.textContent = profit.toFixed(2);
+            profitCalculation.style.display = 'block';
+        } else {
+            profitCalculation.style.display = 'none';
+        }
+    }
+
+    // Confirm void before submitting
+    voidForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const voidCharge = parseFloat(voidChargeInput.value);
+        const netPrice = parseFloat(netPriceInput.value);
+        const profit = voidCharge - netPrice;
+        
+        if (voidCharge <= 0 || netPrice <= 0) {
+            alert('Please enter valid void charge and net price');
+            return;
+        }
+        
+        const confirmMsg = `Are you sure you want to void this ticket?\n\n` +
+                          `Void Charge: ${voidCharge.toFixed(2)}\n` +
+                          `Net Price: ${netPrice.toFixed(2)}\n` +
+                          `Profit: ${profit.toFixed(2)}\n\n` +
+                          `This will create a void transaction and update the original record.`;
+        
+        if (confirm(confirmMsg)) {
+            this.submit();
+        }
+    });
+</script>
 
 </body>
 </html>
