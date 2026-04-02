@@ -5,52 +5,88 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-
 // Initialize cart
 if (!isset($_SESSION['invoice_cart'])) {
     $_SESSION['invoice_cart'] = [];
 }
 
-// Handle add to cart
+// Handle add to cart (supports sale, void, refund, reissue)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_id'])) {
     $sell_id = intval($_POST['sell_id']);
     if (!in_array($sell_id, $_SESSION['invoice_cart'])) {
         $_SESSION['invoice_cart'][] = $sell_id;
     }
+    // Redirect to avoid form resubmission
+    header("Location: invoice_cart2.php");
+    exit();
 }
 
-// Handle item deletion - FIXED THIS LINE
+// Handle item deletion
 if (isset($_GET['delete_id'])) {
     $delete_id = intval($_GET['delete_id']);
     if (($key = array_search($delete_id, $_SESSION['invoice_cart'])) !== false) {
         unset($_SESSION['invoice_cart'][$key]);
     }
+    header("Location: invoice_cart2.php");
+    exit();
 }
 
 // Handle cart clearing
 if (isset($_GET['clear_cart']) && $_GET['clear_cart'] == '1') {
     $_SESSION['invoice_cart'] = [];
+    header("Location: invoice_cart2.php");
+    exit();
 }
 
-// Fetch cart data
-$sales = [];
-$total = 0; // Initialize total here
+// Fetch cart data with amount calculation based on transaction type
+$cart_items = [];
+$subtotal = 0;
 if (!empty($_SESSION['invoice_cart'])) {
     $id_list = implode(",", array_map('intval', $_SESSION['invoice_cart']));
     $query = "SELECT * FROM sales WHERE SaleID IN ($id_list)";
     $result = $conn->query($query);
     while ($row = $result->fetch_assoc()) {
-        $sales[] = $row;
-        $total += $row['BillAmount']; // Calculate total here
+        $remarks = $row['Remarks'] ?? '';
+        $amount = 0;
+        $type_label = '';
+        
+        if ($remarks == 'Air Ticket Sale' || $remarks == '' || $remarks === null) {
+            // Normal sale: BillAmount is credit (adds to total)
+            $amount = floatval($row['BillAmount']);
+            $type_label = 'Sale';
+        } elseif ($remarks == 'Void Transaction') {
+            // Void transaction: NetPayment is debit (adds to total as charge)
+            $amount = floatval($row['NetPayment']);
+            $type_label = 'Void Charge';
+        } elseif ($remarks == 'Refund') {
+            // Refund: refundtc is debit (deduct from total)
+            $amount = -floatval($row['refundtc']);
+            $type_label = 'Refund';
+        } elseif ($remarks == 'Reissue') {
+            // Reissue charge: NetPayment is credit (adds to total)
+            $amount = floatval($row['NetPayment']);
+            $type_label = 'Reissue';
+        } else {
+            // Fallback: treat as sale
+            $amount = floatval($row['BillAmount']);
+            $type_label = 'Sale';
+        }
+        
+        $cart_items[] = [
+            'data' => $row,
+            'amount' => $amount,
+            'type_label' => $type_label
+        ];
+        $subtotal += $amount;
     }
 }
 
-// Calculate AIT if checkbox was checked in previous submission
+// Calculate AIT if checkbox was checked
 $ait = 0;
 if (isset($_POST['addAIT']) && $_POST['addAIT'] == '1') {
-    $ait = $total * 0.003;
+    $ait = $subtotal * 0.003;
 }
-$gt = $total + $ait;
+$gt = $subtotal + $ait;
 ?>
 
 <!DOCTYPE html>
@@ -59,7 +95,6 @@ $gt = $total + $ait;
     <meta charset="UTF-8">
     <title>Invoice Cart</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
     <style>
         #loadingOverlay {
             position: fixed;
@@ -83,12 +118,17 @@ $gt = $total + $ait;
             display: none;
             margin-top: 10px;
         }
+        .amount-negative {
+            color: #dc3545;
+        }
+        .amount-positive {
+            color: #28a745;
+        }
     </style>
 </head>
 <body class="bg-light">
     <?php include 'nav.php'; ?>
 
-<!-- 🔄 Loading Animation Overlay -->
 <div id="loadingOverlay">
     <div class="text-center">
         <img src="gif/inv_loading.gif" alt="Loading..." style="width: 100px; height: 100px;" />
@@ -118,7 +158,6 @@ $gt = $total + $ait;
                 </label>
                 <select id="clientName" class="form-select" name="ClientNameDropdown" required></select>
                 <input type="text" id="manualClientName" name="ClientNameManual" class="form-control mt-2" placeholder="Enter client name" style="display:none;" />
-
             </div>
             <div class="col-md-4">
                 <label>
@@ -147,7 +186,6 @@ $gt = $total + $ait;
                         Add CC/BCC Recipients
                     </label>
                 </div>
-                
                 <div id="ccBCCFields" class="cc-bcc-fields">
                     <div class="row mt-2">
                         <div class="col-md-6">
@@ -164,23 +202,32 @@ $gt = $total + $ait;
         </div>
     </div>
 
-    <?php if (!empty($sales)): ?>
+    <?php if (!empty($cart_items)): ?>
         <table class="table table-bordered table-striped">
             <thead class="bg-warning text-white">
                 <tr style="color: blue;">
                     <th>SL</th>
+                    <th>Type</th>
                     <th>Travelers</th>
                     <th>Flight Info</th>
                     <th>Ticket Info</th>
-                    <th>Price</th>
+                    <th>Amount (BDT)</th>
                     <th>Remarks</th>
                     <th>Action</th>
                 </tr>
             </thead>
             <tbody>
-                <?php $serial = 1; foreach ($sales as $row): ?>
+                <?php $serial = 1; foreach ($cart_items as $item): 
+                    $row = $item['data'];
+                    $amount = $item['amount'];
+                    $type_label = $item['type_label'];
+                    $amount_class = $amount >= 0 ? 'amount-positive' : 'amount-negative';
+                    $display_amount = number_format(abs($amount), 2);
+                    $sign = $amount >= 0 ? '+' : '-';
+                ?>
                     <tr>
                         <td><?= $serial++ ?></td>
+                        <td><?= htmlspecialchars($type_label) ?></td>
                         <td><?= htmlspecialchars($row['PassengerName']) ?></td>
                         <td>
                             Travel Route: <b><?= htmlspecialchars($row['TicketRoute']) ?></b><br>
@@ -194,7 +241,9 @@ $gt = $total + $ait;
                             Ticket Issue Date: <b><?= htmlspecialchars($row['IssueDate']) ?></b><br>
                             Seat Class: <b><?= htmlspecialchars($row['Class']) ?></b>
                         </td>
-                        <td><b><?= number_format($row['BillAmount'], 2) ?></b></td>
+                        <td class="<?= $amount_class ?>">
+                            <?= $sign ?> <?= $display_amount ?>
+                        </td>
                         <td><?= htmlspecialchars($row['Remarks']) ?></td>
                         <td>
                             <a href="invoice_cart2.php?delete_id=<?= $row['SaleID'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Remove this item?')">Delete</a>
@@ -202,18 +251,18 @@ $gt = $total + $ait;
                     </tr>
                 <?php endforeach; ?>
                 <tr>
-                    <td colspan="4" class="text-end">Air Ticket Price</td>
-                    <td><b><?= number_format($total, 2); ?></b></td>
+                    <td colspan="5" class="text-end"><strong>Subtotal</strong></td>
+                    <td><strong><?= number_format($subtotal, 2) ?></strong></td>
                     <td colspan="2"></td>
                 </tr>
                 <tr>
-                    <td colspan="4" class="text-end">Advance Income Tax (AIT)</td>
-                    <td><b><?= number_format($ait, 2); ?></b></td>
+                    <td colspan="5" class="text-end">Advance Income Tax (AIT 0.3%)</td>
+                    <td><strong><?= number_format($ait, 2) ?></strong></td>
                     <td colspan="2"></td>
                 </tr>
                 <tr>
-                    <td colspan="4" class="text-end">Total</td>
-                    <td><b><?= number_format($gt, 2); ?></b></td>
+                    <td colspan="5" class="text-end"><strong>Grand Total</strong></td>
+                    <td><strong><?= number_format($gt, 2) ?></strong></td>
                     <td colspan="2"></td>
                 </tr>
             </tbody>
@@ -229,7 +278,7 @@ $gt = $total + $ait;
     <?php else: ?>
         <div class="alert alert-info mt-3">No items in the invoice cart.</div>
     <?php endif; ?>
-</form>
+    </form>
 </div>
 
 <script>
@@ -278,7 +327,7 @@ document.getElementById('clientName').addEventListener('change', function () {
 function showLoading() {
     if (confirm('Are you sure you want to generate the invoice?')) {
         document.getElementById('loadingOverlay').style.display = 'flex';
-        // Submit will continue automatically because this is inside the button's onclick
+        // Form will submit naturally
     } else {
         event.preventDefault();
     }

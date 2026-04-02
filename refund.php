@@ -231,7 +231,7 @@ if (isset($_GET['delete'])) {
     <?php endif; ?>
 
     <!-- Floating Refund Cart Button -->
-    <a href="refund_cart.php" class="btn btn-danger refund-cart-btn rounded-pill">
+    <a href="invoice_cart2.php" class="btn btn-danger refund-cart-btn rounded-pill">
         <i class="fas fa-shopping-cart me-2"></i> Refund Cart 
         <span class="badge bg-white text-danger"><?= count($_SESSION['refund_cart']) ?></span>
     </a>
@@ -325,12 +325,12 @@ if (isset($_GET['delete'])) {
                                             <span class="badge badge-refund rounded-pill">Refunded</span>
                                         </td>
                                         <td class="action-btns">
-                                            <form method="post" class="d-inline">
-                                                <input type="hidden" name="sale_id" value="<?= $row['SaleID'] ?>">
-                                                <button type="submit" name="add_to_cart" class="btn btn-sm btn-primary">
-                                                    <i class="fas fa-cart-plus me-1"></i>Add to Refund Cart
-                                                </button>
-                                            </form>
+                                            <form method="POST" action="invoice_cart2.php">
+        <input type="hidden" name="sell_id" value="<?= $row['SaleID'] ?>">
+        <button type="submit" class="btn btn-sm btn-primary">
+            <i class="fas fa-cart-plus"></i> Add to Invoice
+        </button>
+    </form>
                                             <a href="redirect_edit.php?id=<?= $row['SaleID'] ?>" class="btn btn-sm btn-success mt-1">
                                                 <i class="fas fa-edit me-1"></i>Edit
                                             </a>

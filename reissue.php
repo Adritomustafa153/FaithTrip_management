@@ -271,7 +271,7 @@ if (isset($_GET['delete'])) {
         data-due="<?php echo $due ?>">
   Add to Cart
 </button> -->
-<form action="reissue_invoice_cart2.php" method="POST">
+<form action="invoice_cart2.php" method="POST">
     <input type="hidden" name="sell_id" value="<?= $row['SaleID'] ?>">
     <button style="margin-top: 10px;" type="submit" class="btn btn-primary btn-sm">Add to Invoice</button>
 </form>
