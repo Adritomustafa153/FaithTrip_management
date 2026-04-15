@@ -123,10 +123,13 @@ if (!empty($_SESSION['invoice_cart'])) {
     // Update sales table with AIT information
     $pdo->exec("UPDATE sales SET AIT = '$ait' WHERE SaleID IN ($id_list)");
 
-    // Insert invoice header (without AIT column since it doesn't exist in invoices table)
-    $stmt = $pdo->prepare("INSERT INTO invoices (Invoice_number, date, PNR, PartyName, IssueDate, FlightDate, ReturnDate, SellingPrice, Section) 
-                           VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$invoiceNumber, $pnr, $client_name, $issueDate, $flightDate, $returnDate, $sellingPrice, $Sales_section]);
+    // ✅ Get the logged-in user ID for invoice creation
+    $created_by = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : NULL;
+
+    // Insert invoice header (with created_by_user_id)
+    $stmt = $pdo->prepare("INSERT INTO invoices (Invoice_number, date, PNR, PartyName, IssueDate, FlightDate, ReturnDate, SellingPrice, Section, created_by_user_id) 
+                           VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->execute([$invoiceNumber, $pnr, $client_name, $issueDate, $flightDate, $returnDate, $sellingPrice, $Sales_section, $created_by]);
 }
 
 // PDF creation
