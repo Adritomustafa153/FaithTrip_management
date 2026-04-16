@@ -374,7 +374,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                     </div>
                     <div class="col-md-4">
                         <label>Original Bill Amount:</label>
-                        <input type="text" class="form-control readonly" value="<?= number_format($sale_data['BillAmount'], 2) ?>" readonly>
+                        <input type="text" id="Saling" class="form-control readonly" value="<?= number_format($sale_data['BillAmount'], 2) ?>" readonly>
                     </div>
                     <div class="col-md-4">
                         <label>Original Net Payment:</label>
@@ -539,10 +539,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
             function calculateRefund() {
                 const refundCharge = parseFloat($('#refund_charge').val()) || 0;
                 const serviceCharge = parseFloat($('#service_charge').val()) || 0;
-                const netPayment = parseFloat($('#original_net').val().replace(/,/g, '')) || 0;
+                const netPayment = parseFloat($('#original_net').val().replace(/,/g, '')) || 0;  
+                const Selling_price = parseFloat($('#Saling').val().replace(/,/g, '')) || 0;
                 
                 const totalRefund = refundCharge + serviceCharge;
-                const refundAmount = netPayment - totalRefund;
+                const refundAmount = Selling_price - totalRefund;
                 
                 $('#total_refund').val(totalRefund.toFixed(2));
                 $('#refund_amount').val(Math.max(0, refundAmount).toFixed(2));

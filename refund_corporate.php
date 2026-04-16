@@ -1,15 +1,25 @@
 <?php
-include 'db.php';
 include 'auth_check.php';
+include 'db.php';
 
-
-// Function to check if a ticket is already refunded
-function isTicketRefunded($conn, $pnr, $ticket_number) {
+// Function to check if THIS SPECIFIC ticket is already refunded (by TicketNumber)
+function isTicketRefunded($conn, $ticket_number) {
     $query = "SELECT COUNT(*) AS count FROM sales 
-              WHERE (PNR = ? OR TicketNumber = ?) 
-              AND Remarks = 'Refund'";
+              WHERE TicketNumber = ? AND Remarks = 'Refund'";
     $stmt = $conn->prepare($query);
-    $stmt->bind_param("ss", $pnr, $ticket_number);
+    $stmt->bind_param("s", $ticket_number);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $data = $result->fetch_assoc();
+    return $data['count'] > 0;
+}
+
+// Function to check if PNR has any refunded tickets (for informational purposes)
+function hasRefundedTicketsInPNR($conn, $pnr) {
+    $query = "SELECT COUNT(*) AS count FROM sales 
+              WHERE PNR = ? AND Remarks = 'Refund'";
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param("s", $pnr);
     $stmt->execute();
     $result = $stmt->get_result();
     $data = $result->fetch_assoc();
@@ -32,11 +42,15 @@ $sale_data = $sale_result->fetch_assoc();
 $has_refund = false;
 $refund_message = "";
 $is_refunded = false;
+$pnr_has_refunds = false;
 
 // Check if current record is already refunded
 if ($sale_data) {
     $is_refunded = ($sale_data['Remarks'] == 'Refund') || 
-                  isTicketRefunded($conn, $sale_data['PNR'], $sale_data['TicketNumber']);
+                  isTicketRefunded($conn, $sale_data['TicketNumber']);
+    
+    // Check if PNR has other refunded tickets (for informational purposes)
+    $pnr_has_refunds = hasRefundedTicketsInPNR($conn, $sale_data['PNR']);
 }
 
 // Fetch sales records for search functionality
@@ -50,7 +64,7 @@ if (isset($_GET['search_term']) && !empty($_GET['search_term'])) {
     // Check if there are any refund records for this search term
     $refund_check_query = "SELECT COUNT(*) AS refund_count, MAX(refund_date) AS last_refund_date, 
                           MAX(refundtc) AS refund_amount FROM sales 
-                          WHERE (PNR LIKE '%$search_term%' OR TicketNumber LIKE '%$search_term%') 
+                          WHERE TicketNumber LIKE '%$search_term%' 
                           AND Remarks = 'Refund'";
     $refund_check_result = mysqli_query($conn, $refund_check_query);
     if ($refund_check_result) {
@@ -282,6 +296,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
             margin-bottom: 20px;
             border-left: 4px solid #ffc107;
         }
+        .pnr-notice {
+            background-color: #d1ecf1;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            border-left: 4px solid #17a2b8;
+            font-size: 14px;
+        }
         .refund-details {
             margin-top: 10px;
             font-size: 14px;
@@ -336,13 +358,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
         </form>
 
         <?php if ($sale_data): ?>
+        <?php if ($pnr_has_refunds): ?>
+            <div class="pnr-notice">
+                <strong>Note:</strong> Other tickets in PNR <?= htmlspecialchars($sale_data['PNR']) ?> have been refunded, 
+                but this specific ticket (<?= htmlspecialchars($sale_data['TicketNumber']) ?>) is still available for refund.
+            </div>
+        <?php endif; ?>
+        
         <form action="" method="POST" id="refundForm" <?= $is_refunded ? 'class="form-disabled"' : '' ?>>
             <!-- Original Sale Information -->
             <div class="original-info">
                 <h4>Original Sale Information</h4>
                 <div class="row">
                     <div class="col-md-4">
-                        <label>Company Name:</label>
+                        <label>Selling Section:</label>
                         <input type="text" class="form-control readonly" value="<?= htmlspecialchars($sale_data['PartyName']) ?>" readonly>
                     </div>
                     <div class="col-md-4">
@@ -375,7 +404,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                     </div>
                     <div class="col-md-4">
                         <label>Original Bill Amount:</label>
-                        <input type="text" class="form-control readonly" value="<?= number_format($sale_data['BillAmount'], 2) ?>" readonly>
+                        <input type="text" id="saling" class="form-control readonly" value="<?= number_format($sale_data['BillAmount'], 2) ?>" readonly>
                     </div>
                     <div class="col-md-4">
                         <label>Original Net Payment:</label>
@@ -490,7 +519,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                             </thead>
                             <tbody>
                                 <?php while ($row = $search_result->fetch_assoc()): 
-                                    $is_already_refunded = isTicketRefunded($conn, $row['PNR'], $row['TicketNumber']);
+                                    $is_already_refunded = isTicketRefunded($conn, $row['TicketNumber']);
+                                    $pnr_has_refunds = hasRefundedTicketsInPNR($conn, $row['PNR']);
                                 ?>
                                     <tr>
                                         <td><?= htmlspecialchars($row['PassengerName']) ?></td>
@@ -504,6 +534,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                                                 <button class="btn btn-sm btn-secondary btn-disabled" disabled>
                                                     Already Refunded
                                                 </button>
+                                            <?php elseif ($pnr_has_refunds): ?>
+                                                <a href="?id=<?= $row['SaleID'] ?>&search_term=<?= urlencode($_GET['search_term']) ?>" 
+                                                   class="btn btn-sm btn-warning">
+                                                    Select (PNR has refunds)
+                                                </a>
                                             <?php else: ?>
                                                 <a href="?id=<?= $row['SaleID'] ?>&search_term=<?= urlencode($_GET['search_term']) ?>" 
                                                    class="btn btn-sm btn-primary">
@@ -540,10 +575,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
             function calculateRefund() {
                 const refundCharge = parseFloat($('#refund_charge').val()) || 0;
                 const serviceCharge = parseFloat($('#service_charge').val()) || 0;
-                const netPayment = parseFloat($('#original_net').val().replace(/,/g, '')) || 0;
+                const netPayment = parseFloat($('#original_net').val().replace(/,/g, '')) || 0; 
+                const Saling_price = parseFloat($('#saling').val().replace(/,/g, '')) || 0;
                 
                 const totalRefund = refundCharge + serviceCharge;
-                const refundAmount = netPayment - totalRefund;
+                const refundAmount = Saling_price - totalRefund;
                 
                 $('#total_refund').val(totalRefund.toFixed(2));
                 $('#refund_amount').val(Math.max(0, refundAmount).toFixed(2));
