@@ -16,7 +16,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_id'])) {
     if (!in_array($sell_id, $_SESSION['invoice_cart'])) {
         $_SESSION['invoice_cart'][] = $sell_id;
     }
-    // Redirect to avoid form resubmission
     header("Location: invoice_cart2.php");
     exit();
 }
@@ -63,8 +62,8 @@ if (!empty($_SESSION['invoice_cart'])) {
             $amount = -floatval($row['refundtc']);
             $type_label = 'Refund';
         } elseif ($remarks == 'Reissue') {
-            // Reissue charge: NetPayment is credit (adds to total)
-            $amount = floatval($row['NetPayment']);
+            // MODIFIED: Use Selling Price (BillAmount) instead of NetPayment
+            $amount = floatval($row['BillAmount']);
             $type_label = 'Reissue';
         } else {
             // Fallback: treat as sale
