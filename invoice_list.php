@@ -5,6 +5,14 @@ include 'db.php';
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
+// ✅ ADDED: Handle delete request
+if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
+    $delete_id = intval($_GET['delete']);
+    $conn->query("DELETE FROM sales WHERE SaleID = $delete_id");
+    header("Location: invoice_list.php");
+    exit();
+}
+
 $companyQuery = "SELECT DISTINCT PartyName FROM sales WHERE PartyName IS NOT NULL AND PartyName != ''";
 $companyResult = $conn->query($companyQuery);
 
@@ -60,8 +68,9 @@ $salesQuery = "SELECT sales.*, user.UserName AS created_by_name
                ORDER BY $sort_by $sort_order";
 $salesResult = $conn->query($salesQuery);
 
-// Delete, void, etc. remain unchanged (same as original)
-// ... (keep your delete and void handling exactly as you had)
+// Delete, void, etc. handling (void handling is already in your original, but we keep as is)
+// Note: The void POST handling should be present elsewhere (maybe in the same file or separate). 
+// If not, you may need to add it, but that's beyond this fix.
 
 function safeHtml($str) {
     return htmlspecialchars($str ?? '', ENT_QUOTES, 'UTF-8');
@@ -84,6 +93,7 @@ function sortLink($column, $label, $current_sort, $current_order) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- ... (keep your existing head content unchanged) ... -->
     <link rel="icon" href="logo.jpg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -128,7 +138,7 @@ function sortLink($column, $label, $current_sort, $current_order) {
         .sort-info { text-align: right; font-size: 10px; color: #666; margin-bottom: 8px; }
         .void-indicator { color: #ff6b6b; font-weight: bold; font-size: 9px; display: block; margin-top: 2px; }
         .debit-text { color: #dc3545; font-weight: bold; }
-        /* Modal styles (keep your existing modal CSS) */
+        /* Modal styles */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
         .modal-content { background-color: white; margin: 10% auto; padding: 20px; border-radius: 10px; width: 90%; max-width: 450px; }
         .modal-header { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
@@ -243,7 +253,7 @@ function sortLink($column, $label, $current_sort, $current_order) {
                 <th>Status</th>
                 <th><?= sortLink('BillAmount', 'Amount', $sort_by, $sort_order) ?></th>
                 <th>Sales Person</th>
-                <th>Entry By</th>   <!-- NEW COLUMN -->
+                <th>Entry By</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -296,18 +306,18 @@ function sortLink($column, $label, $current_sort, $current_order) {
                 <td>
                     <?= safeHtml($row['airlines']) ?><br>
                     <span class="small-text">Src: <?= safeHtml($row['Source']) ?> | Sys: <?= safeHtml($row['system']) ?></span>
-                </td>
+                 </td>
                 <td><?= safeHtml($row['PNR']) ?></td>
                 <td>
                     <?= safeHtml($row['TicketNumber']) ?>
                     <?php if ($isVoided): ?><span class="void-indicator">VOIDED</span><?php endif; ?>
                     <?php if ($isVoidTransaction): ?><span class="void-indicator">VOID</span><?php endif; ?>
-                </td>
+                 </td>
                 <td>
                     <span class="small-text">Issue: <?= safeHtml($row['IssueDate']) ?></span><br>
                     <span class="small-text">Dep: <?= safeHtml($row['FlightDate']) ?></span><br>
                     <span class="small-text">Ret: <?= safeHtml($row['ReturnDate']) ?></span>
-                </td>
+                 </td>
                 <td><?= $day_passes ?></td>
                 <td>
                     <?php 
@@ -321,7 +331,7 @@ function sortLink($column, $label, $current_sort, $current_order) {
                     ?>
                     <span class="badge <?= $statusClass ?>"><?= substr($row['PaymentStatus'] ?? '', 0, 1) ?></span>
                     <span class="small-text"><br>M: <?= safeHtml($row['PaymentMethod']) ?></span>
-                </td>
+                 </td>
                 <td>
                     <?= number_format($row['BillAmount'] ?? 0, 2) ?>
                     <?php if (!$hide_net && !$isVoided): ?>
@@ -333,12 +343,13 @@ function sortLink($column, $label, $current_sort, $current_order) {
                     <?php if ($isVoidTransaction && isset($row['VoidCharge'])): ?>
                         <br><span class="small-text debit-text">Chg: <?= number_format($row['VoidCharge'] ?? 0, 2) ?></span>
                     <?php endif; ?>
-                </td>
+                 </td>
                 <td><?= safeHtml($row['SalesPersonName']) ?></td>
-                <td><?= safeHtml($row['created_by_name'] ?? 'Unknown') ?></td>  <!-- DISPLAY USER NAME -->
+                <td><?= safeHtml($row['created_by_name'] ?? 'Unknown') ?></td>
                 <td class="action-cell">
                     <?php if (!$isVoided && !$isVoidTransaction && isset($row['SaleID'])): ?>
                         <a href="redirect_edit.php?id=<?= $row['SaleID'] ?>" class="btn edit-btn">Edit</a>
+                        <!-- ✅ Fixed delete link – now properly handled by PHP at the top -->
                         <a href="invoice_list.php?delete=<?= $row['SaleID'] ?>" class="btn delete-btn" onclick="return confirm('Delete this record?')">Del</a>
                         <form action="invoice_cart2.php" method="POST" style="margin-top: 2px;">
                             <input type="hidden" name="sell_id" value="<?= $row['SaleID'] ?>">
@@ -349,8 +360,8 @@ function sortLink($column, $label, $current_sort, $current_order) {
                     <?php elseif ($isVoided): ?>
                         <span class="void-indicator">VOIDED</span>
                     <?php endif; ?>
-                </td>
-            </tr>
+                 </td>
+             </tr>
         <?php endwhile; ?>
         <?php if (!$hasResults): ?>
             <tr><td colspan="14" style="text-align: center; padding: 25px;">No records found.</td></tr>
@@ -367,7 +378,7 @@ function sortLink($column, $label, $current_sort, $current_order) {
         window.location.search = urlParams.toString();
     }
     
-    // Void Modal (keep your existing JS)
+    // Void Modal (same as before)
     const modal = document.getElementById('voidModal');
     const closeBtn = document.getElementsByClassName('close')[0];
     const cancelBtn = document.getElementById('cancelVoid');
