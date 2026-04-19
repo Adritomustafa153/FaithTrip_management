@@ -139,7 +139,7 @@ while ($row = mysqli_fetch_assoc($banks_query)) {
 $modal_sections = ['Corporate', 'Counter Sell', 'Agent'];
 
 // ------------------------------------------------------------
-// LEDGER VIEW (includes all sales and payments)
+// LEDGER VIEW (includes all sales and payments) - unchanged
 // ------------------------------------------------------------
 if ($load_ledger) {
     $date_condition = "";
@@ -292,33 +292,75 @@ if ($load_ledger) {
     }
     $total_outstanding = $total_debit - $total_credit;
 } else {
-    // ORIGINAL OUTSTANDING SALES VIEW
-    $sql = "SELECT s.SaleID, s.section, s.PartyName, s.PassengerName, s.airlines, s.TicketRoute, s.TicketNumber, 
-                   s.IssueDate, s.PNR, s.BillAmount, s.Source, s.PaymentStatus, 
-                   COALESCE(SUM(p.Amount), 0) as PaidAmount, 
-                   (s.BillAmount - COALESCE(SUM(p.Amount), 0)) as DueAmount,
-                   s.SalesPersonName, DATEDIFF(CURDATE(), s.IssueDate) AS DaysPassed 
-            FROM sales s
-            LEFT JOIN payments p ON s.SaleID = p.SaleID
-            WHERE (s.PaymentStatus = 'Due' OR s.PaymentStatus = 'Partially Paid')
-            GROUP BY s.SaleID
-            HAVING DueAmount > 0";
+    // ========== OUTSTANDING VIEW: Exclude refunded original sales, show refund entries with BillAmount ==========
+    
+    // Part 1: Normal sales that are NOT refunded, voided, or reissued, and still have due amount > 0
+    $normal_sales_sql = "
+        SELECT 
+            s.SaleID, s.section, s.PartyName, s.PassengerName, s.airlines, s.TicketRoute, 
+            s.TicketNumber, s.IssueDate, s.PNR, s.BillAmount, s.Source, 
+            COALESCE(SUM(p.Amount), 0) as PaidAmount,
+            (s.BillAmount - COALESCE(SUM(p.Amount), 0)) as DueAmount,
+            s.SalesPersonName, DATEDIFF(CURDATE(), s.IssueDate) AS DaysPassed,
+            '' as RefundChargeFlag
+        FROM sales s
+        LEFT JOIN payments p ON s.SaleID = p.SaleID
+        WHERE (s.Remarks IS NULL OR s.Remarks NOT IN ('Refund', 'Void Transaction', 'Voided', 'Reissue', 'Reissued'))
+          -- Exclude sales that have been refunded (by checking existence of a refund record with same PNR and TicketNumber)
+          AND NOT EXISTS (
+              SELECT 1 FROM sales r 
+              WHERE r.Remarks = 'Refund' 
+                AND r.PNR = s.PNR 
+                AND r.TicketNumber = s.TicketNumber
+          )
+        GROUP BY s.SaleID
+        HAVING DueAmount > 0
+    ";
 
+    // Part 2: Refund entries (Remarks = 'Refund') - show BillAmount instead of refundtc
+    $refund_sales_sql = "
+        SELECT 
+            s.SaleID, s.section, s.PartyName, 
+            CONCAT('REFUND - ', s.TicketNumber) AS PassengerName,
+            s.airlines, s.TicketRoute, s.TicketNumber, s.IssueDate, s.PNR, 
+            s.BillAmount AS BillAmount,   -- Changed from s.refundtc to s.BillAmount
+            s.Source, 
+            COALESCE(SUM(p.Amount), 0) as PaidAmount,
+            (s.BillAmount - COALESCE(SUM(p.Amount), 0)) as DueAmount,
+            s.SalesPersonName, DATEDIFF(CURDATE(), s.IssueDate) AS DaysPassed,
+            'RefundCharge' as RefundChargeFlag
+        FROM sales s
+        LEFT JOIN payments p ON s.SaleID = p.SaleID
+        WHERE s.Remarks = 'Refund' 
+          AND s.BillAmount > 0   -- Only if BillAmount is positive (amount owed)
+        GROUP BY s.SaleID
+        HAVING DueAmount > 0
+    ";
+
+    // Combine both parts with UNION
+    $sql = "($normal_sales_sql) UNION ALL ($refund_sales_sql)";
+    
+    // Apply filters
+    $filter_sql = "";
     if (!empty($section_filter)) {
-        $sql .= " AND s.section = '" . $conn->real_escape_string($section_filter) . "'";
+        $filter_sql .= " AND section = '" . $conn->real_escape_string($section_filter) . "'";
     }
     if (!empty($party_filter)) {
-        $sql .= " AND s.PartyName = '" . $conn->real_escape_string($party_filter) . "'";
+        $filter_sql .= " AND PartyName = '" . $conn->real_escape_string($party_filter) . "'";
     }
     if (!empty($from_date) && !empty($to_date)) {
-        $sql .= " AND s.IssueDate BETWEEN '" . $conn->real_escape_string($from_date) . "' 
-                  AND '" . $conn->real_escape_string($to_date) . "'";
+        $filter_sql .= " AND IssueDate BETWEEN '" . $conn->real_escape_string($from_date) . "' AND '" . $conn->real_escape_string($to_date) . "'";
     }
     if (!empty($pnr_search)) {
-        $sql .= " AND s.PNR LIKE '%" . $conn->real_escape_string($pnr_search) . "%'";
+        $filter_sql .= " AND PNR LIKE '%" . $conn->real_escape_string($pnr_search) . "%'";
     }
-    $sql .= " ORDER BY s.IssueDate DESC";
-
+    
+    // Wrap the union query to apply filters on the combined result
+    if (!empty($filter_sql)) {
+        $sql = "SELECT * FROM ($sql) AS combined WHERE 1=1 $filter_sql";
+    }
+    $sql .= " ORDER BY IssueDate DESC";
+    
     $result = $conn->query($sql);
     if (!$result) {
         die("Query Error: " . $conn->error);
@@ -587,15 +629,20 @@ if ($load_ledger) {
                                 $days = (new DateTime($row['IssueDate']))->diff(new DateTime())->days;
                                 $status_class = ($row['DueAmount'] == $row['BillAmount']) ? 'status-due' : 'status-partial';
                                 $status_text = ($row['DueAmount'] == $row['BillAmount']) ? 'Due' : 'Partially Paid';
+                                // For refund rows, show a badge
+                                $passenger_display = $row['PassengerName'];
+                                if (isset($row['RefundChargeFlag']) && $row['RefundChargeFlag'] == 'RefundCharge') {
+                                    $passenger_display = '<span class="badge bg-warning text-dark">Refund Entry</span> ' . htmlspecialchars($row['PassengerName']);
+                                }
                             ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($row['section']); ?></td>
                                 <td><?php echo htmlspecialchars($row['PartyName']); ?></td>
-                                <td><?php echo htmlspecialchars($row['PassengerName']); ?></td>
-                                <td><?php echo htmlspecialchars($row['airlines']); ?></td>
-                                <td><?php echo htmlspecialchars($row['TicketRoute']); ?></td>
-                                <td><?php echo htmlspecialchars($row['TicketNumber']); ?></td>
-                                <td><?php echo htmlspecialchars($row['IssueDate']); ?></td>
+                                <td><?php echo $passenger_display; ?></div>
+                                <td><?php echo htmlspecialchars($row['airlines']); ?></div>
+                                <td><?php echo htmlspecialchars($row['TicketRoute']); ?></div>
+                                <td><?php echo htmlspecialchars($row['TicketNumber']); ?></div>
+                                <td><?php echo htmlspecialchars($row['IssueDate']); ?></div>
                                 <td><?php echo $days; ?> days</div>
                                 <td><?php echo htmlspecialchars($row['PNR']); ?></div>
                                 <td class="text-end"><?php echo number_format($row['BillAmount'], 2); ?></div>
