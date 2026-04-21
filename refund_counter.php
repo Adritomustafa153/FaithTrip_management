@@ -3,12 +3,12 @@ include 'auth_check.php';
 include 'db.php';
 
 // Function to check if a ticket is already refunded
-function isTicketRefunded($conn, $pnr, $ticket_number) {
+// ✅ Correct: Check only by TicketNumber
+function isTicketRefunded($conn, $ticket_number) {
     $query = "SELECT COUNT(*) AS count FROM sales 
-              WHERE (PNR = ? OR TicketNumber = ?) 
-              AND Remarks = 'Refund'";
+              WHERE TicketNumber = ? AND Remarks = 'Refund'";
     $stmt = $conn->prepare($query);
-    $stmt->bind_param("ss", $pnr, $ticket_number);
+    $stmt->bind_param("s", $ticket_number);
     $stmt->execute();
     $result = $stmt->get_result();
     $data = $result->fetch_assoc();

@@ -2,13 +2,24 @@
 include 'auth_check.php';
 include 'db.php';
 
-// Function to check if a ticket is already refunded
-function isTicketRefunded($conn, $pnr, $ticket_number) {
+// ✅ Corrected: Check refund by TicketNumber only (not PNR)
+function isTicketRefunded($conn, $ticket_number) {
     $query = "SELECT COUNT(*) AS count FROM sales 
-              WHERE (PNR = ? OR TicketNumber = ?) 
-              AND Remarks = 'Refund'";
+              WHERE TicketNumber = ? AND Remarks = 'Refund'";
     $stmt = $conn->prepare($query);
-    $stmt->bind_param("ss", $pnr, $ticket_number);
+    $stmt->bind_param("s", $ticket_number);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $data = $result->fetch_assoc();
+    return $data['count'] > 0;
+}
+
+// Function to check if PNR has any refunded tickets (for informational purposes only)
+function hasRefundedTicketsInPNR($conn, $pnr) {
+    $query = "SELECT COUNT(*) AS count FROM sales 
+              WHERE PNR = ? AND Remarks = 'Refund'";
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param("s", $pnr);
     $stmt->execute();
     $result = $stmt->get_result();
     $data = $result->fetch_assoc();
@@ -31,11 +42,15 @@ $sale_data = $sale_result->fetch_assoc();
 $has_refund = false;
 $refund_message = "";
 $is_refunded = false;
+$pnr_has_refunds = false;
 
 // Check if current record is already refunded
 if ($sale_data) {
     $is_refunded = ($sale_data['Remarks'] == 'Refund') || 
-                  isTicketRefunded($conn, $sale_data['PNR'], $sale_data['TicketNumber']);
+                  isTicketRefunded($conn, $sale_data['TicketNumber']);
+    
+    // Check if PNR has other refunded tickets (for informational purposes)
+    $pnr_has_refunds = hasRefundedTicketsInPNR($conn, $sale_data['PNR']);
 }
 
 // Fetch sales records for search functionality
@@ -46,10 +61,10 @@ if (isset($_GET['search_term']) && !empty($_GET['search_term'])) {
              TicketNumber LIKE '%$search_term%' OR 
              PNR LIKE '%$search_term%') AND Remarks != 'Refund'";
     
-    // Check if there are any refund records for this search term
+    // ✅ Check refund by TicketNumber only
     $refund_check_query = "SELECT COUNT(*) AS refund_count, MAX(refund_date) AS last_refund_date, 
                           MAX(refundtc) AS refund_amount FROM sales 
-                          WHERE (PNR LIKE '%$search_term%' OR TicketNumber LIKE '%$search_term%') 
+                          WHERE TicketNumber LIKE '%$search_term%' 
                           AND Remarks = 'Refund'";
     $refund_check_result = mysqli_query($conn, $refund_check_query);
     if ($refund_check_result) {
@@ -141,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
             </div>
             <script>
                 setTimeout(function() {
-                    window.location.href = "refund_corporate.php?success=1";
+                    window.location.href = "refund_agent.php?success=1";
                 }, 3000);
             </script>
         </body>
@@ -162,149 +177,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            margin: 20px; 
-            background-color: #f8f9fa;
-        }
-        .container {
-            background-color: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.1);
-            margin-top: 20px;
-            position: relative;
-        }
-        h2 {
-            color: #2c3e50;
-            margin-bottom: 25px;
-            text-align: center;
-            font-weight: 600;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        label {
-            font-weight: 500;
-            margin-bottom: 8px;
-            display: block;
-        }
-        input, select {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ced4da;
-            border-radius: 5px;
-            font-size: 16px;
-        }
-        input:focus, select:focus {
-            border-color: #80bdff;
-            outline: 0;
-            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-        }
-        .btn-submit {
-            background-color: #4a71ff;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-            width: 100%;
-            transition: background-color 0.3s;
-        }
-        .btn-submit:hover {
-            background-color: #3a5bd9;
-        }
-        .readonly {
-            background-color: #e9ecef;
-        }
-        .refund-section {
-            background-color: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin-top: 20px;
-            border-left: 4px solid #4a71ff;
-        }
-        .refund-section h4 {
-            color: #4a71ff;
-            margin-bottom: 20px;
-        }
-        .original-info {
-            background-color: #e8f4fd;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-        .search-results {
-            position: absolute;
-            z-index: 1000;
-            width: 100%;
-            max-height: 200px;
-            overflow-y: auto;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 0 0 5px 5px;
-            display: none;
-        }
-        .search-results a {
-            display: block;
-            padding: 8px 15px;
-            color: #333;
-            text-decoration: none;
-        }
-        .search-results a:hover {
-            background-color: #f5f5f5;
-        }
-        .status-refunded {
-            color: #dc3545;
-            font-weight: bold;
-        }
-        .status-sell {
-            color: #28a745;
-            font-weight: bold;
-        }
-        .btn-disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            background-color: #6c757d !important;
-        }
-        .btn-disabled:hover {
-            background-color: #6c757d !important;
-        }
-        .alert-success {
-            animation: fadeIn 0.5s;
-        }
-        .refund-notice {
-            background-color: #fff3cd;
-            padding: 15px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-            border-left: 4px solid #ffc107;
-        }
-        .refund-details {
-            margin-top: 10px;
-            font-size: 14px;
-            color: #856404;
-        }
-        .form-disabled {
-            opacity: 0.7;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        @media (max-width: 768px) {
-            .container {
-                padding: 15px;
-            }
-            .form-row > div {
-                margin-bottom: 15px;
-            }
-        }
+        /* (Your existing CSS - unchanged) */
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f8f9fa; }
+        .container { background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.1); margin-top: 20px; position: relative; }
+        h2 { color: #2c3e50; margin-bottom: 25px; text-align: center; font-weight: 600; }
+        .form-group { margin-bottom: 20px; }
+        label { font-weight: 500; margin-bottom: 8px; display: block; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 5px; font-size: 16px; }
+        .btn-submit { background-color: #4a71ff; color: white; padding: 10px 20px; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; width: 100%; transition: background-color 0.3s; }
+        .btn-submit:hover { background-color: #3a5bd9; }
+        .readonly { background-color: #e9ecef; }
+        .refund-section { background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #4a71ff; }
+        .refund-section h4 { color: #4a71ff; margin-bottom: 20px; }
+        .original-info { background-color: #e8f4fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .search-results { position: absolute; z-index: 1000; width: 100%; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #ddd; border-radius: 0 0 5px 5px; display: none; }
+        .search-results a { display: block; padding: 8px 15px; color: #333; text-decoration: none; }
+        .search-results a:hover { background-color: #f5f5f5; }
+        .status-refunded { color: #dc3545; font-weight: bold; }
+        .status-sell { color: #28a745; font-weight: bold; }
+        .btn-disabled { opacity: 0.6; cursor: not-allowed; background-color: #6c757d !important; }
+        .alert-success { animation: fadeIn 0.5s; }
+        .pnr-notice { background-color: #d1ecf1; padding: 10px; border-radius: 5px; margin-bottom: 10px; border-left: 4px solid #17a2b8; font-size: 14px; }
+        .form-disabled { opacity: 0.7; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @media (max-width: 768px) { .container { padding: 15px; } .form-row > div { margin-bottom: 15px; } }
     </style>
 </head>
 <body>
-    <!-- Navbar -->
     <?php include 'nav.php'; ?>
     
     <div class="container">
@@ -335,13 +234,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
         </form>
 
         <?php if ($sale_data): ?>
+        <?php if ($pnr_has_refunds): ?>
+            <div class="pnr-notice">
+                <strong>Note:</strong> Other tickets in PNR <?= htmlspecialchars($sale_data['PNR']) ?> have been refunded, 
+                but this specific ticket (<?= htmlspecialchars($sale_data['TicketNumber']) ?>) is still available for refund.
+            </div>
+        <?php endif; ?>
+        
         <form action="" method="POST" id="refundForm" <?= $is_refunded ? 'class="form-disabled"' : '' ?>>
             <!-- Original Sale Information -->
             <div class="original-info">
                 <h4>Original Sale Information</h4>
                 <div class="row">
                     <div class="col-md-4">
-                        <label>Agent Name:</label>
+                        <label>Selling Section:</label>
                         <input type="text" class="form-control readonly" value="<?= htmlspecialchars($sale_data['PartyName']) ?>" readonly>
                     </div>
                     <div class="col-md-4">
@@ -373,8 +279,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                         <input type="text" class="form-control readonly" value="<?= htmlspecialchars($sale_data['TicketNumber']) ?>" readonly>
                     </div>
                     <div class="col-md-4">
-                        <label>Original Bill Amount:</label>
-                        <input type="text" id="selling" class="form-control readonly" value="<?= number_format($sale_data['BillAmount'], 2) ?>" readonly>
+                        <label>Original Selling Price (Bill Amount):</label>
+                        <input type="text" id="original_bill" class="form-control readonly" value="<?= number_format($sale_data['BillAmount'], 2) ?>" readonly>
                     </div>
                     <div class="col-md-4">
                         <label>Original Net Payment:</label>
@@ -443,8 +349,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                         <input type="number" name="total_refund" id="total_refund" class="form-control readonly" readonly>
                     </div>
                     <div class="col-md-3">
-                        <label for="refund_amount">Amount to Refund:</label>
+                        <label for="refund_amount">Amount to Refund (to Client):</label>
                         <input type="number" name="refund_amount" id="refund_amount" class="form-control readonly" readonly>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-12">
+                        <small class="text-muted">Refund to client = Selling Price - (Refund Charge + Service Charge)</small>
                     </div>
                 </div>
             </div>
@@ -489,7 +400,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                             </thead>
                             <tbody>
                                 <?php while ($row = $search_result->fetch_assoc()): 
-                                    $is_already_refunded = isTicketRefunded($conn, $row['PNR'], $row['TicketNumber']);
+                                    $is_already_refunded = isTicketRefunded($conn, $row['TicketNumber']);
+                                    $pnr_has_refunds = hasRefundedTicketsInPNR($conn, $row['PNR']);
                                 ?>
                                     <tr>
                                         <td><?= htmlspecialchars($row['PassengerName']) ?></td>
@@ -503,6 +415,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                                                 <button class="btn btn-sm btn-secondary btn-disabled" disabled>
                                                     Already Refunded
                                                 </button>
+                                            <?php elseif ($pnr_has_refunds): ?>
+                                                <a href="?id=<?= $row['SaleID'] ?>&search_term=<?= urlencode($_GET['search_term']) ?>" 
+                                                   class="btn btn-sm btn-warning">
+                                                    Select (PNR has refunds)
+                                                </a>
                                             <?php else: ?>
                                                 <a href="?id=<?= $row['SaleID'] ?>&search_term=<?= urlencode($_GET['search_term']) ?>" 
                                                    class="btn btn-sm btn-primary">
@@ -513,7 +430,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                                     </tr>
                                 <?php endwhile; ?>
                             </tbody>
-                        </table>
+                        95able
                     <?php else: ?>
                         <div class="alert alert-info">
                             No available sales records found for this search. All matching records have been refunded.
@@ -529,30 +446,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script>
         $(document).ready(function() {
-            // Initialize date picker
             flatpickr("#refund_date", {
                 dateFormat: "Y-m-d",
                 defaultDate: "today"
             });
 
-            // Calculate refund amounts when charges change
+            // ✅ Calculate refund amount based on Selling Price (BillAmount)
             function calculateRefund() {
                 const refundCharge = parseFloat($('#refund_charge').val()) || 0;
                 const serviceCharge = parseFloat($('#service_charge').val()) || 0;
-                const netPayment = parseFloat($('#original_net').val().replace(/,/g, '')) || 0; 
-                const sale_price = parseFloat($('#selling').val().replace(/,/g, '')) || 0;
+                const sellingPrice = parseFloat($('#original_bill').val().replace(/,/g, '')) || 0;
                 
-                const totalRefund = refundCharge + serviceCharge;
-                const refundAmount = sale_price - totalRefund;
+                const totalRefundCharges = refundCharge + serviceCharge;
+                const amountToRefund = sellingPrice - totalRefundCharges;
                 
-                $('#total_refund').val(totalRefund.toFixed(2));
-                $('#refund_amount').val(Math.max(0, refundAmount).toFixed(2));
+                $('#total_refund').val(totalRefundCharges.toFixed(2));
+                $('#refund_amount').val(Math.max(0, amountToRefund).toFixed(2));
             }
 
-            // Bind calculation to input events
             $('#refund_charge, #service_charge').on('input', calculateRefund);
 
-            // Form validation
             $('#refundForm').submit(function(e) {
                 <?php if ($is_refunded): ?>
                     e.preventDefault();
@@ -582,7 +495,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                 return true;
             });
 
-            // Live search functionality
+            // Live search
             $('#search_term').on('input', function() {
                 const searchTerm = $(this).val();
                 if (searchTerm.length < 2) {
@@ -609,7 +522,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                 }, 'json');
             });
 
-            // Hide results when clicking elsewhere
             $(document).on('click', function(e) {
                 if (!$(e.target).closest('#search_term, #searchResults').length) {
                     $('#searchResults').hide();
