@@ -60,6 +60,10 @@ require 'auth_check.php';
         .table-hover tbody tr:hover {
             background-color: rgba(52, 152, 219, 0.1);
         }
+        .btn-edit {
+            padding: 2px 8px;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
@@ -73,27 +77,21 @@ require 'auth_check.php';
         <div class="filter-section">
             <form method="GET" action="">
                 <div class="row g-3">
-                    <!-- Search by PNR/PartyName/InvoiceNo -->
                     <div class="col-md-3">
                         <label for="search" class="form-label">Search (Party Name/PNR/Invoice No)</label>
                         <input type="text" class="form-control" id="search" name="search" 
                                value="<?php echo isset($_GET['search']) ? htmlspecialchars($_GET['search']) : ''; ?>">
                     </div>
-                    
-                    <!-- Date Filter -->
                     <div class="col-md-2">
                         <label for="from_date" class="form-label">From Date</label>
                         <input type="date" class="form-control" id="from_date" name="from_date"
                                value="<?php echo isset($_GET['from_date']) ? htmlspecialchars($_GET['from_date']) : ''; ?>">
                     </div>
-                    
                     <div class="col-md-2">
                         <label for="to_date" class="form-label">To Date</label>
                         <input type="date" class="form-control" id="to_date" name="to_date"
                                value="<?php echo isset($_GET['to_date']) ? htmlspecialchars($_GET['to_date']) : ''; ?>">
                     </div>
-                    
-                    <!-- Payment Method Filter -->
                     <div class="col-md-2">
                         <label for="payment_method" class="form-label">Payment Method</label>
                         <select class="form-select" id="payment_method" name="payment_method">
@@ -104,17 +102,13 @@ require 'auth_check.php';
                             <option value="Mobile Banking" <?php echo (isset($_GET['payment_method']) && $_GET['payment_method'] == 'Mobile Banking') ? 'selected' : ''; ?>>Mobile Banking</option>
                         </select>
                     </div>
-                    
-                    <!-- Sales Person Filter -->
                     <div class="col-md-2">
                         <label for="sales_person" class="form-label">Sales Person</label>
                         <select class="form-select" id="sales_person" name="sales_person">
                             <option value="">All</option>
                             <?php
-                            // Fetch sales persons from sales_person table
                             $sales_persons_query = "SELECT id, name FROM sales_person";
                             $sales_persons_result = mysqli_query($conn, $sales_persons_query);
-                            
                             if ($sales_persons_result && mysqli_num_rows($sales_persons_result) > 0) {
                                 while ($row = mysqli_fetch_assoc($sales_persons_result)) {
                                     $selected = (isset($_GET['sales_person']) && $_GET['sales_person'] == $row['id']) ? 'selected' : '';
@@ -124,18 +118,11 @@ require 'auth_check.php';
                             ?>
                         </select>
                     </div>
-                    
-                    <!-- Action Buttons -->
                     <div class="col-md-1 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary me-2">
-                            <i class="fas fa-search"></i> Search
-                        </button>
+                        <button type="submit" class="btn btn-primary me-2"><i class="fas fa-search"></i> Search</button>
                     </div>
-                    
                     <div class="col-md-1 d-flex align-items-end">
-                        <a href="received_payments.php" class="btn btn-clear">
-                            <i class="fas fa-times"></i> Clear
-                        </a>
+                        <a href="received_payments.php" class="btn btn-clear"><i class="fas fa-times"></i> Clear</a>
                     </div>
                 </div>
             </form>
@@ -153,11 +140,11 @@ require 'auth_check.php';
                         <th>Payment History</th>
                         <th>Notes</th>
                         <th>Sales Person</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php
-                    // Build the query based on filters
                     $query = "SELECT 
                                 s.SaleID, 
                                 s.PartyName, 
@@ -182,37 +169,27 @@ require 'auth_check.php';
                     $params = [];
                     $types = "";
                     
-                    // Apply search filter
                     if (isset($_GET['search']) && !empty($_GET['search'])) {
                         $search = "%" . $_GET['search'] . "%";
                         $query .= " AND (s.PartyName LIKE ? OR s.invoice_number LIKE ? OR s.PNR LIKE ?)";
-                        $params[] = $search;
-                        $params[] = $search;
-                        $params[] = $search;
+                        $params[] = $search; $params[] = $search; $params[] = $search;
                         $types .= "sss";
                     }
-                    
-                    // Apply date filter
                     if (isset($_GET['from_date']) && !empty($_GET['from_date'])) {
                         $query .= " AND p.PaymentDate >= ?";
                         $params[] = $_GET['from_date'];
                         $types .= "s";
                     }
-                    
                     if (isset($_GET['to_date']) && !empty($_GET['to_date'])) {
                         $query .= " AND p.PaymentDate <= ?";
                         $params[] = $_GET['to_date'];
                         $types .= "s";
                     }
-                    
-                    // Apply payment method filter
                     if (isset($_GET['payment_method']) && !empty($_GET['payment_method'])) {
                         $query .= " AND p.PaymentMethod = ?";
                         $params[] = $_GET['payment_method'];
                         $types .= "s";
                     }
-                    
-                    // Apply sales person filter
                     if (isset($_GET['sales_person']) && !empty($_GET['sales_person'])) {
                         $query .= " AND s.SalesPersonName = ?";
                         $params[] = $_GET['sales_person'];
@@ -221,108 +198,166 @@ require 'auth_check.php';
                     
                     $query .= " ORDER BY p.PaymentDate DESC, p.PaymentID DESC";
                     
-                    // Debug: Uncomment to see the query
-                    // echo "<!-- Query: " . $query . " -->";
-                    
-                    // Prepare and execute the query
                     $stmt = mysqli_prepare($conn, $query);
-                    
                     if (!empty($params)) {
                         mysqli_stmt_bind_param($stmt, $types, ...$params);
                     }
-                    
                     mysqli_stmt_execute($stmt);
                     $result = mysqli_stmt_get_result($stmt);
                     
-                    $has_results = false;
-                    
                     if ($result && mysqli_num_rows($result) > 0) {
-                        $has_results = true;
                         while ($row = mysqli_fetch_assoc($result)) {
-                            // Calculate due amount
                             $due_amount = $row['BillAmount'] - $row['Amount'];
-                            
-                            // Format dates
                             $issue_date = date('d M Y', strtotime($row['IssueDate']));
                             $payment_date = date('d M Y', strtotime($row['PaymentDate']));
-                            
-                            // Calculate days passed
                             $days_passed = floor((strtotime($row['PaymentDate']) - strtotime($row['IssueDate'])) / (60 * 60 * 24));
                             
                             echo "<tr>";
-
-                            // Party Name
-                            echo "<td>
-                                    <div><strong>" . htmlspecialchars($row['PartyName']) . "</strong></div>
-                                  </td>";
-                            
-                            // Invoice No / PNR
-                            echo "<td>
-                                    <div><strong>" . htmlspecialchars($row['invoice_number']) . "</strong></div>
-                                    <div class='text-muted small'>PNR: " . (isset($row['PNR']) && !empty($row['PNR']) ? htmlspecialchars($row['PNR']) : 'N/A') . "</div>
-                                  </td>";
-                            
-                            // Issue Date / Day Passes
-                            echo "<td>
-                                    <div>" . $issue_date . "</div>
-                                    <div class='text-muted small'>" . $days_passed . " days passed</div>
-                                  </td>";
-                            
-                            // Bill / Received / Due Amount
-                            echo "<td>
-                                    <div>Bill: " . number_format($row['BillAmount'], 2) . "</div>
-                                    <div class='received-amount'>Received: " . number_format($row['Amount'], 2) . "</div>
-                                    <div class='due-amount'>Due: " . number_format($due_amount, 2) . "</div>
-                                  </td>";
-                            
-                            // Payment Method / Bank / Date
-                            echo "<td>
-                                    <div class='payment-method'>" . htmlspecialchars($row['PaymentMethod']) . "</div>
-                                    <div class='text-muted small'>" . (empty($row['BankName']) ? 'N/A' : htmlspecialchars($row['BankName'])) . "</div>
-                                    <div class='text-muted small'>" . $payment_date . "</div>
-                                  </td>";
-                            
-                            // Notes
+                            echo "<td><strong>" . htmlspecialchars($row['PartyName']) . "</strong></td>";
+                            echo "<td><strong>" . htmlspecialchars($row['invoice_number']) . "</strong><br><small class='text-muted'>PNR: " . (empty($row['PNR']) ? 'N/A' : htmlspecialchars($row['PNR'])) . "</small></td>";
+                            echo "<td>" . $issue_date . "<br><small class='text-muted'>" . $days_passed . " days passed</small></td>";
+                            echo "<td>Bill: " . number_format($row['BillAmount'], 2) . "<br><span class='received-amount'>Received: " . number_format($row['Amount'], 2) . "</span><br><span class='due-amount'>Due: " . number_format($due_amount, 2) . "</span></td>";
+                            echo "<td><span class='payment-method'>" . htmlspecialchars($row['PaymentMethod']) . "</span><br><small class='text-muted'>" . (empty($row['BankName']) ? 'N/A' : htmlspecialchars($row['BankName'])) . "</small><br><small class='text-muted'>" . $payment_date . "</small></td>";
                             echo "<td>" . (empty($row['Notes']) ? 'N/A' : htmlspecialchars($row['Notes'])) . "</td>";
-                            
-                            // Sales Person
                             echo "<td>" . (empty($row['SalesPersonName']) ? 'N/A' : htmlspecialchars($row['SalesPersonName'])) . "</td>";
-                            
+                            echo "<td><button class='btn btn-sm btn-primary btn-edit' data-paymentid='{$row['PaymentID']}' data-saleid='{$row['SaleID']}' data-amount='{$row['Amount']}' data-paymentdate='{$row['PaymentDate']}' data-paymentmethod='{$row['PaymentMethod']}' data-bankname='" . htmlspecialchars($row['BankName']) . "' data-notes='" . htmlspecialchars($row['Notes']) . "'><i class='fas fa-edit'></i> Edit</button></td>";
                             echo "</tr>";
                         }
                     } else {
-                        echo "<tr><td colspan='7' class='text-center py-4'>No payment records found</td></tr>";
+                        echo "<tr><td colspan='8' class='text-center py-4'>No payment records found</td></tr>";
                     }
-                    
-                    // Close statement
-                    if (isset($stmt)) {
-                        mysqli_stmt_close($stmt);
-                    }
+                    mysqli_stmt_close($stmt);
                     ?>
                 </tbody>
             </table>
         </div>
     </div>
 
-    <!-- Bootstrap JS -->
+    <!-- Edit Payment Modal -->
+    <div class="modal fade" id="editPaymentModal" tabindex="-1" aria-labelledby="editPaymentModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editPaymentModalLabel">Edit Payment</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editPaymentForm">
+                        <input type="hidden" id="edit_payment_id" name="payment_id">
+                        <input type="hidden" id="edit_sale_id" name="sale_id">
+                        <div class="mb-3">
+                            <label for="edit_amount" class="form-label">Amount (Taka) *</label>
+                            <input type="number" step="0.01" class="form-control" id="edit_amount" name="amount" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_payment_date" class="form-label">Payment Date *</label>
+                            <input type="date" class="form-control" id="edit_payment_date" name="payment_date" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_payment_method" class="form-label">Payment Method *</label>
+                            <select class="form-select" id="edit_payment_method" name="payment_method" required>
+                                <option value="Cash">Cash</option>
+                                <option value="Bank Transfer">Bank Transfer</option>
+                                <option value="Check">Check</option>
+                                <option value="Mobile Banking">Mobile Banking</option>
+                            </select>
+                        </div>
+                        <div class="mb-3" id="edit_bank_group" style="display:none;">
+                            <label for="edit_bank_name" class="form-label">Bank Name</label>
+                            <input type="text" class="form-control" id="edit_bank_name" name="bank_name">
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_notes" class="form-label">Notes</label>
+                            <textarea class="form-control" id="edit_notes" name="notes" rows="2"></textarea>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Update Payment</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS + jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
-        // Add some interactivity
-        document.addEventListener('DOMContentLoaded', function() {
-            // Auto-fill date fields if needed
-            const today = new Date().toISOString().split('T')[0];
+        $(document).ready(function() {
+            // Handle Edit button click
+            $('.btn-edit').click(function() {
+                var paymentId = $(this).data('paymentid');
+                var saleId = $(this).data('saleid');
+                var amount = $(this).data('amount');
+                var paymentDate = $(this).data('paymentdate');
+                var paymentMethod = $(this).data('paymentmethod');
+                var bankName = $(this).data('bankname');
+                var notes = $(this).data('notes');
+                
+                $('#edit_payment_id').val(paymentId);
+                $('#edit_sale_id').val(saleId);
+                $('#edit_amount').val(amount);
+                $('#edit_payment_date').val(paymentDate);
+                $('#edit_payment_method').val(paymentMethod);
+                $('#edit_notes').val(notes);
+                
+                // Show/hide bank field
+                if (paymentMethod === 'Bank Transfer' || paymentMethod === 'Check') {
+                    $('#edit_bank_group').show();
+                    $('#edit_bank_name').val(bankName);
+                } else {
+                    $('#edit_bank_group').hide();
+                    $('#edit_bank_name').val('');
+                }
+                
+                $('#editPaymentModal').modal('show');
+            });
             
-            // If from_date is empty, set to 30 days ago
-            if (!document.getElementById('from_date').value) {
+            // Show/hide bank field on method change
+            $('#edit_payment_method').change(function() {
+                var method = $(this).val();
+                if (method === 'Bank Transfer' || method === 'Check') {
+                    $('#edit_bank_group').show();
+                } else {
+                    $('#edit_bank_group').hide();
+                    $('#edit_bank_name').val('');
+                }
+            });
+            
+            // Submit edit form via AJAX
+            $('#editPaymentForm').submit(function(e) {
+                e.preventDefault();
+                var formData = $(this).serialize();
+                $.ajax({
+                    url: 'update_payment.php',
+                    type: 'POST',
+                    data: formData,
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.success) {
+                            alert('Payment updated successfully!');
+                            location.reload();
+                        } else {
+                            alert('Error: ' + response.message);
+                        }
+                    },
+                    error: function() {
+                        alert('Server error. Please try again.');
+                    }
+                });
+            });
+            
+            // Auto-fill date filters if empty
+            const today = new Date().toISOString().split('T')[0];
+            if (!$('#from_date').val()) {
                 const thirtyDaysAgo = new Date();
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                document.getElementById('from_date').value = thirtyDaysAgo.toISOString().split('T')[0];
+                $('#from_date').val(thirtyDaysAgo.toISOString().split('T')[0]);
             }
-            
-            // If to_date is empty, set to today
-            if (!document.getElementById('to_date').value) {
-                document.getElementById('to_date').value = today;
+            if (!$('#to_date').val()) {
+                $('#to_date').val(today);
             }
         });
     </script>
