@@ -34,7 +34,7 @@ define('SMTP_SECURE', 'tls');
 define('SMTP_PORT', 587);
 
 // Website configuration
-define('BASE_URL', 'http://localhost/faithtrip/accounts/'); // Change to your base URL
+define('BASE_URL', 'http://localhost/faithtrip/'); // Change to your base URL
 
 // Create database connection
 try {

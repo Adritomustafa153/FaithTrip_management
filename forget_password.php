@@ -4,7 +4,12 @@ require 'vendor/autoload.php';
 require 'configs.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception;
+
+// Enable error reporting for debugging (remove in production)
+// error_reporting(E_ALL);
+// ini_set('display_errors', 1);
 
 // Generate CSRF token if not exists
 if (empty($_SESSION['csrf_token'])) {
@@ -48,13 +53,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['email'])) {
             
             try {
                 // Server settings
+                $mail->SMTPDebug = 0;                      // 0 = off, 1 = errors, 2 = full debug
                 $mail->isSMTP();
-                $mail->Host = SMTP_HOST;
-                $mail->SMTPAuth = true;
-                $mail->Username = SMTP_USER;
-                $mail->Password = SMTP_PASS;
-                $mail->SMTPSecure = SMTP_SECURE;
-                $mail->Port = SMTP_PORT;
+                $mail->Host       = 'smtp.gmail.com';
+                $mail->SMTPAuth   = true;
+                $mail->Username   = 'faithtrip.net@gmail.com';
+                $mail->Password   = 'hhbz fwis jioi fhpr';
+                $mail->SMTPSecure = 'tls';
+                $mail->Port       = 587;
                 
                 // Recipients
                 $mail->setFrom(SMTP_USER, 'Faith Travels and Tours LTD');
@@ -73,20 +79,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['email'])) {
                     <br>
                     <p>Best regards,<br>Faith Travels and Tours LTD</p>
                 ";
-                
                 $mail->AltBody = "Password Reset Request\n\nHello " . $user['UserName'] . ",\n\nYou requested a password reset. Use this link to reset your password: $reset_link\n\nThis link will expire in 1 hour.\n\nIf you didn't request this reset, please ignore this email.";
                 
                 $mail->send();
-                
                 $message = 'Password reset instructions have been sent to your email.';
                 $message_type = 'success';
             } catch (Exception $e) {
-                $message = 'Failed to send email. Please try again later. Error: ' . $mail->ErrorInfo;
+                // Log error to file instead of showing to user
+                error_log("PHPMailer Error: " . $mail->ErrorInfo);
+                $message = 'Failed to send email. Please try again later.';
                 $message_type = 'error';
             }
         } else {
+            // Security: don't reveal if email exists or not
             $message = 'If this email exists in our system, you will receive a password reset link.';
-            $message_type = 'success'; // Don't reveal if email exists or not
+            $message_type = 'success';
         }
     }
 }
@@ -107,8 +114,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['email'])) {
         }
         .container {
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s ease;
-            color: rgba(70, 46, 250, 0.43);
         }
         .input-field:focus {
             box-shadow: 0 0 0 3px rgba(232, 239, 250, 0.3);
@@ -130,7 +135,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['email'])) {
     <div class="container w-full max-w-md bg-white rounded-xl p-8">
         <div class="flex flex-col items-center">
             <img src="logo.jpg" alt="BillBoard Logo" class="h-20 mb-6">
-            
             <div class="handwriting text-center mb-6">
                 Reset <span class="brand-primary">Password</span>
             </div>
@@ -145,19 +149,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['email'])) {
             
             <form action="forget_password.php" method="POST" class="w-full">
                 <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-                
                 <div class="mb-5">
                     <label for="email" class="block text-sm font-medium text-gray-600 mb-1">Email</label>
                     <input type="email" id="email" name="email" required 
                         class="input-field p-3 w-full border border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 transition"
                         autocomplete="email">
                 </div>
-                
                 <button type="submit"
                     class="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition mb-4">
                     Send Reset Instructions
                 </button>
-                
                 <div class="text-center">
                     <a href="login.php" class="text-blue-500 hover:text-blue-700 hover:underline">Back to Login</a>
                 </div>
