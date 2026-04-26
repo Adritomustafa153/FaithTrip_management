@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once __DIR__ . '/../access_control.php';
+require_once __DIR__ . '/access_control.php';  // ✅ correct slash
 
 $conn = getDbConnection();
 
@@ -27,15 +27,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['is_test_user'] = ($user['role'] === 'test');
         $_SESSION['permissions'] = loadUserPermissions($user['UserID']);
 
-        // Reset attempts and update last login
         $upd = $conn->prepare("UPDATE user SET login_attempts = 0, last_login = NOW() WHERE UserID = ?");
         $upd->bind_param('i', $user['UserID']);
         $upd->execute();
 
-        header('Location:dashboard.php');
+        header('Location: dashboard.php');
         exit;
     } else {
-        // Increase attempts
         if ($user) {
             $attempts = $user['login_attempts'] + 1;
             $lock = $attempts >= 5 ? 1 : 0;
