@@ -1,370 +1,281 @@
 <?php
-include 'auth_check.php';
-include 'db.php';
+session_start();
+require_once __DIR__ . '/../access_control.php';
+requirePermission('user.manage');
 
-// Initialize variables
-$userName = $email = $dob = $nid = $password = $image = "";
-$role = "User"; // Default role
+$conn = getDbConnection();
+
+$roles = [];
+$roleRes = $conn->query("SELECT role_name FROM roles ORDER BY role_name");
+if ($roleRes && $roleRes->num_rows) {
+    while ($r = $roleRes->fetch_assoc()) $roles[] = $r['role_name'];
+} else {
+    $roles = ['super_admin', 'admin_master', 'accounts', 'sales', 'reservation', 'test'];
+}
+
+$userName = $email = $dob = $nid = '';
+$role = 'sales';
 $errors = [];
-$success = "";
+$success = '';
 
-// Process form submission
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Validate and sanitize inputs
-    $userName = trim($_POST["userName"]);
-    $email = trim($_POST["email"]);
-    $role = $_POST["role"];
-    $dob = $_POST["dob"];
-    $nid = trim($_POST["nid"]);
-    $password = trim($_POST["password"]);
-    $confirmPassword = trim($_POST["confirmPassword"]);
-    
-    // Validate inputs
-    if (empty($userName)) {
-        $errors[] = "User Name is required";
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $userName = trim($_POST['userName']);
+    $email = trim($_POST['email']);
+    $role = $_POST['role'];
+    $dob = $_POST['dob'];
+    $nid = trim($_POST['nid']);
+    $password = $_POST['password'];
+    $confirm = $_POST['confirmPassword'];
+
+    // Validations
+    if (empty($userName)) $errors[] = "Full name is required";
+    if (empty($email)) $errors[] = "Email is required";
+    elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Invalid email format";
+    else {
+        $chk = $conn->prepare("SELECT UserID FROM user WHERE email = ?");
+        $chk->bind_param('s', $email);
+        $chk->execute();
+        $chk->store_result();
+        if ($chk->num_rows > 0) $errors[] = "Email already taken";
+        $chk->close();
     }
-    
-    if (empty($email)) {
-        $errors[] = "Email is required";
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $errors[] = "Invalid email format";
+    if (empty($password)) $errors[] = "Password is required";
+    else {
+        if (strlen($password) < 8) $errors[] = "Password must be at least 8 characters";
+        if (!preg_match('/[A-Z]/', $password)) $errors[] = "Password must contain an uppercase letter";
+        if (!preg_match('/[a-z]/', $password)) $errors[] = "Password must contain a lowercase letter";
+        if (preg_match_all('/\d/', $password) < 2) $errors[] = "Password must contain at least two numbers";
+        if (!preg_match('/[!@#$%^&*(),.?":{}|<>]/', $password)) $errors[] = "Password must contain a special character";
     }
-    
-    if (empty($password)) {
-        $errors[] = "Password is required";
-    } elseif (strlen($password) < 6) {
-        $errors[] = "Password must be at least 6 characters";
-    } elseif ($password !== $confirmPassword) {
-        $errors[] = "Passwords do not match";
-    }
-    
-    // Process image upload if no errors
-    if (empty($errors)) {
-        // Handle image upload
-        $imagePath = "";
-        if (isset($_FILES["image"]) && $_FILES["image"]["error"] == UPLOAD_ERR_OK) {
-            $targetDir = "uploads/";
-            if (!file_exists($targetDir)) {
-                mkdir($targetDir, 0777, true);
-            }
-            
-            $fileName = basename($_FILES["image"]["name"]);
-            $targetFilePath = $targetDir . $fileName;
-            $fileType = pathinfo($targetFilePath, PATHINFO_EXTENSION);
-            
-            // Allow certain file formats
-            $allowedTypes = array('jpg', 'png', 'jpeg', 'gif');
-            if (in_array($fileType, $allowedTypes)) {
-                // Upload file to server
-                if (move_uploaded_file($_FILES["image"]["tmp_name"], $targetFilePath)) {
-                    $imagePath = $targetFilePath;
-                } else {
-                    $errors[] = "Sorry, there was an error uploading your file.";
-                }
+    if ($password !== $confirm) $errors[] = "Passwords do not match";
+
+    // ========== FIXED IMAGE UPLOAD – saves to accounts/uploads/ ==========
+    $imagePath = '';
+    if (empty($errors) && isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+        // Target folder: faithtrip/accounts/uploads/
+        $uploadDir = __DIR__ . '/uploads/';   // current directory (accounts/) + /uploads/
+        
+        // Create folder if missing
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+        
+        $ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
+        $allowed = ['jpg', 'jpeg', 'png', 'gif'];
+        if (in_array($ext, $allowed)) {
+            $fileName = 'user_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+            $targetFile = $uploadDir . $fileName;
+            if (move_uploaded_file($_FILES['image']['tmp_name'], $targetFile)) {
+                // Store path relative to the accounts/ folder
+                $imagePath = 'uploads/' . $fileName;
             } else {
-                $errors[] = "Sorry, only JPG, JPEG, PNG & GIF files are allowed.";
+                $errors[] = "Failed to move uploaded file. Check folder permissions (accounts/uploads/ must be writable).";
             }
-        }
-        
-        // Hash the password
-        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-        
-        // Prepare and bind
-        $stmt = $conn->prepare("INSERT INTO user (UserName, role, email, DateOfBirth, NIDNumber, Password, image) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssssss", $userName, $role, $email, $dob, $nid, $hashedPassword, $imagePath);
-        
-        // Execute the statement
-        if ($stmt->execute()) {
-            $success = "User added successfully!";
-            // Clear form
-            $userName = $email = $dob = $nid = $password = "";
         } else {
-            $errors[] = "Error: " . $stmt->error;
+            $errors[] = "Only JPG, JPEG, PNG, GIF allowed.";
         }
-        
+    }
+    // ================================================================
+
+    if (empty($errors)) {
+        $hashed = password_hash($password, PASSWORD_DEFAULT);
+        $stmt = $conn->prepare("INSERT INTO user (UserName, role, email, DateOfBirth, NIDNumber, Password, image) VALUES (?,?,?,?,?,?,?)");
+        $stmt->bind_param("sssssss", $userName, $role, $email, $dob, $nid, $hashed, $imagePath);
+        if ($stmt->execute()) {
+            $success = "User created successfully!";
+            $userName = $email = $dob = $nid = '';
+        } else $errors[] = "Database error: " . $stmt->error;
         $stmt->close();
     }
 }
-
-
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add New User</title>
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome -->
+    <title>Create User</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        body {
-            background-color: #f8f9fa;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .card {
-            border-radius: 15px;
-            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
-            border: none;
-        }
-        .card-header {
-            background-color: #4e73df;
-            color: white;
-            border-radius: 15px 15px 0 0 !important;
-            padding: 1.5rem;
-        }
-        .form-control, .form-select {
-            border-radius: 8px;
-            padding: 12px;
-            border: 1px solid #d1d3e2;
-        }
-        .form-control:focus, .form-select:focus {
-            border-color: #bac8f3;
-            box-shadow: 0 0 0 0.25rem rgba(78, 115, 223, 0.25);
-        }
-        .btn-primary {
-            background-color: #4e73df;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-weight: 600;
-        }
-        .btn-primary:hover {
-            background-color: #3a5bbf;
-        }
-        .error {
-            color: #e74a3b;
-            font-size: 0.875rem;
-        }
-        .success {
-            color: #1cc88a;
-            font-size: 1rem;
-            font-weight: 600;
-        }
-        .profile-image-container {
-            width: 150px;
-            height: 150px;
-            border-radius: 50%;
-            background-color: #f8f9fa;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            margin: 0 auto 20px;
-            border: 3px solid #e3e6f0;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .profile-image-container:hover {
-            border-color: #bac8f3;
-        }
-        .profile-image {
-            max-width: 100%;
-            max-height: 100%;
-            display: none;
-        }
-        .upload-icon {
-            font-size: 3rem;
-            color: #d1d3e2;
-        }
-        #imageLabel {
-            display: block;
-            text-align: center;
-            cursor: pointer;
-        }
-        .required-field::after {
-            content: " *";
-            color: #e74a3b;
-        }
+        body { background: #f4f6f9; }
+        .card { border-radius: 1rem; }
+        .profile-img-container { width: 120px; height: 120px; border-radius: 50%; background: #e9ecef; display: flex; align-items: center; justify-content: center; margin: 0 auto; cursor: pointer; overflow: hidden; border: 3px solid white; box-shadow: 0 0.2rem 0.5rem rgba(0,0,0,0.1); }
+        .rule-item { font-size: 0.85rem; margin-bottom: 0.3rem; color: #6c757d; }
+        .rule-item.valid { color: #28a745; }
+        .rule-item i { width: 1.2rem; }
     </style>
 </head>
 <body>
-    <?php include 'nav.php' ?>
-    <div class="container py-5">
-        <div class="row justify-content-center">
-            <div class="col-lg-8">
-                <div class="card">
-                    <div class="card-header text-center">
-                        <h3><i class="fas fa-user-plus me-2"></i>Add New User</h3>
-                    </div>
-                    <div class="card-body p-4">
-                        <?php if (!empty($errors)): ?>
-                            <div class="alert alert-danger">
-                                <ul class="mb-0">
-                                    <?php foreach ($errors as $error): ?>
-                                        <li><?php echo htmlspecialchars($error); ?></li>
+<?php include 'nav.php'; ?>
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white text-center">
+                    <i class="fas fa-user-plus fa-2x"></i>
+                    <h3 class="mb-0">Create New User</h3>
+                </div>
+                <div class="card-body p-4">
+                    <?php if ($errors): ?>
+                        <div class="alert alert-danger"><?= implode('<br>', array_map('htmlspecialchars', $errors)) ?></div>
+                    <?php endif; ?>
+                    <?php if ($success): ?>
+                        <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
+                    <?php endif; ?>
+
+                    <form method="post" enctype="multipart/form-data" id="userForm">
+                        <div class="text-center mb-4">
+                            <label for="imageInput" class="profile-img-container">
+                                <i class="fas fa-camera fa-3x text-secondary" id="defaultIcon"></i>
+                                <img id="previewImage" src="#" style="display:none; width:100%; height:100%; object-fit:cover;">
+                            </label>
+                            <input type="file" id="imageInput" name="image" accept="image/*" class="d-none">
+                            <div class="text-muted small mt-1">Click to upload profile picture</div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Full Name <span class="text-danger">*</span></label>
+                                <input type="text" name="userName" class="form-control" value="<?= htmlspecialchars($userName) ?>" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Email <span class="text-danger">*</span></label>
+                                <input type="email" name="email" id="email" class="form-control" value="<?= htmlspecialchars($email) ?>" autocomplete="off" required>
+                                <div id="emailStatus" class="small mt-1"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Role <span class="text-danger">*</span></label>
+                                <select name="role" class="form-select" required>
+                                    <?php foreach ($roles as $r): ?>
+                                        <option value="<?= $r ?>" <?= $role === $r ? 'selected' : '' ?>><?= ucfirst($r) ?></option>
                                     <?php endforeach; ?>
-                                </ul>
+                                </select>
                             </div>
-                        <?php endif; ?>
-                        
-                        <?php if ($success): ?>
-                            <div class="alert alert-success">
-                                <?php echo htmlspecialchars($success); ?>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Date of Birth</label>
+                                <input type="date" name="dob" class="form-control" value="<?= htmlspecialchars($dob) ?>">
                             </div>
-                        <?php endif; ?>
-                        
-                        <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post" enctype="multipart/form-data">
-                            <div class="mb-4 text-center">
-                                <label for="image" id="imageLabel">
-                                    <div class="profile-image-container">
-                                        <i class="fas fa-user-circle upload-icon"></i>
-                                        <img id="profileImage" class="profile-image" src="#" alt="Profile Image">
-                                    </div>
-                                    <span class="text-muted">Click to upload profile image</span>
-                                </label>
-                                <input type="file" class="form-control d-none" id="image" name="image" accept="image/*">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">NID Number</label>
+                                <input type="text" name="nid" class="form-control" value="<?= htmlspecialchars($nid) ?>">
                             </div>
-                            
-                            <div class="row mb-3">
-                                <div class="col-md-6 mb-3 mb-md-0">
-                                    <label for="userName" class="form-label required-field">Full Name</label>
-                                    <input type="text" class="form-control" id="userName" name="userName" value="<?php echo htmlspecialchars($userName); ?>" required>
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="email" class="form-label required-field">Email</label>
-                                    <input type="email" class="form-control" id="email" name="email" value="<?php echo htmlspecialchars($email); ?>" required>
-                                </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Password <span class="text-danger">*</span></label>
+                                <input type="password" id="password" name="password" class="form-control" required>
                             </div>
-                            
-                            <div class="row mb-3">
-                                <div class="col-md-6 mb-3 mb-md-0">
-                                    <label for="role" class="form-label required-field">Role</label>
-                                    <select class="form-select" id="role" name="role" required>
-                                        <option value="User" <?php echo $role === 'User' ? 'selected' : ''; ?>>User</option>
-                                        <option value="Admin" <?php echo $role === 'Admin' ? 'selected' : ''; ?>>Admin</option>
-                                        <option value="Accounts" <?php echo $role === 'Accounts' ? 'selected' : ''; ?>>Accounts</option>
-                                        <option value="Sales" <?php echo $role === 'Sales' ? 'selected' : ''; ?>>Sales</option>
-                                        <option value="Management" <?php echo $role === 'Management' ? 'selected' : ''; ?>>Management</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="dob" class="form-label">Date of Birth</label>
-                                    <input type="date" class="form-control" id="dob" name="dob" value="<?php echo htmlspecialchars($dob); ?>">
-                                </div>
-                            </div>
-                            
-                            <div class="row mb-3">
-                                <div class="col-md-6 mb-3 mb-md-0">
-                                    <label for="nid" class="form-label">NID Number</label>
-                                    <input type="text" class="form-control" id="nid" name="nid" value="<?php echo htmlspecialchars($nid); ?>">
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="password" class="form-label required-field">Password</label>
-                                    <div class="input-group">
-                                        <input type="password" class="form-control" id="password" name="password" required>
-                                        <button class="btn btn-outline-secondary" type="button" id="togglePassword">
-                                            <i class="fas fa-eye"></i>
-                                        </button>
-                                    </div>
-                                    <div class="form-text">Minimum 6 characters</div>
-                                </div>
-                            </div>
-                            
-                            <div class="mb-4">
-                                <label for="confirmPassword" class="form-label required-field">Confirm Password</label>
-                                <div class="input-group">
-                                    <input type="password" class="form-control" id="confirmPassword" name="confirmPassword" required>
-                                    <button class="btn btn-outline-secondary" type="button" id="toggleConfirmPassword">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                </div>
-                                <div id="passwordMatch" class="error"></div>
-                            </div>
-                            
-                            <div class="d-grid">
-                                <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
-                                    <i class="fas fa-user-plus me-2"></i>Add User
-                                </button>
-                            </div>
-                        </form>
-                    </div>
+                        </div>
+
+                        <div class="mt-3 bg-light p-3 rounded">
+                            <small class="text-muted d-block mb-2">Password must meet:</small>
+                            <div id="ruleLength" class="rule-item"><i class="far fa-circle"></i> Minimum 8 characters</div>
+                            <div id="ruleUpper" class="rule-item"><i class="far fa-circle"></i> One uppercase letter</div>
+                            <div id="ruleLower" class="rule-item"><i class="far fa-circle"></i> One lowercase letter</div>
+                            <div id="ruleNumber" class="rule-item"><i class="far fa-circle"></i> At least two numbers</div>
+                            <div id="ruleSpecial" class="rule-item"><i class="far fa-circle"></i> One special character</div>
+                        </div>
+
+                        <div class="mt-3">
+                            <label class="form-label fw-semibold">Confirm Password <span class="text-danger">*</span></label>
+                            <input type="password" id="confirmPassword" name="confirmPassword" class="form-control" required>
+                            <div id="matchMsg" class="text-danger small mt-1"></div>
+                        </div>
+
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" id="submitBtn" class="btn btn-primary btn-lg" disabled>Create User</button>
+                            <a href="users.php" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Bootstrap JS Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Image preview
-        document.getElementById('image').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const profileImage = document.getElementById('profileImage');
-                    profileImage.src = e.target.result;
-                    profileImage.style.display = 'block';
-                    document.querySelector('.upload-icon').style.display = 'none';
-                }
-                reader.readAsDataURL(file);
-            }
-        });
+<script>
+// Image preview
+const imgInput = document.getElementById('imageInput');
+const preview = document.getElementById('previewImage');
+const defaultIcon = document.getElementById('defaultIcon');
+imgInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            preview.src = ev.target.result;
+            preview.style.display = 'block';
+            defaultIcon.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+    } else {
+        preview.style.display = 'none';
+        defaultIcon.style.display = 'block';
+    }
+});
 
-        // Toggle password visibility
-        document.getElementById('togglePassword').addEventListener('click', function() {
-            const password = document.getElementById('password');
-            const icon = this.querySelector('i');
-            if (password.type === 'password') {
-                password.type = 'text';
-                icon.classList.remove('fa-eye');
-                icon.classList.add('fa-eye-slash');
-            } else {
-                password.type = 'password';
-                icon.classList.remove('fa-eye-slash');
-                icon.classList.add('fa-eye');
-            }
-        });
-
-        // Toggle confirm password visibility
-        document.getElementById('toggleConfirmPassword').addEventListener('click', function() {
-            const confirmPassword = document.getElementById('confirmPassword');
-            const icon = this.querySelector('i');
-            if (confirmPassword.type === 'password') {
-                confirmPassword.type = 'text';
-                icon.classList.remove('fa-eye');
-                icon.classList.add('fa-eye-slash');
-            } else {
-                confirmPassword.type = 'password';
-                icon.classList.remove('fa-eye-slash');
-                icon.classList.add('fa-eye');
-            }
-        });
-
-        // Password match validation
-        document.getElementById('confirmPassword').addEventListener('input', function() {
-            const password = document.getElementById('password').value;
-            const confirmPassword = this.value;
-            const matchMessage = document.getElementById('passwordMatch');
-            
-            if (confirmPassword !== '') {
-                if (password !== confirmPassword) {
-                    matchMessage.textContent = 'Passwords do not match';
-                    document.getElementById('submitBtn').disabled = true;
+// Email duplicate check
+const emailField = document.getElementById('email');
+const emailStatus = document.getElementById('emailStatus');
+let emailTimer = null;
+function updateEmailStatus() {
+    const email = emailField.value.trim();
+    if (email === '') { emailStatus.innerHTML = ''; enableSubmit(); return; }
+    if (emailTimer) clearTimeout(emailTimer);
+    emailTimer = setTimeout(() => {
+        fetch('check_email.php?email=' + encodeURIComponent(email))
+            .then(res => res.json())
+            .then(data => {
+                if (data.exists) {
+                    emailStatus.innerHTML = '<i class="fas fa-times-circle text-danger"></i> Email already taken';
+                    disableSubmit();
                 } else {
-                    matchMessage.textContent = '';
-                    document.getElementById('submitBtn').disabled = false;
+                    emailStatus.innerHTML = '<i class="fas fa-check-circle text-success"></i> Email available';
+                    enableSubmit();
                 }
-            } else {
-                matchMessage.textContent = '';
-                document.getElementById('submitBtn').disabled = false;
-            }
-        });
+            })
+            .catch(() => { emailStatus.innerHTML = ''; enableSubmit(); });
+    }, 500);
+}
+emailField.addEventListener('input', updateEmailStatus);
 
-        // Form validation
-        document.querySelector('form').addEventListener('submit', function(e) {
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirmPassword').value;
-            
-            if (password !== confirmPassword) {
-                e.preventDefault();
-                document.getElementById('passwordMatch').textContent = 'Passwords do not match';
-            }
-        });
-    </script>
+// Password strength rules
+const pass = document.getElementById('password');
+const confirmPass = document.getElementById('confirmPassword');
+const matchMsg = document.getElementById('matchMsg');
+const submitBtn = document.getElementById('submitBtn');
+
+function updateRules(pwd) {
+    const len = pwd.length >= 8;
+    const upper = /[A-Z]/.test(pwd);
+    const lower = /[a-z]/.test(pwd);
+    const number = (pwd.match(/\d/g) || []).length >= 2;
+    const special = /[!@#$%^&*(),.?":{}|<>]/.test(pwd);
+    document.getElementById('ruleLength').innerHTML = len ? '<i class="fas fa-check-circle"></i> Minimum 8 characters' : '<i class="far fa-circle"></i> Minimum 8 characters';
+    document.getElementById('ruleUpper').innerHTML = upper ? '<i class="fas fa-check-circle"></i> One uppercase letter' : '<i class="far fa-circle"></i> One uppercase letter';
+    document.getElementById('ruleLower').innerHTML = lower ? '<i class="fas fa-check-circle"></i> One lowercase letter' : '<i class="far fa-circle"></i> One lowercase letter';
+    document.getElementById('ruleNumber').innerHTML = number ? '<i class="fas fa-check-circle"></i> At least two numbers' : '<i class="far fa-circle"></i> At least two numbers';
+    document.getElementById('ruleSpecial').innerHTML = special ? '<i class="fas fa-check-circle"></i> One special character' : '<i class="far fa-circle"></i> One special character';
+    return len && upper && lower && number && special;
+}
+
+function checkMatch() {
+    if (confirmPass.value === '') { matchMsg.innerText = ''; return true; }
+    if (pass.value !== confirmPass.value) { matchMsg.innerText = 'Passwords do not match'; return false; }
+    matchMsg.innerText = ''; return true;
+}
+
+function disableSubmit() { submitBtn.disabled = true; }
+function enableSubmit() {
+    const emailOk = !emailStatus.innerHTML.includes('already taken');
+    const passOk = updateRules(pass.value);
+    const matchOk = checkMatch();
+    submitBtn.disabled = !(emailOk && passOk && matchOk && confirmPass.value !== '');
+}
+
+pass.addEventListener('input', function() { updateRules(this.value); enableSubmit(); });
+confirmPass.addEventListener('input', function() { checkMatch(); enableSubmit(); });
+enableSubmit();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
 <?php $conn->close(); ?>
