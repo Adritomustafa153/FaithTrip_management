@@ -328,7 +328,7 @@ $filePath = __DIR__ . "/invoices/" . $fileName;
 ob_end_clean();
 $pdf->Output($filePath, 'F');
 
-// ------------------- SEND EMAIL -------------------
+//Email Sending
 $mail = new PHPMailer\PHPMailer\PHPMailer();
 $mail->isSMTP();
 $mail->Host = 'smtp.gmail.com';
