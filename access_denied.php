@@ -76,10 +76,10 @@ function showAccessDeniedModal($permission) {
                     <button type="button" class="btn-close btn-close-white" onclick="window.history.back()"></button>
                 </div>
                 <div class="modal-body">
-                    <img src="https://cdn.pixabay.com/animation/2023/05/02/04/29/04-29-06-734_512.gif" 
+                    <img src="https://cdni.iconscout.com/illustration/premium/thumb/access-denied-6074339-5006815.png" 
                          alt="Access Denied" style="max-width: 150px; margin-bottom: 1rem;">
                     <p>You do not have permission to view this page.</p>
-                    <p class="text-muted">Missing permission: <strong><?= htmlspecialchars($permission) ?></strong></p>
+                    
                 </div>
                 <div class="modal-footer justify-content-center">
                     <button type="button" class="btn btn-secondary" onclick="window.history.back()">Go Back</button>

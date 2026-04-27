@@ -1,5 +1,4 @@
 <?php
-// file_put_contents('debug.txt', print_r($_POST, true));
 ob_clean();
 ob_start();
 
@@ -51,7 +50,7 @@ try {
     die("Database error: " . $e->getMessage());
 }
 
-// ✅ Generate unique invoice number (auto-skip duplicates)
+// Generate unique invoice number
 do {
     $invoiceNumber = 'INV-' . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
     $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM invoices WHERE Invoice_number = ?");
@@ -59,19 +58,7 @@ do {
     $exists = $stmtCheck->fetchColumn();
 } while ($exists > 0);
 
-// Sales data
-$sales = [];
-$total = 0;
-$ait = 0;
-$gt = 0;
-$pnr = '';
-$partyName = '';
-$issueDate = '';
-$flightDate = '';
-$returnDate = '';
-$sellingPrice = 0;
-$section = '';
-
+// Client info from POST
 $client_name = '';
 if (isset($_POST['ClientNameManual']) && trim($_POST['ClientNameManual']) !== '') {
     $client_name = trim($_POST['ClientNameManual']);
@@ -86,53 +73,82 @@ $client_address = $_POST['address'] ?? 'Unknown Address';
 $client_email = $_POST['client_email'] ?? 'No Email';
 $cc_emails = $_POST['cc_emails'] ?? '';
 $bcc_emails = $_POST['bcc_emails'] ?? '';
-
-// Get AIT status from POST
 $addAIT = isset($_POST['addAIT']) && $_POST['addAIT'] == '1';
 
-// ✅ Fetch selected sales and update them with invoice number
+// Fetch sales from cart
+$sales = [];
+$subtotal = 0;
+$line_items = [];
+
 if (!empty($_SESSION['invoice_cart'])) {
     $id_list = implode(",", array_map('intval', $_SESSION['invoice_cart']));
     
-    // Update sales table with the invoice number
+    // Update sales table with invoice number
     $pdo->exec("UPDATE sales SET invoice_number = '$invoiceNumber' WHERE SaleID IN ($id_list)");
     
-    // Fetch updated sales data
     $query = "SELECT * FROM sales WHERE SaleID IN ($id_list)";
     $result = $pdo->query($query);
-    while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
-        if (empty($pnr)) {
-            $pnr = $row['PNR'];
-            $partyName = $row['PartyName'];
-            $issueDate = $row['IssueDate'];
-            $flightDate = $row['FlightDate'];
-            $returnDate = $row['ReturnDate'];
-        }
-        $sales[] = $row;
-        $total += $row['BillAmount'];
-    }
     
-    // Calculate AIT based on checkbox
-    $ait = 0;
-    if ($addAIT) {
-        $ait = $total * 0.003;
+    while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
+        $remarks = $row['Remarks'] ?? '';
+        $amount = 0;
+        $type_label = '';
+        
+        if ($remarks == 'Air Ticket Sale' || $remarks == '' || $remarks === null) {
+            $amount = floatval($row['BillAmount']);
+            $type_label = 'Sale';
+        } elseif ($remarks == 'Void Transaction') {
+            // Void uses BillAmount (selling amount)
+            $amount = floatval($row['BillAmount']);
+            $type_label = 'Void Charge';
+        } elseif ($remarks == 'Refund') {
+            $amount = -floatval($row['refundtc']);
+            $type_label = 'Refund';
+        } elseif ($remarks == 'Reissue') {
+            $amount = floatval($row['BillAmount']);
+            $type_label = 'Reissue';
+        } else {
+            $amount = floatval($row['BillAmount']);
+            $type_label = 'Sale';
+        }
+        
+        $line_items[] = [
+            'data'   => $row,
+            'amount' => $amount,
+            'type_label' => $type_label
+        ];
+        $subtotal += $amount;
+        $sales[] = $row;
     }
-    $gt = $total + $ait;
-    $sellingPrice = $gt;
-
-    // Update sales table with AIT information
-    $pdo->exec("UPDATE sales SET AIT = '$ait' WHERE SaleID IN ($id_list)");
-
-    // ✅ Get the logged-in user ID for invoice creation
-    $created_by = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : NULL;
-
-    // Insert invoice header (with created_by_user_id)
-    $stmt = $pdo->prepare("INSERT INTO invoices (Invoice_number, date, PNR, PartyName, IssueDate, FlightDate, ReturnDate, SellingPrice, Section, created_by_user_id) 
-                           VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$invoiceNumber, $pnr, $client_name, $issueDate, $flightDate, $returnDate, $sellingPrice, $Sales_section, $created_by]);
 }
 
-// PDF creation
+if (empty($sales)) {
+    die("No items in cart.");
+}
+
+// AIT and Grand Total
+$ait = $addAIT ? $subtotal * 0.003 : 0;
+$gt = $subtotal + $ait;
+
+// First sale data for header
+$firstSale = $sales[0];
+$pnr = $firstSale['PNR'];
+$partyName = $firstSale['PartyName'];
+$issueDate = $firstSale['IssueDate'];
+$flightDate = $firstSale['FlightDate'];
+$returnDate = $firstSale['ReturnDate'];
+$sellingPrice = $gt;
+
+// Update AIT in sales
+$pdo->exec("UPDATE sales SET AIT = '$ait' WHERE SaleID IN ($id_list)");
+
+// Insert invoice header
+$created_by = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
+$stmt = $pdo->prepare("INSERT INTO invoices (Invoice_number, date, PNR, PartyName, IssueDate, FlightDate, ReturnDate, SellingPrice, Section, created_by_user_id) 
+                       VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?)");
+$stmt->execute([$invoiceNumber, $pnr, $client_name, $issueDate, $flightDate, $returnDate, $sellingPrice, $Sales_section, $created_by]);
+
+// ------------------- PDF CREATION -------------------
 $pdf = new TCPDF();
 $pdf->SetPrintHeader(false);
 $pdf->AddPage();
@@ -177,44 +193,56 @@ $pdf->SetY(40);
 $pdf->Ln(20);
 $pdf->writeHTML($clientInfo, true, false, true, false, '');
 
+// Build items table with Type column before Amount
 $html = '<style>tr {border-bottom: 1px solid #ccc;} th {background-color:rgb(0, 98, 202); color: white;}</style>';
 $html .= '<table cellpadding="4" cellspacing="0" width="100%" style="border-collapse:collapse;">
 <thead>
 <tr>
     <th width="5%">SL</th>
     <th width="20%">Travelers</th>
-    <th width="25%">Flight Info</th>
-    <th width="25%">Ticket Info</th>
-    <th width="12%">Remarks</th>
-    <th width="13%">Price</th>
+    <th width="22%">Flight Info</th>
+    <th width="22%">Ticket Info</th>
+    <th width="15%">Type</th>
+    <th width="16%">Amount (BDT)</th>
 </tr>
 </thead><tbody>';
 
 $serial = 1;
-foreach ($sales as $row) {
+foreach ($line_items as $item) {
+    $row = $item['data'];
+    $amount = $item['amount'];
+    $type_label = $item['type_label'];
+    
+    $display_amount = number_format(abs($amount), 2);
+    $sign = $amount >= 0 ? '+' : '-';
+    $amount_class = $amount >= 0 ? '' : 'style="color:#dc3545;"';
+    
     $html .= '<tr>';
     $html .= '<td width="5%">' . $serial++ . '</td>';
     $html .= '<td width="20%">' . htmlspecialchars($row['PassengerName']) . '</td>';
-    $html .= '<td width="25%">Route: <b>' . htmlspecialchars($row['TicketRoute']) . '</b><br>Airlines: <b>' . htmlspecialchars($row['airlines']) . '</b><br>Departure: <b>' . htmlspecialchars($row['FlightDate']) . '</b><br>Return: <b>' . htmlspecialchars($row['ReturnDate']) . '</b></td>';
-    $html .= '<td width="25%">Ticket No: <b>' . htmlspecialchars($row['TicketNumber']) . '</b><br>PNR: <b>' . htmlspecialchars($row['PNR']) . '</b><br>Issued: <b>' . htmlspecialchars($row['IssueDate']) . '</b><br>Seat Class: <b>' . htmlspecialchars($row['Class']) . '</b></td>';
-    $html .= '<td width="12%"><b>' . htmlspecialchars($row['Remarks']) . '</b></td>';
-    $html .= '<td width="13%">' . number_format($row['BillAmount'], 2) . '</td>';
+    $html .= '<td width="22%">Route: <b>' . htmlspecialchars($row['TicketRoute']) . '</b><br>Airlines: <b>' . htmlspecialchars($row['airlines']) . '</b><br>Departure: <b>' . htmlspecialchars($row['FlightDate']) . '</b><br>Return: <b>' . htmlspecialchars($row['ReturnDate']) . '</b></td>';
+    $html .= '<td width="22%">Ticket No: <b>' . htmlspecialchars($row['TicketNumber']) . '</b><br>PNR: <b>' . htmlspecialchars($row['PNR']) . '</b><br>Issued: <b>' . htmlspecialchars($row['IssueDate']) . '</b><br>Seat Class: <b>' . htmlspecialchars($row['Class']) . '</b></td>';
+    $html .= '<td width="15%"><b>' . htmlspecialchars($type_label) . '</b></td>';
+    $html .= '<td width="16%" ' . $amount_class . '>' . $sign . ' ' . $display_amount . '</td>';
     $html .= '</tr>';
 }
 
-$html .= '<tr><td colspan="5" align="right">Air Ticket Price</td><td>' . number_format($total, 2) . '</td></tr>';
-$html .= '<tr><td colspan="5" align="right">Advance Income Tax (AIT)</td><td>' . number_format($ait, 2) . '</td></tr>';
-$html .= '<tr><td colspan="5" align="right"><b>Total</b></td><td><b>' . number_format($gt, 2) . '</b></td></tr>';
+// Totals
+$html .= '<tr><td colspan="5" align="right"><strong>Subtotal (Net Amount)</strong></td><td><strong>' . number_format($subtotal, 2) . '</strong></td></tr>';
+$html .= '<tr><td colspan="5" align="right">Advance Income Tax (AIT 0.3%)</td><td>' . number_format($ait, 2) . '</td></tr>';
+$html .= '<tr><td colspan="5" align="right"><strong>Grand Total</strong></td><td><strong>' . number_format($gt, 2) . '</strong></td></tr>';
 $html .= '</tbody></table>';
 
 $pdf->Ln(10);
 $pdf->writeHTML($html, true, false, true, false, '');
 
+// Amount in words
 $amountWords = convertNumberToWordsIndian($gt) . ' Bangladeshi Taka Only';
 $pdf->Ln(10);
 $pdf->SetFont('helvetica', 'B', 10);
 $pdf->Write(0, "Amount in Words: $amountWords", '', 0, 'L', true);
 
+// Notes
 $pdf->Ln(5);
 $pdf->SetFont('helvetica', '', 9);
 $notes = <<<EOD
@@ -225,7 +253,66 @@ $notes = <<<EOD
 EOD;
 $pdf->writeHTMLCell(0, 0, '', '', $notes, 0, 1, 0, true, 'L', true);
 
-$pdf->Ln(10);
+// ------------------- BANK DETAILS (NO ICONS) -------------------
+$pdf->Ln(8);
+$pdf->SetFont('helvetica', 'B', 11);
+$pdf->Write(0, "Bank Account Details for Payment:", '', 0, 'L', true);
+$pdf->Ln(4);
+$pdf->SetFont('helvetica', '', 9);
+
+$bankDetailsHTML = '
+<style>
+.bank-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+}
+.bank-table td {
+    border: 1px solid #ddd;
+    padding: 6px;
+    vertical-align: top;
+}
+</style>
+<table class="bank-table">
+    <tr>
+        <td width="50%">
+            <strong>City Bank Limited</strong><br>
+            A/C Title: FAITH TRAVELS & TOURS LTD.<br>
+            A/C No.: 1254079547001<br>
+            Branch: Gulshan Avenue<br>
+            Routing No.: 225261732
+        </td>
+        <td width="50%">
+            <strong>BRAC Bank Limited</strong><br>
+            A/C Title: FAITH TRAVELS & TOURS LTD.<br>
+            A/C No.: 2068855480001<br>
+            Branch: Banani<br>
+            Routing No.: 060260435
+        </td>
+    </tr>
+    <tr>
+        <td width="50%">
+            <strong>Dutch Bangla Bank Limited</strong><br>
+            A/C Title: FAITH TRAVELS AND TOURS LTD.<br>
+            A/C No.: 1031100056392<br>
+            Branch: Banani<br>
+            Routing No.: 090260434
+        </td>
+        <td width="50%">
+            <strong>Islami Bank Bangladesh Limited</strong><br>
+            A/C Title: FAITH TRAVELS AND TOURS LTD<br>
+            A/C No.: 20503910100069217<br>
+            Branch: Banani<br>
+            Routing No.: 125260433
+        </td>
+    </tr>
+</table>
+';
+
+$pdf->writeHTML($bankDetailsHTML, true, false, true, false, '');
+
+// Payment logos
+$pdf->Ln(5);
 $pdf->SetFont('helvetica', 'B', 10);
 $pdf->Write(0, "We Accept:", '', 0, 'L', true);
 $logos = ['visa.png', 'master.png', 'amex.png', 'unionpay.png', 'diners.jpg', 'npsb.jpeg', 'discover.jpg', 'tkpay.jpeg'];
@@ -234,13 +321,14 @@ foreach ($logos as $logo) {
     $pdf->Image(__DIR__ . "/payment_icons/$logo", $x, $pdf->GetY() + 2, 15);
     $x += 20;
 }
+
+// Save PDF
 $fileName = "{$pnr}_{$invoiceNumber}.pdf";
 $filePath = __DIR__ . "/invoices/" . $fileName;
-
 ob_end_clean();
 $pdf->Output($filePath, 'F');
 
-// Send email
+// ------------------- SEND EMAIL -------------------
 $mail = new PHPMailer\PHPMailer\PHPMailer();
 $mail->isSMTP();
 $mail->Host = 'smtp.gmail.com';
@@ -252,25 +340,16 @@ $mail->Port = 587;
 $mail->setFrom('info@faithtrip.net', 'Faith Travels and Tours LTD');
 $mail->addAddress($client_email);
 
-// Add CC emails if provided
 if (!empty($cc_emails)) {
-    $cc_array = explode(',', $cc_emails);
-    foreach ($cc_array as $cc_email) {
-        $cc_email = trim($cc_email);
-        if (filter_var($cc_email, FILTER_VALIDATE_EMAIL)) {
-            $mail->addCC($cc_email);
-        }
+    foreach (explode(',', $cc_emails) as $cc) {
+        $cc = trim($cc);
+        if (filter_var($cc, FILTER_VALIDATE_EMAIL)) $mail->addCC($cc);
     }
 }
-
-// Add BCC emails if provided
 if (!empty($bcc_emails)) {
-    $bcc_array = explode(',', $bcc_emails);
-    foreach ($bcc_array as $bcc_email) {
-        $bcc_email = trim($bcc_email);
-        if (filter_var($bcc_email, FILTER_VALIDATE_EMAIL)) {
-            $mail->addBCC($bcc_email);
-        }
+    foreach (explode(',', $bcc_emails) as $bcc) {
+        $bcc = trim($bcc);
+        if (filter_var($bcc, FILTER_VALIDATE_EMAIL)) $mail->addBCC($bcc);
     }
 }
 
