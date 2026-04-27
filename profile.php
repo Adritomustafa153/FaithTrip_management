@@ -7,7 +7,7 @@ $conn = getDbConnection();
 $userId = $_SESSION['user_id'];
 
 // Fetch user data
-$stmt = $conn->prepare("SELECT UserID, UserName, email, DateOfBirth, NIDNumber, `Password`, image FROM user WHERE UserID = ?");
+$stmt = $conn->prepare("SELECT UserID, UserName, email, DateOfBirth, NIDNumber, `Password`,role, image FROM user WHERE UserID = ?");
 $stmt->bind_param('i', $userId);
 $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();
@@ -208,6 +208,10 @@ if (!file_exists($nav_path)) {
                     <div class="mb-3">
                         <label class="form-label">NID Number</label>
                         <input type="text" name="nid" class="form-control" value="<?= htmlspecialchars($user['NIDNumber']) ?>">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Role</label>
+                        <input type="text" name="role" class="form-control" value="<?= htmlspecialchars($user['role']) ?>">
                     </div>
                 </div>
             </div>
