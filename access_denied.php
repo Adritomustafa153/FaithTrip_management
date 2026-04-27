@@ -80,7 +80,10 @@ function showAccessDeniedModal($permission) {
                          alt="Access Denied" style="max-width: 150px; margin-bottom: 1rem;">
                     <p>You do not have permission to view this page.</p>
                     
+<<<<<<< HEAD
                 </div>
+=======
+>>>>>>> 8c1e5f3 (server sync)
                 <div class="modal-footer justify-content-center">
                     <button type="button" class="btn btn-secondary" onclick="window.history.back()">Go Back</button>
                     <a href="dashboard.php" class="btn btn-primary">Dashboard</a>

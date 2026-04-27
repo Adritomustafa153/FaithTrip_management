@@ -34,7 +34,11 @@ define('SMTP_SECURE', 'tls');
 define('SMTP_PORT', 587);
 
 // Website configuration
-define('BASE_URL', 'http://localhost/faithtrip/'); // Change to your base URL
+// Auto-detect base URL (works on any server)
+$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+$host = $_SERVER['HTTP_HOST'];
+$script_dir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
+define('BASE_URL', $protocol . $host . $script_dir . '/');
 
 // Create database connection
 try {
