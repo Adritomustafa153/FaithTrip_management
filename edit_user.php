@@ -17,18 +17,24 @@ $stmt->close();
 
 if (!$user) { header('Location: users.php'); exit; }
 
-// Roles list
+// ----- Fetch roles: try 'roles' table first, else fallback to distinct from 'user' -----
 $roles = [];
-$roleRes = $conn->query("SELECT role_name FROM roles ORDER BY role_name");
-if ($roleRes && $roleRes->num_rows) {
-    while ($r = $roleRes->fetch_assoc()) $roles[] = $r['role_name'];
-} else {
-    $roles = ['super_admin', 'admin_master', 'accounts', 'sales', 'reservation', 'test'];
+$tableExists = $conn->query("SHOW TABLES LIKE 'roles'")->num_rows > 0;
+if ($tableExists) {
+    $rolesQuery = $conn->query("SELECT role_name FROM roles ORDER BY role_name");
+    while ($row = $rolesQuery->fetch_assoc()) $roles[] = $row['role_name'];
 }
+// If no roles table or empty, get distinct roles from user table
+if (empty($roles)) {
+    $rolesQuery = $conn->query("SELECT DISTINCT role FROM user WHERE role IS NOT NULL AND role != '' ORDER BY role");
+    while ($row = $rolesQuery->fetch_assoc()) $roles[] = $row['role'];
+}
+// Final fallback (hardcoded roles)
+if (empty($roles)) $roles = ['super_admin', 'admin_master', 'accounts', 'sales', 'reservation', 'test'];
 
 $errors = [];
 $success = '';
-$newPasswordPlain = '';
+$newPassword = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $userName = trim($_POST['userName']);
@@ -64,35 +70,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (empty($errors)) {
-        // Update basic info
         $upd = $conn->prepare("UPDATE user SET UserName = ?, email = ?, role = ?, DateOfBirth = ?, NIDNumber = ?, image = ? WHERE UserID = ?");
         $upd->bind_param("ssssssi", $userName, $email, $role, $dob, $nid, $imagePath, $id);
         if ($upd->execute()) {
             $success = "User information updated successfully.";
-            // Handle password reset
             if ($reset) {
-                // Generate a 12-character alphanumeric password (no special chars, easy to copy)
-                $newPasswordPlain = bin2hex(random_bytes(6)); // 12 chars
-                $hashed = password_hash($newPasswordPlain, PASSWORD_DEFAULT);
+                $newPassword = bin2hex(random_bytes(5)); // 10 chars
+                $hashed = password_hash($newPassword, PASSWORD_DEFAULT);
                 $passUpd = $conn->prepare("UPDATE user SET Password = ? WHERE UserID = ?");
                 $passUpd->bind_param("si", $hashed, $id);
                 if ($passUpd->execute()) {
-                    $success .= " Password has been reset. <strong>New password: <span style='background:#f0f0f0; padding:2px 6px; border-radius:4px;font-family:monospace;'>$newPasswordPlain</span></strong> (copy this now, it will not be shown again).";
-                } else {
-                    $errors[] = "Password reset failed: " . $passUpd->error;
-                }
+                    $success .= " Password has been reset. <strong>New password: <span style='background:#f0f0f0; padding:2px 6px; border-radius:4px;'>$newPassword</span></strong> (copy this now).";
+                } else $errors[] = "Password reset failed";
                 $passUpd->close();
             }
-            // Refresh user data for display
+            // Refresh user data
             $user['UserName'] = $userName;
             $user['email'] = $email;
             $user['role'] = $role;
             $user['DateOfBirth'] = $dob;
             $user['NIDNumber'] = $nid;
             $user['image'] = $imagePath;
-        } else {
-            $errors[] = "Update failed: " . $upd->error;
-        }
+        } else $errors[] = "Update failed: " . $upd->error;
         $upd->close();
     }
 }
@@ -167,13 +166,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     </label>
                                 </div>
                             </div>
-                            <?php if (hasPermission('roles.manage')): ?>
-    <div class="mt-1">
-        <a href="role_permissions_matrix.php" target="_blank" class="small text-info">
-            <i class="fas fa-lock"></i> Manage role permissions
-        </a>
-    </div>
-<?php endif; ?>
                         </div>
                         <div class="d-flex justify-content-end gap-2 mt-4">
                             <a href="users.php" class="btn btn-secondary">Cancel</a>

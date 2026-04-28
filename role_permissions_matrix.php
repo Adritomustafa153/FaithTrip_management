@@ -5,7 +5,7 @@ requirePermission('roles.manage');
 
 $conn = getDbConnection();
 
-// Handle AJAX toggle
+// Handle AJAX toggle (unchanged)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'toggle_permission') {
     header('Content-Type: application/json');
     $role = $_POST['role'];
@@ -37,23 +37,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
 }
 
-// Fetch all roles (columns)
+// ----- Fetch roles: try 'roles' table first, else fallback to distinct from 'user' -----
 $roles = [];
-$rolesQuery = $conn->query("SELECT role_name FROM roles ORDER BY role_name");
-if ($rolesQuery && $rolesQuery->num_rows) {
+$tableExists = $conn->query("SHOW TABLES LIKE 'roles'")->num_rows > 0;
+if ($tableExists) {
+    $rolesQuery = $conn->query("SELECT role_name FROM roles ORDER BY role_name");
     while ($row = $rolesQuery->fetch_assoc()) $roles[] = $row['role_name'];
-} else {
-    $rolesQuery2 = $conn->query("SELECT DISTINCT role FROM user WHERE role IS NOT NULL AND role != ''");
-    while ($row = $rolesQuery2->fetch_assoc()) $roles[] = $row['role'];
 }
+// If no roles table or empty, get distinct roles from user table
+if (empty($roles)) {
+    $rolesQuery = $conn->query("SELECT DISTINCT role FROM user WHERE role IS NOT NULL AND role != '' ORDER BY role");
+    while ($row = $rolesQuery->fetch_assoc()) $roles[] = $row['role'];
+}
+// Final fallback (hardcoded roles)
 if (empty($roles)) $roles = ['super_admin', 'admin_master', 'accounts', 'sales', 'reservation', 'test'];
 
-// Fetch all permissions (rows)
+// Fetch all permissions
 $permsQuery = $conn->query("SELECT id, name, description FROM permissions ORDER BY name");
 $permissions = [];
 while ($p = $permsQuery->fetch_assoc()) $permissions[] = $p;
 
-// Build matrix: permission -> role -> has
+// Build matrix: permission -> role -> bool
 $matrix = [];
 foreach ($permissions as $p) {
     $permName = $p['name'];
@@ -62,7 +66,6 @@ foreach ($permissions as $p) {
         $matrix[$permName][$role] = false;
     }
 }
-// Fill matrix from role_permissions
 foreach ($roles as $role) {
     $stmt = $conn->prepare("SELECT p.name FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id WHERE rp.role_name = ?");
     $stmt->bind_param('s', $role);
@@ -93,7 +96,7 @@ foreach ($roles as $role) {
     </style>
 </head>
 <body>
-<?php include 'nav.php'; // nav.php is in the same folder (faithtrip/accounts) ?>
+<?php include 'nav.php'; // adjust if nav.php is in parent folder ?>
 <div class="container-fluid px-4 py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><i class="fas fa-lock"></i> Role Permissions Matrix</h2>
@@ -112,7 +115,7 @@ foreach ($roles as $role) {
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($permissions as $p): 
+                        <?php foreach ($permissions as $p):
                             $permName = $p['name'];
                             $isSuperAdmin = ($_SESSION['role'] === 'super_admin');
                         ?>
@@ -120,8 +123,8 @@ foreach ($roles as $role) {
                             <td class="perm-col">
                                 <?= htmlspecialchars($permName) ?>
                                 <div class="badge-desc"><?= htmlspecialchars($p['description']) ?></div>
-                            </td>
-                            <?php foreach ($roles as $role): 
+                             </div>
+                            <?php foreach ($roles as $role):
                                 $has = $matrix[$permName][$role];
                             ?>
                                 <td>

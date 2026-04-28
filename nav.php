@@ -86,7 +86,7 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
         <img src="logo.jpg" height="30" alt="Logo" loading="lazy" />
       </a>
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <li class="nav-item"><a class="nav-link" href="dashboard.php">Home</a></li>
+        <li class="nav-item"><a class="nav-link" href="/dashboard.php">Home</a></li>
         <li class="nav-item dropdown">
           <a data-mdb-dropdown-init class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button" aria-expanded="false">Auto Insert</a>
           <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
