@@ -52,7 +52,7 @@ $systems_result = mysqli_query($conn, $systems_query);
 <!-- insert part is here -->
 <div class="container">
     <h2>Corporate Sales Entry Form</h2>
-    <form action="manual_insert_corporate_sell.php" method="POST">
+    <form action="/manual_insert_corporate_sell" method="POST">
         <!-- Row 1: Agent Name, Search, and Select Agent -->
         <div class="form-row">
             <div class="form-group">

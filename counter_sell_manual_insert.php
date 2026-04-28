@@ -53,7 +53,7 @@ $systems_result = mysqli_query($conn, $systems_query);
 <!-- insert part is here -->
 <div class="container">
     <h2>Counter Sales Entry</h2>
-    <form action="manual_insert_counter_sell.php" method="POST">
+    <form action="/manual_insert_counter_sell" method="POST">
 
         <!-- Row 2: Passenger Name, Ticket Route, and Ticket Number -->
         <div class="form-row">
