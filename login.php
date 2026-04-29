@@ -90,7 +90,7 @@ if (empty($_SESSION['csrf_token'])) {
                         </div>
                     <?php endif; ?>
                     
-                    <form action="/login_handler" method="POST" id="loginForm" novalidate>
+                    <form action="login_handler" method="POST" id="loginForm" novalidate>
                         <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                         
                         <div class="mb-5">

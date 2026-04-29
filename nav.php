@@ -86,7 +86,7 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
         <img src="logo.jpg" height="30" alt="Logo" loading="lazy" />
       </a>
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <li class="nav-item"><a class="nav-link" href="/dashboard.php">Home</a></li>
+        <li class="nav-item"><a class="nav-link" href="dashboard.php">Home</a></li>
         <li class="nav-item dropdown">
           <a data-mdb-dropdown-init class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button" aria-expanded="false">Auto Insert</a>
           <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
@@ -169,7 +169,7 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
           <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
             <li><a class="dropdown-item" href="add_passenger.php">Counter</a></li>
             <li><a class="dropdown-item" href="view_corporates.php">Corporate</a></li>
-            <li><a class="dropdown-item" href="insert_agent.php">Agents</a></li>
+            <li><a class="dropdown-item" href="agents_list.php">Agents</a></li>
             <li><a class="dropdown-item" href="passenger_list.php">Passenger List</a></li>
             <li><a class="dropdown-item" href="insert_sources.php">Sourcing</a></li>
             <li><a class="dropdown-item" href="add_sales_person.php">Sales Person</a></li>
