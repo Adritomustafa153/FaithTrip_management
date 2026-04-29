@@ -101,7 +101,7 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
         <li class="nav-item dropdown">
           <a data-mdb-dropdown-init class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button" aria-expanded="false">Manual Insert</a>
           <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
-            <li><a class="dropdown-item" href="manual_insert.php">Ticket Agents</a></li>
+            <li><a class="dropdown-item" href="manual_insert">Ticket Agents</a></li>
             <li><a class="dropdown-item" href="corporate_manual_insert.php">Ticket Corporate</a></li>
             <li><a class="dropdown-item" href="counter_sell_manual_insert.php">Ticket Counter Sell</a></li>
             <li><a class="dropdown-item" href="visa_insert.php">Visa Agents</a></li>

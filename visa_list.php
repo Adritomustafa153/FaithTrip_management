@@ -127,7 +127,7 @@ require 'auth_check.php';
                       FROM visa 
                       WHERE YEAR(orderdate) = '$current_year'";
         
-        // Vendor-wise summary
+        // Vendor-wise summary (grouped by sold_by)
         $sql_vendors = "SELECT 
                         `sold_by` as vendor,
                         COUNT(*) as total_visas,
@@ -247,11 +247,11 @@ require 'auth_check.php';
             </div>
         </div>
         
-        <!-- Vendor-wise Summary -->
+        <!-- Vendor-wise Summary (by sold_by) -->
         <?php if ($result_vendors->num_rows > 0): ?>
         <div class="vendor-summary">
             <h5 class="summary-header">
-                <i class="fas fa-users me-2"></i> Vendor Performance Summary
+                <i class="fas fa-users me-2"></i> Vendor Performance Summary (by Sold By)
             </h5>
             <div class="row">
                 <?php while($vendor = $result_vendors->fetch_assoc()): ?>
@@ -259,7 +259,7 @@ require 'auth_check.php';
                     <div class="vendor-item">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <h6 class="mb-1"><?php echo htmlspecialchars($vendor['Source']); ?></h6>
+                                <h6 class="mb-1"><?php echo htmlspecialchars($vendor['vendor']); ?></h6>
                                 <small class="text-muted"><?php echo $vendor['total_visas']; ?> visas</small>
                             </div>
                             <div class="text-end">
@@ -333,13 +333,13 @@ require 'auth_check.php';
                                     <span class="badge rounded-pill <?php echo $status_class; ?> status-badge">
                                         <?php echo htmlspecialchars($row['visa status']); ?>
                                     </span>
-                                </td>
+                                 </td>
                                 <td><?php echo date('d M Y', strtotime($row['orderdate'])); ?></td>
                                 <td class="amount-paid">৳ <?php echo number_format($row['selling price'], 2); ?></td>
                                 <td>
                                     <span class="amount-paid">৳ <?php echo number_format($row['paid'], 2); ?></span><br>
                                     <span class="amount-due">৳ <?php echo number_format($row['due'], 2); ?></span>
-                                </td>
+                                 </td>
                                 <td>
                                     <span class="badge bg-<?php 
                                         switch($row['payment_status']) {
@@ -353,11 +353,15 @@ require 'auth_check.php';
                                     ?>">
                                         <?php echo htmlspecialchars($row['payment_status']); ?>
                                     </span>
-                                </td>
+                                 </td>
                                 <td class="action-buttons">
                                     <a href="visa_view.php?id=<?php echo $row['id']; ?>" 
                                        class="btn btn-sm btn-info mb-1" title="View">
                                         <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="visa_cart.php?add_id=<?php echo $row['id']; ?>" 
+                                        class="btn btn-sm btn-secondary mb-1" title="Add to Cart">
+                                            <i class="fas fa-cart-plus"></i> Add to Cart
                                     </a>
                                     <a href="visa_edit.php?id=<?php echo $row['id']; ?>" 
                                        class="btn btn-sm btn-warning mb-1" title="Edit">
@@ -369,14 +373,14 @@ require 'auth_check.php';
                                        title="Delete">
                                         <i class="fas fa-trash"></i>
                                     </a>
-                                    <!-- Add Invoice Button -->
-                                    <a href="generate_invoice.php?visa_id=<?php echo $row['id']; ?>" 
+                                    <!-- Invoice Button (Visa Invoice) -->
+                                    <a href="generate_visa_invoice.php?id=<?php echo $row['id']; ?>" 
                                        class="btn btn-sm btn-success mb-1" 
                                        title="Generate Invoice"
                                        target="_blank">
                                         <i class="fas fa-file-invoice-dollar"></i> Invoice
                                     </a>
-                                </td>
+                                 </td>
                             </tr>
                             <?php endwhile; ?>
                         </tbody>

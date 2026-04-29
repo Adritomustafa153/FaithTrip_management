@@ -21,48 +21,69 @@ $invoicesDirectory = __DIR__ . '/invoices/';
 $searchTerm = '';
 $dateFrom = '';
 $dateTo = '';
-$whereConditions = [];
-$params = [];
-$paramTypes = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if (!empty($_GET['search'])) {
         $searchTerm = $_GET['search'];
-        $whereConditions[] = "(Invoice_number LIKE ? OR PartyName LIKE ? OR PNR LIKE ?)";
-        $params[] = "%$searchTerm%";
-        $params[] = "%$searchTerm%";
-        $params[] = "%$searchTerm%";
-        $paramTypes .= 'sss';
     }
     if (!empty($_GET['date_from'])) {
         $dateFrom = $_GET['date_from'];
-        $whereConditions[] = "date >= ?";
-        $params[] = $dateFrom;
-        $paramTypes .= 's';
     }
     if (!empty($_GET['date_to'])) {
-        $dateTo = $_GET['date_to'];
-        $whereConditions[] = "date <= ?";
-        $params[] = $dateTo . ' 23:59:59';
-        $paramTypes .= 's';
+        $dateTo = $_GET['date_to'] . ' 23:59:59';
     }
 }
 
-// MODIFIED QUERY: JOIN with user table to get creator name
-$query = "SELECT invoices.*, user.UserName AS created_by_name 
-          FROM invoices 
-          LEFT JOIN user ON invoices.created_by_user_id = user.UserId";
-if (!empty($whereConditions)) {
-    $query .= " WHERE " . implode(" AND ", $whereConditions);
-}
-$query .= " ORDER BY date DESC";
+// 1. Ticket Invoices (from `invoices` table)
+$ticketQuery = "SELECT 
+                    i.id,
+                    i.Invoice_number AS invoice_number,
+                    i.date AS invoice_date,
+                    i.PartyName AS client_name,
+                    i.PNR,
+                    i.SellingPrice AS amount,
+                    'Ticket' AS invoice_type,
+                    i.created_by_user_id,
+                    NULL AS visa_ids,
+                    u.UserName AS created_by_name
+                FROM invoices i
+                LEFT JOIN user u ON i.created_by_user_id = u.UserId";
 
-$stmt = $mysqli->prepare($query);
-if (!empty($params)) {
-    $stmt->bind_param($paramTypes, ...$params);
-}
+// 2. Visa Invoices (from `visa_invoices` table)
+$visaQuery = "SELECT 
+                    v.id,
+                    v.invoice_number,
+                    v.created_at AS invoice_date,
+                    v.client_name,
+                    NULL AS PNR,
+                    v.grand_total AS amount,
+                    'Visa' AS invoice_type,
+                    v.created_by_user_id,
+                    v.visa_ids,
+                    u.UserName AS created_by_name
+                FROM visa_invoices v
+                LEFT JOIN user u ON v.created_by_user_id = u.UserId";
+
+// Combine and order by date DESC (latest first)
+$unionQuery = "($ticketQuery) UNION ALL ($visaQuery) ORDER BY invoice_date DESC";
+
+$stmt = $mysqli->prepare($unionQuery);
 $stmt->execute();
 $result = $stmt->get_result();
+
+// Apply search & date filters in PHP
+$filteredRows = [];
+if ($result && $result->num_rows > 0) {
+    while ($row = $result->fetch_assoc()) {
+        if ($dateFrom && strtotime($row['invoice_date']) < strtotime($dateFrom)) continue;
+        if ($dateTo && strtotime($row['invoice_date']) > strtotime($dateTo)) continue;
+        if ($searchTerm) {
+            $haystack = strtolower($row['invoice_number'] . ' ' . $row['client_name'] . ' ' . ($row['PNR'] ?? ''));
+            if (strpos($haystack, strtolower($searchTerm)) === false) continue;
+        }
+        $filteredRows[] = $row;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -75,7 +96,7 @@ $result = $stmt->get_result();
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.5/css/dataTables.bootstrap5.min.css">
     <style>
-        .table-container { background-color: #fff; border-radius: 10px; box-shadow: 0 0 15px rgba(0, 0, 0, 0.1); padding: 20px; margin-top: 20px; }
+        .table-container { background-color: #fff; border-radius: 10px; box-shadow: 0 0 15px rgba(0,0,0,0.1); padding: 20px; margin-top: 20px; }
         .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
         .action-buttons .btn { margin-left: 5px; margin-bottom: 5px; }
         .invoice-logo { width: 40px; height: 40px; background-color: #f8f9fa; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-size: 18px; }
@@ -84,12 +105,6 @@ $result = $stmt->get_result();
         .invoice-type-regular { color: #198754; font-weight: bold; }
         .invoice-type-reissue { color: #fd7e14; font-weight: bold; }
         .search-form { background-color: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
-        .navbar-custom { background-color: #2c3e50; }
-        .navbar-custom .navbar-brand, .navbar-custom .nav-link { color: #ecf0f1; }
-        .navbar-custom .nav-link:hover { color: #3498db; }
-        .btn-whatsapp { background-color: #25D366; color: white; border: none; }
-        .btn-whatsapp:hover { background-color: #128C7E; color: white; }
-        .whatsapp-modal .modal-header { background-color: #25D366; color: white; }
     </style>
 </head>
 <body>
@@ -105,7 +120,7 @@ $result = $stmt->get_result();
         <?php if (isset($_SESSION['message'])): ?>
             <div class="alert alert-<?php echo $_SESSION['msg_type']; ?> alert-dismissible fade show" role="alert">
                 <?php echo $_SESSION['message']; unset($_SESSION['message']); ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
 
@@ -128,7 +143,7 @@ $result = $stmt->get_result();
                     <div class="col-md-3">
                         <div class="mb-3">
                             <label for="date_to" class="form-label">Date To</label>
-                            <input type="date" class="form-control" id="date_to" name="date_to" value="<?php echo htmlspecialchars($dateTo); ?>">
+                            <input type="date" class="form-control" id="date_to" name="date_to" value="<?php echo htmlspecialchars($dateTo ? date('Y-m-d', strtotime($dateTo)) : ''); ?>">
                         </div>
                     </div>
                     <div class="col-md-2 d-flex align-items-end">
@@ -153,48 +168,67 @@ $result = $stmt->get_result();
                         <th>Flight Date</th>
                         <th>Amount</th>
                         <th>Type</th>
-                        <th>Created By</th>   <!-- NEW COLUMN -->
+                        <th>Created By</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if ($result && $result->num_rows > 0): while ($row = $result->fetch_assoc()): 
-                        $invoiceType = 'Sale';
-                        $typeClass = 'invoice-type-regular';
-                        if (strpos($row['Invoice_number'], 'RFD-') === 0) { $invoiceType = 'Refund'; $typeClass = 'invoice-type-refund'; }
-                        elseif (strpos($row['Invoice_number'], 'RE-') === 0) { $invoiceType = 'Reissue'; $typeClass = 'invoice-type-reissue'; }
-                        $pdfFileName = $row['PNR'] . '_' . $row['Invoice_number'] . '.pdf';
-                        $pdfFilePath = $invoicesDirectory . $pdfFileName;
-                        $pdfExists = file_exists($pdfFilePath);
-                    ?>
-                    <tr>
-                        <td><?php echo $row['id']; ?></td>
-                        <td>
-                            <div class="d-flex align-items-center">
-                                <div class="invoice-logo"><i class="fas fa-file-invoice"></i></div>
-                                <div><strong><?php echo $row['Invoice_number']; ?></strong></div>
-                            </div>
-                        </td>
-                        <td><?php echo date('M d, Y', strtotime($row['date'])); ?></td>
-                        <td><?php echo !empty($row['PartyName']) ? $row['PartyName'] : 'N/A'; ?></td>
-                        <td><?php echo !empty($row['PNR']) ? $row['PNR'] : 'N/A'; ?></td>
-                        <td><?php echo (!empty($row['FlightDate']) && $row['FlightDate'] != '0000-00-00') ? date('M d, Y', strtotime($row['FlightDate'])) : 'N/A'; ?></td>
-                        <td><?php echo (!empty($row['SellingPrice'])) ? '৳ ' . number_format($row['SellingPrice'], 2) : 'N/A'; ?></td>
-                        <td><span class="badge bg-secondary <?php echo $typeClass; ?>"><?php echo $invoiceType; ?></span></td>
-                        <td><?php echo htmlspecialchars($row['created_by_name'] ?? 'Unknown'); ?></td>   <!-- DISPLAY CREATOR -->
-                        <td>
-                            <div class="action-buttons">
-                                <?php if ($pdfExists): ?>
-                                <a href="invoices/<?php echo $pdfFileName; ?>" target="_blank" class="btn btn-sm btn-outline-primary"><i class="fas fa-eye"></i> View PDF</a>
-                                <a href="invoices/<?php echo $pdfFileName; ?>" download class="btn btn-sm btn-outline-success"><i class="fas fa-download"></i> Download</a>
+                    <?php if (!empty($filteredRows)): ?>
+                        <?php foreach ($filteredRows as $row): 
+                            $invoiceType = 'Sale';
+                            $typeClass = 'invoice-type-regular';
+                            if (strpos($row['invoice_number'], 'RFD-') === 0) { $invoiceType = 'Refund'; $typeClass = 'invoice-type-refund'; }
+                            elseif (strpos($row['invoice_number'], 'RE-') === 0) { $invoiceType = 'Reissue'; $typeClass = 'invoice-type-reissue'; }
+                            
+                            // Determine PDF file name
+                            if ($row['invoice_type'] == 'Ticket') {
+                                $pdfFileName = $row['PNR'] . '_' . $row['invoice_number'] . '.pdf';
+                            } else {
+                                // visa_ids stored as comma separated (e.g., "1,2,3") -> convert to underscores for filename
+                                $ids = $row['visa_ids'] ?? '';
+                                $ids_part = str_replace(',', '_', $ids);
+                                if (empty($ids_part)) {
+                                    // fallback for old records (if any)
+                                    $ids_part = 'multiple';
+                                }
+                                $pdfFileName = "VISA_{$ids_part}_{$row['invoice_number']}.pdf";
+                            }
+                            $pdfFilePath = $invoicesDirectory . $pdfFileName;
+                            $pdfExists = file_exists($pdfFilePath);
+                        ?>
+                        <tr>
+                            <td><?php echo $row['id']; ?></td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="invoice-logo"><i class="fas fa-file-invoice"></i></div>
+                                    <div><strong><?php echo htmlspecialchars($row['invoice_number']); ?></strong></div>
+                                </div>
+                            </td>
+                            <td><?php echo date('M d, Y', strtotime($row['invoice_date'])); ?></td>
+                            <td><?php echo !empty($row['client_name']) ? htmlspecialchars($row['client_name']) : 'N/A'; ?></td>
+                            <td><?php echo !empty($row['PNR']) ? htmlspecialchars($row['PNR']) : 'N/A'; ?></td>
+                            <td>
+                                <?php if ($row['invoice_type'] == 'Ticket' && !empty($row['invoice_date'])): ?>
+                                    <?php echo date('M d, Y', strtotime($row['invoice_date'])); ?>
                                 <?php else: ?>
-                                <span class="text-muted">PDF not found</span>
+                                    N/A
                                 <?php endif; ?>
-                            </div>
-                        </td>
-                    </tr>
-                    <?php endwhile; else: ?>
-                    <tr><td colspan="10" class="text-center">No invoice records found</td></tr>
+                            </td>
+                            <td><?php echo (!empty($row['amount'])) ? '৳ ' . number_format($row['amount'], 2) : 'N/A'; ?></td>
+                            <td><span class="badge bg-secondary <?php echo $typeClass; ?>"><?php echo $invoiceType; ?></span></td>
+                            <td><?php echo htmlspecialchars($row['created_by_name'] ?? 'Unknown'); ?></td>
+                            <td class="action-buttons">
+                                <?php if ($pdfExists): ?>
+                                    <a href="invoices/<?php echo $pdfFileName; ?>" target="_blank" class="btn btn-sm btn-outline-primary"><i class="fas fa-eye"></i> View PDF</a>
+                                    <a href="invoices/<?php echo $pdfFileName; ?>" download class="btn btn-sm btn-outline-success"><i class="fas fa-download"></i> Download</a>
+                                <?php else: ?>
+                                    <span class="text-muted">PDF not found</span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <tr><td colspan="10" class="text-center">No invoice records found</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -209,10 +243,18 @@ $result = $stmt->get_result();
 <script>
     $(document).ready(function() {
         $('#invoicesTable').DataTable({
+            "order": [],          // Preserve SQL ORDER BY (latest first)
             "pageLength": 10,
-            "order": [[0, "desc"]],
             "responsive": true,
-            "language": { "search": "Search invoices:", "lengthMenu": "Show _MENU_ entries", "info": "Showing _START_ to _END_ of _TOTAL_ entries", "paginate": { "previous": "<i class='fas fa-chevron-left'></i>", "next": "<i class='fas fa-chevron-right'></i>" } }
+            "language": {
+                "search": "Search invoices:",
+                "lengthMenu": "Show _MENU_ entries",
+                "info": "Showing _START_ to _END_ of _TOTAL_ entries",
+                "paginate": {
+                    "previous": "<i class='fas fa-chevron-left'></i>",
+                    "next": "<i class='fas fa-chevron-right'></i>"
+                }
+            }
         });
     });
 </script>
