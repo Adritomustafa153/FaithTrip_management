@@ -1,10 +1,16 @@
 RewriteEngine On
-# No RewriteBase
+# No RewriteBase (rules are relative to the directory containing this file)
 
+# Redirect /file.php to /file (remove .php extension from the URL)
+RewriteCond %{THE_REQUEST} \s/([^.]+)\.php[\s?] [NC]
+RewriteRule ^ /%1 [R=301,L]
+
+# Internally rewrite /file to /file.php (if the .php file exists)
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^(.+?)/?$ $1.php [L]
+
+# Handle root /login and /dashboard shortcuts
 RewriteRule ^$ login.php [L]
 RewriteRule ^login/?$ login.php [L]
 RewriteRule ^dashboard/?$ dashboard.php [L]
-
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond %{REQUEST_FILENAME}.php -f
-RewriteRule ^(.+)$ $1.php [L]

@@ -1,4 +1,7 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 // generate_visa_invoice.php – final version: supports single visa (GET) and multiple (POST from cart)
 require_once __DIR__ . '/vendor/autoload.php';
 require 'db.php';

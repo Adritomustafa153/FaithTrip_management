@@ -89,7 +89,7 @@ if (!empty($_SESSION['visa_cart'])) {
         </div>
     <?php else: ?>
         <div class="card p-3 mb-3">
-            <form method="POST" action="generate_visa_invoice.php" id="invoiceForm">
+            <form method="POST" action="generate_visa_invoice" id="invoiceForm">
                 <!-- Pass all selected visa IDs -->
                 <?php foreach (array_column($cart_items, 'id') as $vid): ?>
                     <input type="hidden" name="visa_ids[]" value="<?= $vid ?>">

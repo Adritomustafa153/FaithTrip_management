@@ -295,7 +295,7 @@ function sortLink($column, $label, $current_sort, $current_order) {
                     <?php endif; ?>
                     <?php if ($isVoidTransaction): ?>
                         <div style="margin-top: 3px;">
-                            <form action="invoice_cart2.php" method="POST">
+                            <form action="invoice_cart2" method="POST">
                                 <input type="hidden" name="sell_id" value="<?= $row['SaleID'] ?>">
                                 <button type="submit" class="btn btn-cart">Add to Cart</button>
                             </form>
@@ -351,7 +351,7 @@ function sortLink($column, $label, $current_sort, $current_order) {
                         <a href="redirect_edit.php?id=<?= $row['SaleID'] ?>" class="btn edit-btn">Edit</a>
                         <!-- ✅ Fixed delete link – now properly handled by PHP at the top -->
                         <a href="invoice_list.php?delete=<?= $row['SaleID'] ?>" class="btn delete-btn" onclick="return confirm('Delete this record?')">Del</a>
-                        <form action="invoice_cart2.php" method="POST" style="margin-top: 2px;">
+                        <form action="invoice_cart2" method="POST" style="margin-top: 2px;">
                             <input type="hidden" name="sell_id" value="<?= $row['SaleID'] ?>">
                             <button type="submit" class="btn btn-primary">Add to Cart</button>
                         </form>

@@ -1,4 +1,11 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+session_start();
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_id'])) {
+    $_SESSION['last_sell_id'] = $_POST['sell_id'];  // extra test
+    // ... existing code
+}
 include 'auth_check.php';
 include 'db.php';
 if (session_status() === PHP_SESSION_NONE) {
@@ -16,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sell_id'])) {
     if (!in_array($sell_id, $_SESSION['invoice_cart'])) {
         $_SESSION['invoice_cart'][] = $sell_id;
     }
-    header("Location: invoice_cart2.php");
+    header("Location: invoice_cart2");
     exit();
 }
 
@@ -26,14 +33,14 @@ if (isset($_GET['delete_id'])) {
     if (($key = array_search($delete_id, $_SESSION['invoice_cart'])) !== false) {
         unset($_SESSION['invoice_cart'][$key]);
     }
-    header("Location: invoice_cart2.php");
+    header("Location: invoice_cart2");
     exit();
 }
 
 // Handle cart clearing
 if (isset($_GET['clear_cart']) && $_GET['clear_cart'] == '1') {
     $_SESSION['invoice_cart'] = [];
-    header("Location: invoice_cart2.php");
+    header("Location: invoice_cart2");
     exit();
 }
 
@@ -139,7 +146,7 @@ $gt = $subtotal + $ait;
     <h2 class="mb-4">Invoice Cart</h2>
 
     <div class="card p-3 mb-3">
-    <form method="POST" action="generate_invoice.php" id="invoiceForm">
+    <form method="POST" action="generate_invoice" id="invoiceForm">
         <div class="row">
             <div class="col-md-4">
                 <label>Type</label>
@@ -245,7 +252,7 @@ $gt = $subtotal + $ait;
                         </td>
                         <td><?= htmlspecialchars($row['Remarks']) ?></td>
                         <td>
-                            <a href="invoice_cart2.php?delete_id=<?= $row['SaleID'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Remove this item?')">Delete</a>
+                            <a href="invoice_cart2?delete_id=<?= $row['SaleID'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Remove this item?')">Delete</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -268,7 +275,7 @@ $gt = $subtotal + $ait;
         </table>
 
         <div class="d-flex justify-content-between mt-3">
-            <a href="invoice_cart2.php?clear_cart=1" class="btn btn-warning" onclick="return confirm('Clear the entire cart?')">Clear Cart</a>
+            <a href="invoice_cart2?clear_cart=1" class="btn btn-warning" onclick="return confirm('Clear the entire cart?')">Clear Cart</a>
             <a href="invoice_list.php">
                 <button type="button" style="font-size: 14px;border-radius: 8px;padding: 10px 20px;background-color:rgb(5, 200, 50);box-shadow: 0 8px 16px rgba(0,0,0,0.2), 0 6px 20px rgba(0,0,0,0.19);">Home</button>
             </a>

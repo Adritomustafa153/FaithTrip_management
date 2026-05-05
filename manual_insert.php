@@ -14,17 +14,17 @@ $systems_result = mysqli_query($conn, $systems_query);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <link rel="icon" href="logo.jpg">
+    <link rel="icon" href="logo.jpg">
     <title>Sales Records</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; border-radius: 20px;border-collapse: collapse;box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);}
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; border-radius: 20px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);}
         th, td { padding: 10px; border: 1px solid #ddd; text-align: left; border-radius: 20px;}
-        th { background-color:rgb(74, 113, 255); color: white; border-radius: 5px; }
+        th { background-color: rgb(74, 113, 255); color: white; border-radius: 5px; }
         .search-container { display: flex; gap: 10px; margin-bottom: 20px; border-radius: 15px;}
         .search-container select, .search-container input { padding: 8px; width: 200px; }
         .btn { padding: 5px 10px; border: none; cursor: pointer; text-decoration: none; font-size: 12px; padding: 4px 8px }
-        .edit-btn { background-color:rgb(7, 147, 32); color: white; }
+        .edit-btn { background-color: rgb(7, 147, 32); color: white; }
         .delete-btn { background-color: #d9534f; color: white; }
         .btn:hover { opacity: 0.8; }
         select:disabled {
@@ -37,20 +37,17 @@ $systems_result = mysqli_query($conn, $systems_query);
     <link rel="stylesheet" href="agents_manual_insert.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="manualinsert.js" defer></script>
-
 </head>
 <body>
 
-<!-- Start your project here-->
 <?php include 'nav.php' ?>
-<div style="display: flex;justify-content:center;margin-top:15px">
-<h1 style="font-family:Arial, Helvetica, sans-serif">Insert Sales</h1>
+<div style="display: flex; justify-content:center; margin-top:15px">
+    <h1 style="font-family:Arial, Helvetica, sans-serif">Insert Sales</h1>
 </div>
 
-<!-- insert part is here -->
 <div class="container">
     <h2>Sales Entry Form</h2>
-    <form action="insert_sales.php" method="POST">
+    <form action="insert_sales" method="POST">
         <!-- Row 1: Agent Name, Search, and Select Agent -->
         <div class="form-row">
             <div class="form-group">
@@ -103,7 +100,7 @@ $systems_result = mysqli_query($conn, $systems_query);
             </div>
         </div>
 
-        <!-- Row 4: PNR, Bill Amount, and Net Payment -->
+        <!-- Row 4: PNR, Bill Amount, Net Payment, Source -->
         <div class="form-row">
             <div class="form-group">
                 <label for="PNR">PNR:</label>
@@ -122,7 +119,6 @@ $systems_result = mysqli_query($conn, $systems_query);
                 <select name="source_id" id="source_id" class="form-control" required>
                     <option value="">Select Source</option>
                     <?php 
-                    // Reset pointer and loop through sources again
                     mysqli_data_seek($sources_result, 0);
                     while($row = mysqli_fetch_assoc($sources_result)): ?>
                         <option value="<?= $row['agency_name']; ?>"><?= htmlspecialchars($row['agency_name']); ?></option>
@@ -131,7 +127,7 @@ $systems_result = mysqli_query($conn, $systems_query);
             </div>
         </div>
 
-        <!-- Row 5: Profit, Payment Status, and Payment Method -->
+        <!-- Row 5: Profit, Payment Status, Payment Method, System -->
         <div class="form-row">
             <div class="form-group">
                 <label for="Profit">Profit:</label>
@@ -158,16 +154,16 @@ $systems_result = mysqli_query($conn, $systems_query);
             </div>
             <div class="form-group">
                 <label for="system">System:</label>
-                <select name="system" id="system" disabled required>
+                <select name="system" id="system" required>
                     <option value="">Select System</option>
-                    <?php while($system = mysqli_fetch_assoc($systems_result)): ?>
+                    <?php mysqli_data_seek($systems_result, 0); while($system = mysqli_fetch_assoc($systems_result)): ?>
                         <option value="<?= $system['system']; ?>"><?= htmlspecialchars($system['system']); ?></option>
                     <?php endwhile; ?>
                 </select>
             </div>
         </div>
 
-        <!-- Row 6: Paid Amount, Due Amount, and Salesperson Name -->
+        <!-- Row 6: Paid Amount, Due Amount, Salesperson Name, Seat Class -->
         <div class="form-row">
             <div class="form-group">
                 <label for="PaidAmount">Paid Amount:</label>
@@ -230,10 +226,8 @@ $systems_result = mysqli_query($conn, $systems_query);
 
         <!-- Row 8: Submit Button -->
         <div class="form-row submit-button-wrapper">   
-            <div class="form-row">
-                <div class="form-group">
-                    <button type="submit" class="submit-btn">Submit Sale</button>
-                </div>
+            <div class="form-group">
+                <button type="submit" class="submit-btn">Submit Sale</button>
             </div>
         </div>
     </form>
@@ -241,18 +235,21 @@ $systems_result = mysqli_query($conn, $systems_query);
 
 <script>
 $(document).ready(function() {
-    // Initially disable the system dropdown
-    $('#system').prop('disabled', true);
-    
-    // When source changes
+    // System field is always required – we never disable it.
+    // Instead, we rely on the user to select it when needed.
+    // But we can hide it when source does not contain "IATA"?
+    // For simplicity, we leave it visible but not required for non-IATA.
+    // To avoid validation issues, we’ll set a default "N/A" for non-IATA.
     $('#source_id').change(function() {
         var selectedSource = $(this).val();
-        
-        // Check if source contains "IATA" (case-sensitive)
         if (selectedSource.includes('IATA')) {
-            $('#system').prop('disabled', false);
+            $('#system').prop('required', true);
+            $('#system').show();
         } else {
-            $('#system').prop('disabled', true).val('');
+            $('#system').prop('required', false);
+            $('#system').val('N/A');  // Set a default value that will be submitted
+            // Optionally hide it:
+            // $('#system').hide();
         }
     });
     
