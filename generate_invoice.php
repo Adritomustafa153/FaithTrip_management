@@ -107,7 +107,11 @@ if (!empty($_SESSION['invoice_cart'])) {
         } elseif ($remarks == 'Reissue') {
             $amount = floatval($row['BillAmount']);
             $type_label = 'Ticket Reissue';
-        } else {
+        } 
+        elseif ($remarks == 'Cancellation Charge') {
+            $amount = floatval($row['BillAmount']);
+            $type_label = 'Ticket Cancellation Charge';
+        }else {
             $amount = floatval($row['BillAmount']);
             $type_label = 'Sale';
         }

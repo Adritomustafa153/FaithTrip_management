@@ -10,12 +10,14 @@ $source_id = $_GET['source_id'] ?? '';
 $from_date = $_GET['from'] ?? '';
 $to_date = $_GET['to'] ?? '';
 $invoice_no = $_GET['invoice_no'] ?? '';
+$refund_filter = $_GET['refund_only'] ?? '';
 
 // Build WHERE clause
 $where = "WHERE 1";
 if (!empty($source_id)) $where .= " AND p.source = '$source_id'";
 if (!empty($from_date) && !empty($to_date)) $where .= " AND p.payment_date BETWEEN '$from_date' AND '$to_date'";
 if (!empty($invoice_no)) $where .= " AND p.invoice_no LIKE '%$invoice_no%'";
+if ($refund_filter == '1') $where .= " AND p.remarks LIKE '%Refund payment%'";
 
 // Fetch paid data
 $query = "
@@ -47,10 +49,10 @@ $result = mysqli_query($conn, $query);
             border-radius: 4px;
             cursor: pointer;
         }
-        .actions .edit-btn { background-color:rgb(25, 199, 43); color: #000; }
+        .actions .edit-btn { background-color: rgb(25, 199, 43); color: #000; }
         .actions .delete-btn { background-color: #dc3545; color: #fff; }
         button:hover { opacity: 0.9; }
-        .filter-div form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 20px;margin-left: 125px;}
+        .filter-div form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 20px; margin-left: 125px; }
         .filter-div label { font-weight: 600; }
         .filter-div select, .filter-div input[type="date"], .filter-div input[type="text"] {
             padding: 6px;
@@ -64,9 +66,7 @@ $result = mysqli_query($conn, $query);
             border: none;
             border-radius: 4px;
         }
-        .filter-div button:hover {
-            background-color: #0056b3;
-        }
+        .filter-div button:hover { background-color: #0056b3; }
         .loading-btn { position: relative; }
         .loading-btn:disabled::after {
             content: "";
@@ -81,36 +81,30 @@ $result = mysqli_query($conn, $query);
             animation: spin 1s linear infinite;
             transform: translate(-50%, -50%);
         }
-        @keyframes spin {
-            to { transform: translate(-50%, -50%) rotate(360deg); }
-        }
+        @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
     </style>
     <script>
         function confirmSuccess() {
             const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('success')) {
-                alert("✅ Payment inserted successfully.");
-            }
+            if (urlParams.get('success')) alert("✅ Payment inserted successfully.");
         }
-
         function handleSearch(btn) {
             btn.disabled = true;
             btn.classList.add('loading-btn');
             btn.form.submit();
         }
-
         window.onload = confirmSuccess;
     </script>
 </head>
 <body>
-<?php include 'nav.php' ?>
-<h3 style="text-align : center;margin-top:30px;">Paid invoices List</h3>
+<?php include 'nav.php'; ?>
+<h3 style="text-align: center; margin-top: 30px;">Paid invoices List</h3>
 <div class="filter-div">
     <form method="GET" action="paid.php">
         <label>Source:</label>
-        <select name="source_id" id="sourceSelect">
+        <select name="source_id">
             <option value="">All Sources</option>
-            <?php while ($row = mysqli_fetch_assoc($sources_result)): ?>
+            <?php mysqli_data_seek($sources_result, 0); while ($row = mysqli_fetch_assoc($sources_result)): ?>
                 <option value="<?= $row['agency_name'] ?>" <?= $source_id == $row['agency_name'] ? 'selected' : '' ?>>
                     <?= htmlspecialchars($row['agency_name']) ?>
                 </option>
@@ -119,16 +113,20 @@ $result = mysqli_query($conn, $query);
 
         <label>From:</label>
         <input type="date" name="from" value="<?= $from_date ?>">
-
         <label>To:</label>
         <input type="date" name="to" value="<?= $to_date ?>">
-
         <label>Invoice No:</label>
         <input type="text" name="invoice_no" placeholder="Search Invoice" value="<?= htmlspecialchars($invoice_no) ?>">
 
+        <label>Payment Type:</label>
+        <select name="refund_only">
+            <option value="">All Payments</option>
+            <option value="1" <?= $refund_filter == '1' ? 'selected' : '' ?>>Refund Payments Only</option>
+        </select>
+
         <button type="submit" onclick="handleSearch(this)">Search</button>
         <button type="button" onclick="window.location.href='insert_paid.php'">Insert</button>
-        <button type="button" onclick="window.location.href='export_paid.php?source_id=<?= $source_id ?>&from=<?= $from_date ?>&to=<?= $to_date ?>&invoice_no=<?= $invoice_no ?>'">Export to Excel</button>
+        <button type="button" onclick="window.location.href='export_paid.php?source_id=<?= $source_id ?>&from=<?= $from_date ?>&to=<?= $to_date ?>&invoice_no=<?= $invoice_no ?>&refund_only=<?= $refund_filter ?>'">Export to Excel</button>
     </form>
 </div>
 
@@ -178,7 +176,7 @@ $result = mysqli_query($conn, $query);
             </tr>
         <?php endwhile; ?>
         <tr>
-            <td colspan="7" style="text-align: right;background: #e9ecef"><strong>Total</strong></td>
+            <td colspan="7" style="text-align: right; background: #e9ecef"><strong>Total</strong></td>
             <td><strong><?= number_format($total, 2) ?></strong></td>
             <td colspan="2"></td>
         </tr>

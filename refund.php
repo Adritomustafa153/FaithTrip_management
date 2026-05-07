@@ -3,35 +3,35 @@
 include 'db.php';
 include 'auth_check.php';
 
-// Initialize refund cart if not exists
-if (!isset($_SESSION['refund_cart'])) {
-    $_SESSION['refund_cart'] = [];
+// ✅ Use the same cart as invoice_cart2.php
+if (!isset($_SESSION['invoice_cart'])) {
+    $_SESSION['invoice_cart'] = [];
 }
 
-// Handle adding to cart
+// Handle adding to cart – now adds to invoice_cart
 if (isset($_POST['add_to_cart'])) {
     $sale_id = intval($_POST['sale_id']);
-    $query = "SELECT * FROM sales WHERE SaleID = $sale_id AND Remarks = 'Refund'";
+    $query = "SELECT * FROM sales WHERE SaleID = $sale_id AND Remarks IN ('Refund', 'Cancellation Charge')";
     $result = $conn->query($query);
     
     if ($result->num_rows > 0) {
-        if (!in_array($sale_id, $_SESSION['refund_cart'])) {
-            $_SESSION['refund_cart'][] = $sale_id;
-            $_SESSION['cart_message'] = "Item added to refund invoice cart!";
-            header("Location: refund.php");
-            exit();
+        if (!in_array($sale_id, $_SESSION['invoice_cart'])) {
+            $_SESSION['invoice_cart'][] = $sale_id;
+            $_SESSION['cart_message'] = "Item added to invoice cart!";
         } else {
             $_SESSION['cart_message'] = "Item already in cart!";
         }
+        header("Location: invoice_cart2.php");
+        exit();
     }
 }
 
-// Fetch company names for dropdown
-$companyQuery = "SELECT DISTINCT PartyName FROM sales WHERE Remarks = 'Refund'";
+// Fetch company names for dropdown (only from relevant records)
+$companyQuery = "SELECT DISTINCT PartyName FROM sales WHERE Remarks IN ('Refund', 'Cancellation Charge')";
 $companyResult = $conn->query($companyQuery);
 
-// Fetch refunded tickets with search filters
-$where = " WHERE Remarks = 'Refund'";
+// Fetch refunded/cancel tickets with search filters
+$where = " WHERE Remarks IN ('Refund', 'Cancellation Charge')";
 if (isset($_GET['company']) && !empty($_GET['company'])) {
     $company = $conn->real_escape_string($_GET['company']);
     $where .= " AND PartyName = '$company'";
@@ -45,16 +45,16 @@ if (isset($_GET['pnr']) && !empty($_GET['pnr'])) {
     $where .= " AND PNR LIKE '%$pnr_%'";
 }
 
-$refundQuery = "SELECT * FROM sales" . $where . " ORDER BY refund_date DESC";
+$refundQuery = "SELECT * FROM sales" . $where . " ORDER BY refund_date DESC, SaleID DESC";
 $refundResult = $conn->query($refundQuery);
 
 // Delete record
 if (isset($_GET['delete'])) {
     $id = intval($_GET['delete']);
-    $deleteQuery = "DELETE FROM sales WHERE SaleID=$id";
+    $deleteQuery = "DELETE FROM sales WHERE SaleID=$id AND Remarks IN ('Refund', 'Cancellation Charge')";
     if ($conn->query($deleteQuery) === TRUE) {
-        if (isset($_SESSION['refund_cart']) && ($key = array_search($id, $_SESSION['refund_cart'])) !== false) {
-            unset($_SESSION['refund_cart'][$key]);
+        if (isset($_SESSION['invoice_cart']) && ($key = array_search($id, $_SESSION['invoice_cart'])) !== false) {
+            unset($_SESSION['invoice_cart'][$key]);
         }
         $_SESSION['cart_message'] = "Record deleted successfully!";
         header("Location: refund.php");
@@ -69,7 +69,7 @@ if (isset($_GET['delete'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Refunded Tickets</title>
+    <title>Refund & Cancellation Records</title>
     <link rel="icon" href="logo.jpg">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -81,7 +81,6 @@ if (isset($_GET['delete'])) {
             position: relative;
             min-height: 100vh;
             margin: 0;
-            font-family: Arial, sans-serif;
         }
         body::before {
             content: "";
@@ -138,6 +137,11 @@ if (isset($_GET['delete'])) {
             background-color: #dc3545;
             font-weight: 500;
         }
+        .badge-cancel {
+            background-color: #ffc107;
+            color: #212529;
+            font-weight: 500;
+        }
         .search-container {
             background-color: white;
             padding: 20px;
@@ -152,6 +156,10 @@ if (isset($_GET['delete'])) {
         }
         .refund-amount {
             color: #dc3545;
+            font-weight: 600;
+        }
+        .cancel-amount {
+            color: #ff8c00;
             font-weight: 600;
         }
         .toast-container {
@@ -175,7 +183,7 @@ if (isset($_GET['delete'])) {
         .dropdown:hover .dropdown-menu {
             display: block;
         }
-        .refund-cart-btn {
+        .cart-btn {
             position: fixed;
             bottom: 20px;
             right: 20px;
@@ -190,7 +198,7 @@ if (isset($_GET['delete'])) {
             body {
                 padding-top: 60px;
             }
-            .refund-cart-btn {
+            .cart-btn {
                 bottom: 70px;
                 right: 10px;
             }
@@ -215,16 +223,16 @@ if (isset($_GET['delete'])) {
         <?php unset($_SESSION['cart_message']); ?>
     <?php endif; ?>
 
-    <!-- Floating Refund Cart Button -->
-    <a href="invoice_cart2.php" class="btn btn-danger refund-cart-btn rounded-pill">
-        <i class="fas fa-shopping-cart me-2"></i> Refund Cart 
-        <span class="badge bg-white text-danger"><?= count($_SESSION['refund_cart']) ?></span>
+    <!-- Floating Cart Button (points to invoice_cart2.php, shows count of invoice_cart) -->
+    <a href="invoice_cart2.php" class="btn btn-danger cart-btn rounded-pill">
+        <i class="fas fa-shopping-cart me-2"></i> Invoice Cart 
+        <span class="badge bg-white text-danger"><?= count($_SESSION['invoice_cart']) ?></span>
     </a>
 
     <div class="container-fluid">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h2 class="mb-0 fs-4"><i class="fas fa-exchange-alt me-2"></i>Refunded Tickets</h2>
+                <h2 class="mb-0 fs-4"><i class="fas fa-exchange-alt me-2"></i>Refund & Cancellation Records</h2>
                 <div>
                     <span class="badge bg-secondary"><?= $refundResult->num_rows ?> records</span>
                 </div>
@@ -264,11 +272,12 @@ if (isset($_GET['delete'])) {
                     </form>
                 </div>
 
-                <!-- Refunded Tickets Table -->
+                <!-- Records Table -->
                 <div class="table-container">
                     <table class="table table-hover">
                         <thead>
                             <tr>
+                                <th>Type</th>
                                 <th>Company</th>
                                 <th>Passenger</th>
                                 <th>Invoice</th>
@@ -276,8 +285,8 @@ if (isset($_GET['delete'])) {
                                 <th>Airline</th>
                                 <th>PNR</th>
                                 <th>Ticket</th>
-                                <th>Refund Date</th>
-                                <th>Amount</th>
+                                <th>Date</th>
+                                <th>Amount (BDT)</th>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>
@@ -285,35 +294,42 @@ if (isset($_GET['delete'])) {
                         <tbody>
                             <?php if ($refundResult->num_rows > 0) : ?>
                                 <?php while ($row = $refundResult->fetch_assoc()) : 
-                                    $refund_date = new DateTime($row['refund_date']);
+                                    $record_date = new DateTime($row['refund_date'] ?: $row['IssueDate']);
+                                    $is_refund = ($row['Remarks'] == 'Refund');
+                                    $display_amount = $is_refund ? $row['refundtc'] : $row['BillAmount'];
+                                    $amount_class = $is_refund ? 'refund-amount' : 'cancel-amount';
+                                    $badge_class = $is_refund ? 'badge-refund' : 'badge-cancel';
+                                    $badge_text = $is_refund ? 'Refunded' : 'Cancellation Charge';
                                 ?>
                                     <tr>
+                                        <td>
+                                            <span class="badge <?= $badge_class ?> rounded-pill"><?= $badge_text ?></span>
+                                        </td>
                                         <td><?= htmlspecialchars($row['PartyName']) ?></td>
                                         <td><?= htmlspecialchars($row['PassengerName']) ?></td>
                                         <td>
                                             <?= htmlspecialchars($row['invoice_number']) ?>
                                             <?php if (!empty($row['invoice_number'])) : ?>
                                                 <div class="mt-1">
-                                                    <a href="invoices/<?= $row['invoice_number'] ?>.pdf" target="invoices" class="btn btn-sm btn-outline-primary">
+                                                    <a href="invoices/<?= $row['invoice_number'] ?>.pdf" target="_blank" class="btn btn-sm btn-outline-primary">
                                                         <i class="fas fa-file-invoice me-1"></i>View
                                                     </a>
                                                 </div>
                                             <?php endif; ?>
-                                        </td>
+                                         </td>
                                         <td><?= htmlspecialchars($row['TicketRoute']) ?></td>
                                         <td><?= htmlspecialchars($row['airlines']) ?></td>
                                         <td><?= htmlspecialchars($row['PNR']) ?></td>
                                         <td><?= htmlspecialchars($row['TicketNumber']) ?></td>
-                                        <td><?= $refund_date->format('Y-m-d') ?></td>
-                                        <td class="refund-amount">BDT <?= number_format($row['BillAmount'], 2) ?></td>
+                                        <td><?= $record_date->format('Y-m-d') ?></td>
+                                        <td class="<?= $amount_class ?>"><?= number_format($display_amount, 2) ?></td>
                                         <td>
-                                            <span class="badge badge-refund rounded-pill">Refunded</span>
+                                            <span class="badge <?= $badge_class ?> rounded-pill"><?= $badge_text ?></span>
                                         </td>
                                         <td class="action-btns">
-                                            <!-- FIXED: Changed action to extensionless URL -->
-                                            <form method="POST" action="invoice_cart2">
-                                                <input type="hidden" name="sell_id" value="<?= $row['SaleID'] ?>">
-                                                <button type="submit" class="btn btn-sm btn-primary">
+                                            <form method="POST" action="">
+                                                <input type="hidden" name="sale_id" value="<?= $row['SaleID'] ?>">
+                                                <button type="submit" name="add_to_cart" class="btn btn-sm btn-primary">
                                                     <i class="fas fa-cart-plus"></i> Add to Invoice
                                                 </button>
                                             </form>
@@ -321,7 +337,7 @@ if (isset($_GET['delete'])) {
                                                 <i class="fas fa-edit me-1"></i>Edit
                                             </a>
                                             <a href="refund.php?delete=<?= $row['SaleID'] ?>" class="btn btn-sm btn-danger mt-1" 
-                                               onclick="return confirm('Are you sure you want to delete this refund record?')">
+                                               onclick="return confirm('Are you sure you want to delete this record?')">
                                                 <i class="fas fa-trash me-1"></i>Delete
                                             </a>
                                         </td>
@@ -329,9 +345,9 @@ if (isset($_GET['delete'])) {
                                 <?php endwhile; ?>
                             <?php else : ?>
                                 <tr>
-                                    <td colspan="11" class="text-center py-4">
+                                    <td colspan="12" class="text-center py-4">
                                         <div class="alert alert-info mb-0">
-                                            <i class="fas fa-info-circle me-2"></i>No refunded tickets found
+                                            <i class="fas fa-info-circle me-2"></i>No refund or cancellation charge records found.
                                         </div>
                                     </td>
                                 </tr>
@@ -362,23 +378,12 @@ if (isset($_GET['delete'])) {
                 const toast = bootstrap.Toast.getOrCreateInstance(toastEl);
                 setTimeout(() => { toast.hide(); }, 5000);
             }
-            const refundAmountCells = document.querySelectorAll('.refund-amount');
-            refundAmountCells.forEach(cell => {
+            const amountCells = document.querySelectorAll('.refund-amount, .cancel-amount');
+            amountCells.forEach(cell => {
                 const amount = parseFloat(cell.textContent.replace(/[^0-9.]/g, ''));
                 if (amount > 50000) {
                     cell.innerHTML += ' <i class="fas fa-exclamation-triangle"></i>';
                 }
-            });
-            const dropdowns = document.querySelectorAll('.dropdown');
-            dropdowns.forEach(dropdown => {
-                dropdown.addEventListener('mouseenter', function() {
-                    this.querySelector('.dropdown-toggle').classList.add('show');
-                    this.querySelector('.dropdown-menu').classList.add('show');
-                });
-                dropdown.addEventListener('mouseleave', function() {
-                    this.querySelector('.dropdown-toggle').classList.remove('show');
-                    this.querySelector('.dropdown-menu').classList.remove('show');
-                });
             });
         });
     </script>

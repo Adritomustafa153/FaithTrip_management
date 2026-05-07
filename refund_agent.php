@@ -2,7 +2,6 @@
 include 'auth_check.php';
 include 'db.php';
 
-// ✅ Corrected: Check refund by TicketNumber only (not PNR)
 function isTicketRefunded($conn, $ticket_number) {
     $query = "SELECT COUNT(*) AS count FROM sales 
               WHERE TicketNumber = ? AND Remarks = 'Refund'";
@@ -14,7 +13,6 @@ function isTicketRefunded($conn, $ticket_number) {
     return $data['count'] > 0;
 }
 
-// Function to check if PNR has any refunded tickets (for informational purposes only)
 function hasRefundedTicketsInPNR($conn, $pnr) {
     $query = "SELECT COUNT(*) AS count FROM sales 
               WHERE PNR = ? AND Remarks = 'Refund'";
@@ -26,34 +24,26 @@ function hasRefundedTicketsInPNR($conn, $pnr) {
     return $data['count'] > 0;
 }
 
-// Fetch sources for dropdown
 $sources_query = "SELECT agency_name FROM sources";
 $sources_result = mysqli_query($conn, $sources_query);
 
-// Get sale ID from URL parameter
 $sale_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
-// Fetch the sale record to be refunded
 $sale_query = "SELECT * FROM sales WHERE SaleID = $sale_id";
 $sale_result = mysqli_query($conn, $sale_query);
 $sale_data = $sale_result->fetch_assoc();
 
-// Initialize variables
 $has_refund = false;
 $refund_message = "";
 $is_refunded = false;
 $pnr_has_refunds = false;
 
-// Check if current record is already refunded
 if ($sale_data) {
     $is_refunded = ($sale_data['Remarks'] == 'Refund') || 
                   isTicketRefunded($conn, $sale_data['TicketNumber']);
-    
-    // Check if PNR has other refunded tickets (for informational purposes)
     $pnr_has_refunds = hasRefundedTicketsInPNR($conn, $sale_data['PNR']);
 }
 
-// Fetch sales records for search functionality
 $where = "";
 if (isset($_GET['search_term']) && !empty($_GET['search_term'])) {
     $search_term = $conn->real_escape_string($_GET['search_term']);
@@ -61,7 +51,6 @@ if (isset($_GET['search_term']) && !empty($_GET['search_term'])) {
              TicketNumber LIKE '%$search_term%' OR 
              PNR LIKE '%$search_term%') AND Remarks != 'Refund'";
     
-    // ✅ Check refund by TicketNumber only
     $refund_check_query = "SELECT COUNT(*) AS refund_count, MAX(refund_date) AS last_refund_date, 
                           MAX(refundtc) AS refund_amount FROM sales 
                           WHERE TicketNumber LIKE '%$search_term%' 
@@ -70,7 +59,6 @@ if (isset($_GET['search_term']) && !empty($_GET['search_term'])) {
     if ($refund_check_result) {
         $refund_data = $refund_check_result->fetch_assoc();
         $has_refund = $refund_data['refund_count'] > 0;
-        
         if ($has_refund) {
             $refund_message = "This ticket was refunded on " . date('M d, Y', strtotime($refund_data['last_refund_date'])) . 
                              " with amount " . number_format($refund_data['refund_amount'], 2);
@@ -83,18 +71,39 @@ $search_query = "SELECT s.*, 'Sell' AS Status
                 ORDER BY s.SaleID DESC LIMIT 10";
 $search_result = mysqli_query($conn, $search_query);
 
-// Process refund if form is submitted and not already refunded
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
     $refund_charge = floatval($_POST['refund_charge']);
     $service_charge = floatval($_POST['service_charge']);
-    $total_refund = $refund_charge + $service_charge;
-    $refund_amount = abs(floatval($_POST['refund_amount']));
-    $refund_tc = $refund_amount;
+    $total_charges = $refund_charge + $service_charge;
     $source = $conn->real_escape_string($_POST['source']);
     $refund_date = $conn->real_escape_string($_POST['refund_date']);
-    
-    // Insert a new record for the refund
-    $insert_query = "INSERT INTO sales (
+
+    $payment_status = $sale_data['PaymentStatus'];
+    $paid_amount = floatval($sale_data['PaidAmount'] ?? 0);
+    $bill_amount = floatval($sale_data['BillAmount']);
+
+    $refund_to_client = 0;
+    $extra_charge = 0;
+
+    if ($payment_status == 'Paid') {
+        $refund_to_client = $bill_amount - $total_charges;
+        if ($refund_to_client < 0) $refund_to_client = 0;
+    } 
+    elseif ($payment_status == 'Partially Paid') {
+        $refund_to_client = $paid_amount - $total_charges;
+        if ($refund_to_client < 0) {
+            $extra_charge = abs($refund_to_client);
+            $refund_to_client = 0;
+        }
+    }
+    else { // Due
+        $extra_charge = $total_charges;
+        $refund_to_client = 0;
+    }
+
+    // Insert refund record (if any amount to return)
+    if ($refund_to_client > 0) {
+        $insert_refund = "INSERT INTO sales (
                     section, PartyName, PassengerName, airlines, TicketRoute, 
                     TicketNumber, Class, IssueDate, FlightDate, ReturnDate, 
                     PNR, BillAmount, NetPayment, Profit, PaymentStatus, 
@@ -105,48 +114,46 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                     PNR, ?, ?, ?, 'Paid', 
                     PaymentMethod, SalesPersonName, 'Refund', ?, ?, ?
                 FROM sales WHERE SaleID = ?";
-    
-    $profit = $service_charge;
-    $net_payment = $refund_charge;
-    
-    $stmt = $conn->prepare($insert_query);
-    $stmt->bind_param("dddsssi", $total_refund, $net_payment, $profit, $source, $refund_date, $refund_tc, $sale_id);
-    $stmt->execute();
-    
-    if ($stmt->affected_rows > 0) {
-        // Show loading page
+        $stmt = $conn->prepare($insert_refund);
+        $profit = $service_charge;
+        $net_payment = $refund_charge;
+        $stmt->bind_param("dddsssi", $total_charges, $net_payment, $profit, $source, $refund_date, $refund_to_client, $sale_id);
+        $stmt->execute();
+    }
+
+    // Insert cancellation charge record (if extra charge applies)
+    if ($extra_charge > 0) {
+        $insert_charge = "INSERT INTO sales (
+                    section, PartyName, PassengerName, airlines, TicketRoute, 
+                    TicketNumber, Class, IssueDate, FlightDate, ReturnDate, 
+                    PNR, BillAmount, NetPayment, Profit, PaymentStatus, 
+                    PaymentMethod, SalesPersonName, Remarks, Source, refund_date, refundtc
+                ) SELECT 
+                    section, PartyName, PassengerName, airlines, TicketRoute, 
+                    TicketNumber, Class, CURDATE(), FlightDate, ReturnDate, 
+                    PNR, ?, ?, 0, 'Due', 
+                    PaymentMethod, SalesPersonName, 'Cancellation Charge', ?, ?, 0
+                FROM sales WHERE SaleID = ?";
+        $stmt2 = $conn->prepare($insert_charge);
+        $stmt2->bind_param("ddssi", $extra_charge, $extra_charge, $source, $refund_date, $sale_id);
+        $stmt2->execute();
+    }
+
+    if (($refund_to_client > 0 && isset($stmt)) || ($extra_charge > 0 && isset($stmt2))) {
         echo '<!DOCTYPE html>
         <html>
         <head>
             <title>Processing Refund</title>
             <style>
-                body {
-                    margin: 0;
-                    padding: 0;
-                    font-family: Arial, sans-serif;
-                }
+                body { margin:0; font-family:Arial; }
                 .loading-container {
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    background-color: rgba(255,255,255,0.9);
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: center;
-                    align-items: center;
-                    z-index: 9999;
+                    position:fixed; top:0; left:0; width:100%; height:100%;
+                    background:rgba(255,255,255,0.9); display:flex;
+                    flex-direction:column; justify-content:center; align-items:center;
+                    z-index:9999;
                 }
-                .loading-gif {
-                    width: 100px;
-                    height: 100px;
-                }
-                .loading-text {
-                    margin-top: 20px;
-                    font-size: 18px;
-                    color: #333;
-                }
+                .loading-gif { width:100px; height:100px; }
+                .loading-text { margin-top:20px; font-size:18px; }
             </style>
         </head>
         <body>
@@ -167,19 +174,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Refund Processing</title>
+    <title>Refund Processing - Agent</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <style>
-        /* (Your existing CSS - unchanged) */
         body { font-family: Arial, sans-serif; margin: 20px; background-color: #f8f9fa; }
-        .container { background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.1); margin-top: 20px; position: relative; }
+        .container { background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0px 4px 15px rgba(0,0,0,0.1); margin-top: 20px; position: relative; }
         h2 { color: #2c3e50; margin-bottom: 25px; text-align: center; font-weight: 600; }
         .form-group { margin-bottom: 20px; }
         label { font-weight: 500; margin-bottom: 8px; display: block; }
@@ -188,13 +193,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
         .btn-submit:hover { background-color: #3a5bd9; }
         .readonly { background-color: #e9ecef; }
         .refund-section { background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #4a71ff; }
-        .refund-section h4 { color: #4a71ff; margin-bottom: 20px; }
         .original-info { background-color: #e8f4fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
         .search-results { position: absolute; z-index: 1000; width: 100%; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #ddd; border-radius: 0 0 5px 5px; display: none; }
         .search-results a { display: block; padding: 8px 15px; color: #333; text-decoration: none; }
         .search-results a:hover { background-color: #f5f5f5; }
-        .status-refunded { color: #dc3545; font-weight: bold; }
-        .status-sell { color: #28a745; font-weight: bold; }
         .btn-disabled { opacity: 0.6; cursor: not-allowed; background-color: #6c757d !important; }
         .alert-success { animation: fadeIn 0.5s; }
         .pnr-notice { background-color: #d1ecf1; padding: 10px; border-radius: 5px; margin-bottom: 10px; border-left: 4px solid #17a2b8; font-size: 14px; }
@@ -205,7 +207,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
 </head>
 <body>
     <?php include 'nav.php'; ?>
-    
     <div class="container">
         <?php if (isset($_GET['success']) && $_GET['success'] == 1): ?>
             <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -214,9 +215,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
             </div>
         <?php endif; ?>
 
-        <h2>Refund Processing</h2>
+        <h2>Refund Processing (Agent)</h2>
         
-        <!-- Search Form -->
         <form method="GET" class="mb-4">
             <div class="row">
                 <div class="col-md-10 position-relative">
@@ -242,7 +242,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
         <?php endif; ?>
         
         <form action="" method="POST" id="refundForm" <?= $is_refunded ? 'class="form-disabled"' : '' ?>>
-            <!-- Original Sale Information -->
             <div class="original-info">
                 <h4>Original Sale Information</h4>
                 <div class="row">
@@ -279,31 +278,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                         <input type="text" class="form-control readonly" value="<?= htmlspecialchars($sale_data['TicketNumber']) ?>" readonly>
                     </div>
                     <div class="col-md-4">
-                        <label>Original Selling Price (Bill Amount):</label>
+                        <label>Original Selling Price:</label>
                         <input type="text" id="original_bill" class="form-control readonly" value="<?= number_format($sale_data['BillAmount'], 2) ?>" readonly>
                     </div>
                     <div class="col-md-4">
-                        <label>Original Net Payment:</label>
-                        <input type="text" id="original_net" class="form-control readonly" value="<?= number_format($sale_data['NetPayment'], 2) ?>" readonly>
+                        <label>Payment Status:</label>
+                        <input type="text" class="form-control readonly" value="<?= htmlspecialchars($sale_data['PaymentStatus']) ?>" readonly>
                     </div>
                 </div>
+                <?php if ($sale_data['PaymentStatus'] == 'Partially Paid'): ?>
                 <div class="row mt-2">
                     <div class="col-md-4">
-                        <label>Original Profit:</label>
-                        <input type="text" class="form-control readonly" value="<?= number_format($sale_data['Profit'], 2) ?>" readonly>
+                        <label>Paid Amount:</label>
+                        <input type="text" class="form-control readonly" value="<?= number_format($sale_data['PaidAmount'], 2) ?>" readonly>
                     </div>
                     <div class="col-md-4">
-                        <label>Flight Date:</label>
-                        <input type="text" class="form-control readonly" value="<?= htmlspecialchars($sale_data['FlightDate']) ?>" readonly>
-                    </div>
-                    <div class="col-md-4">
-                        <label>Return Date:</label>
-                        <input type="text" class="form-control readonly" value="<?= htmlspecialchars($sale_data['ReturnDate']) ?>" readonly>
+                        <label>Due Amount:</label>
+                        <input type="text" class="form-control readonly" value="<?= number_format($sale_data['DueAmount'], 2) ?>" readonly>
                     </div>
                 </div>
+                <?php endif; ?>
             </div>
 
-            <!-- Refund Section -->
             <div class="refund-section">
                 <h4>Refund Details</h4>
                 <?php if ($is_refunded): ?>
@@ -354,13 +350,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                     </div>
                 </div>
                 <div class="row mt-2">
-                    <div class="col-md-12">
-                        <small class="text-muted">Refund to client = Selling Price - (Refund Charge + Service Charge)</small>
-                    </div>
+                    <div class="col-md-12" id="payment_status_info"></div>
                 </div>
             </div>
 
-            <!-- Submit Button -->
             <div class="row mt-4">
                 <div class="col-md-12">
                     <button type="submit" class="btn-submit <?= $is_refunded ? 'btn-disabled' : '' ?>" <?= $is_refunded ? 'disabled' : '' ?>>
@@ -390,13 +383,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                         <h5>Available Sales Records:</h5>
                         <table class="table table-bordered">
                             <thead>
-                                <tr>
-                                    <th>Passenger</th>
-                                    <th>Ticket No</th>
-                                    <th>PNR</th>
-                                    <th>Status</th>
-                                    <th>Action</th>
-                                </tr>
+                                <tr><th>Passenger</th><th>Ticket No</th><th>PNR</th><th>Status</th><th>Action</th></tr>
                             </thead>
                             <tbody>
                                 <?php while ($row = $search_result->fetch_assoc()): 
@@ -407,34 +394,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                                         <td><?= htmlspecialchars($row['PassengerName']) ?></td>
                                         <td><?= htmlspecialchars($row['TicketNumber']) ?></td>
                                         <td><?= htmlspecialchars($row['PNR']) ?></td>
-                                        <td class="status-sell">
-                                            <?= htmlspecialchars($row['Status']) ?>
-                                        </td>
+                                        <td class="status-sell"><?= htmlspecialchars($row['Status']) ?></td>
                                         <td>
                                             <?php if ($is_already_refunded): ?>
-                                                <button class="btn btn-sm btn-secondary btn-disabled" disabled>
-                                                    Already Refunded
-                                                </button>
+                                                <button class="btn btn-sm btn-secondary btn-disabled" disabled>Already Refunded</button>
                                             <?php elseif ($pnr_has_refunds): ?>
-                                                <a href="?id=<?= $row['SaleID'] ?>&search_term=<?= urlencode($_GET['search_term']) ?>" 
-                                                   class="btn btn-sm btn-warning">
-                                                    Select (PNR has refunds)
-                                                </a>
+                                                <a href="?id=<?= $row['SaleID'] ?>&search_term=<?= urlencode($_GET['search_term']) ?>" class="btn btn-sm btn-warning">Select (PNR has refunds)</a>
                                             <?php else: ?>
-                                                <a href="?id=<?= $row['SaleID'] ?>&search_term=<?= urlencode($_GET['search_term']) ?>" 
-                                                   class="btn btn-sm btn-primary">
-                                                    Select for Refund
-                                                </a>
+                                                <a href="?id=<?= $row['SaleID'] ?>&search_term=<?= urlencode($_GET['search_term']) ?>" class="btn btn-sm btn-primary">Select for Refund</a>
                                             <?php endif; ?>
                                         </td>
                                     </tr>
                                 <?php endwhile; ?>
                             </tbody>
-                        95able
+                        </table>
                     <?php else: ?>
-                        <div class="alert alert-info">
-                            No available sales records found for this search. All matching records have been refunded.
-                        </div>
+                        <div class="alert alert-info">No available sales records found for this search.</div>
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
@@ -446,25 +421,46 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script>
         $(document).ready(function() {
-            flatpickr("#refund_date", {
-                dateFormat: "Y-m-d",
-                defaultDate: "today"
-            });
+            flatpickr("#refund_date", { dateFormat: "Y-m-d", defaultDate: "today" });
 
-            // ✅ Calculate refund amount based on Selling Price (BillAmount)
+            let paymentStatus = "<?= $sale_data['PaymentStatus'] ?? '' ?>";
+            let paidAmount = parseFloat("<?= $sale_data['PaidAmount'] ?? 0 ?>");
+            let sellingPrice = parseFloat("<?= $sale_data['BillAmount'] ?? 0 ?>");
+
             function calculateRefund() {
-                const refundCharge = parseFloat($('#refund_charge').val()) || 0;
-                const serviceCharge = parseFloat($('#service_charge').val()) || 0;
-                const sellingPrice = parseFloat($('#original_bill').val().replace(/,/g, '')) || 0;
-                
-                const totalRefundCharges = refundCharge + serviceCharge;
-                const amountToRefund = sellingPrice - totalRefundCharges;
-                
-                $('#total_refund').val(totalRefundCharges.toFixed(2));
-                $('#refund_amount').val(Math.max(0, amountToRefund).toFixed(2));
+                let refundCharge = parseFloat($('#refund_charge').val()) || 0;
+                let serviceCharge = parseFloat($('#service_charge').val()) || 0;
+                let totalCharges = refundCharge + serviceCharge;
+                let refundToClient = 0;
+                let infoText = "";
+
+                if (paymentStatus === 'Paid') {
+                    refundToClient = sellingPrice - totalCharges;
+                    if (refundToClient < 0) refundToClient = 0;
+                    infoText = `Client has paid full amount (${sellingPrice.toFixed(2)} BDT).<br>Refund to client = Selling Price - Total Charges = ${refundToClient.toFixed(2)} BDT.`;
+                } 
+                else if (paymentStatus === 'Partially Paid') {
+                    refundToClient = paidAmount - totalCharges;
+                    if (refundToClient < 0) {
+                        let extraCharge = Math.abs(refundToClient);
+                        infoText = `Client paid only ${paidAmount.toFixed(2)} BDT. Total Charges (${totalCharges.toFixed(2)}) exceed paid amount.<br>No refund; client owes ${extraCharge.toFixed(2)} BDT as Cancellation Charge.`;
+                        refundToClient = 0;
+                    } else {
+                        infoText = `Client paid ${paidAmount.toFixed(2)} BDT. Refund to client = Paid Amount - Total Charges = ${refundToClient.toFixed(2)} BDT.`;
+                    }
+                } 
+                else {
+                    refundToClient = 0;
+                    infoText = `Payment status is Due. Client has not paid anything.<br>No refund to client. Total Charges (${totalCharges.toFixed(2)} BDT) will be added as a Cancellation Charge.`;
+                }
+
+                $('#total_refund').val(totalCharges.toFixed(2));
+                $('#refund_amount').val(refundToClient.toFixed(2));
+                $('#payment_status_info').html(`<div class="alert alert-info">${infoText}</div>`);
             }
 
             $('#refund_charge, #service_charge').on('input', calculateRefund);
+            calculateRefund();
 
             $('#refundForm').submit(function(e) {
                 <?php if ($is_refunded): ?>
@@ -473,63 +469,38 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                     return false;
                 <?php endif; ?>
                 
-                const refundAmount = parseFloat($('#refund_amount').val());
-                if (isNaN(refundAmount) || refundAmount < 0) {
-                    alert('Please enter valid refund charges.');
-                    e.preventDefault();
-                    return false;
-                }
-                
                 if ($('#source').val() === '') {
                     alert('Please select a source/agency.');
                     e.preventDefault();
                     return false;
                 }
-
                 if (!$('#refund_date').val()) {
                     alert('Please select a refund date.');
                     e.preventDefault();
                     return false;
                 }
-                
                 return true;
             });
 
-            // Live search
             $('#search_term').on('input', function() {
-                const searchTerm = $(this).val();
-                if (searchTerm.length < 2) {
-                    $('#searchResults').hide();
-                    return;
-                }
-                
-                $.get('search_refund.php', { term: searchTerm }, function(data) {
-                    const results = $('#searchResults');
+                let term = $(this).val();
+                if (term.length < 2) { $('#searchResults').hide(); return; }
+                $.get('search_refund.php', { term: term }, function(data) {
+                    let results = $('#searchResults');
                     results.empty();
-                    
                     if (data.length > 0) {
                         data.forEach(item => {
-                            results.append(
-                                `<a href="?id=${item.SaleID}&search_term=${encodeURIComponent(searchTerm)}">
-                                    ${item.PassengerName} (Ticket: ${item.TicketNumber}, PNR: ${item.PNR})
-                                </a>`
-                            );
+                            results.append(`<a href="?id=${item.SaleID}&search_term=${encodeURIComponent(term)}">${item.PassengerName} (Ticket: ${item.TicketNumber}, PNR: ${item.PNR})</a>`);
                         });
                         results.show();
-                    } else {
-                        results.hide();
-                    }
+                    } else { results.hide(); }
                 }, 'json');
             });
-
             $(document).on('click', function(e) {
-                if (!$(e.target).closest('#search_term, #searchResults').length) {
-                    $('#searchResults').hide();
-                }
+                if (!$(e.target).closest('#search_term, #searchResults').length) $('#searchResults').hide();
             });
         });
     </script>
 </body>
 </html>
-
 <?php $conn->close(); ?>
