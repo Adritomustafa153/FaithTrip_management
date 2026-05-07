@@ -9,15 +9,12 @@ ini_set('display_errors', 1);
 $companyQuery = "SELECT DISTINCT PartyName FROM sales WHERE PartyName IS NOT NULL AND PartyName != ''";
 $companyResult = $conn->query($companyQuery);
 
-// Get hide options from GET
 $hide_net = isset($_GET['hide_net']) && $_GET['hide_net'] == '1';
 $hide_profit = isset($_GET['hide_profit']) && $_GET['hide_profit'] == '1';
 
-// Sorting
 $sort_by = isset($_GET['sort_by']) ? $_GET['sort_by'] : 'IssueDate';
 $sort_order = isset($_GET['sort_order']) ? $_GET['sort_order'] : 'DESC';
 
-// Build WHERE clause – only Reissue records
 $where = " WHERE Remarks = 'Reissue'";
 
 if (isset($_GET['company']) && !empty($_GET['company'])) {
@@ -38,11 +35,9 @@ if (isset($_GET['from_date']) && !empty($_GET['from_date']) && isset($_GET['to_d
     $where .= " AND IssueDate BETWEEN '$from_date' AND '$to_date'";
 }
 
-// Exclude voided records (optional, but safe)
 $where .= " AND (Remarks != 'Voided' OR Remarks IS NULL)";
 $where .= " AND (Remarks != 'Void Transaction' OR Remarks IS NULL)";
 
-// Allowed sort columns
 $allowed_sort_columns = ['IssueDate', 'PartyName', 'TicketNumber', 'BillAmount', 'NetPayment'];
 if (!in_array($sort_by, $allowed_sort_columns)) {
     $sort_by = 'IssueDate';
@@ -52,7 +47,6 @@ if ($sort_order != 'ASC' && $sort_order != 'DESC') {
     $sort_order = 'DESC';
 }
 
-// Query with user join
 $salesQuery = "SELECT sales.*, user.UserName AS created_by_name 
                FROM sales 
                LEFT JOIN user ON sales.created_by_user_id = user.UserId 
@@ -60,7 +54,6 @@ $salesQuery = "SELECT sales.*, user.UserName AS created_by_name
                ORDER BY $sort_by $sort_order";
 $salesResult = $conn->query($salesQuery);
 
-// Delete record
 if (isset($_GET['delete'])) {
     $id = intval($_GET['delete']);
     $deleteQuery = "DELETE FROM sales WHERE SaleID=$id";
@@ -71,7 +64,6 @@ if (isset($_GET['delete'])) {
     }
 }
 
-// Helper functions
 function safeHtml($str) {
     return htmlspecialchars($str ?? '', ENT_QUOTES, 'UTF-8');
 }
@@ -89,7 +81,6 @@ function sortLink($column, $label, $current_sort, $current_order) {
     return "<a href='?sort_by=$column&sort_order=$new_order&$query' style='color: white; text-decoration: none;'>$label$icon</a>";
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -140,9 +131,7 @@ function sortLink($column, $label, $current_sort, $current_order) {
     </style>
 </head>
 <body>
-
 <?php include 'nav.php'; ?>
-
 <div class="container">
     <h2>Reissue Records</h2>
     
@@ -172,7 +161,7 @@ function sortLink($column, $label, $current_sort, $current_order) {
         if (isset($_GET['sort_order']) && !empty($_GET['sort_order'])) $export_params[] = "sort_order=" . urlencode($_GET['sort_order']);
         if ($hide_net) $export_params[] = "hide_net=1";
         if ($hide_profit) $export_params[] = "hide_profit=1";
-        $export_url = "export_reissue_excel.php"; // You may create this file later
+        $export_url = "export_reissue_excel.php";
         if (!empty($export_params)) $export_url .= "?" . implode("&", $export_params);
         ?>
         <a href="<?= $export_url ?>" class="export-btn">Export to Excel</a>
@@ -238,7 +227,7 @@ function sortLink($column, $label, $current_sort, $current_order) {
                     <span class="small-text">Dep: <?= safeHtml($row['FlightDate']) ?></span><br>
                     <span class="small-text">Ret: <?= safeHtml($row['ReturnDate']) ?></span>
                 </td>
-                <td><?= $day_passes ?> days</td>
+                <td><?= $day_passes ?> days</div>
                 <td>
                     <?php 
                     $statusClass = '';
@@ -251,7 +240,7 @@ function sortLink($column, $label, $current_sort, $current_order) {
                     ?>
                     <span class="badge <?= $statusClass ?>"><?= substr($row['PaymentStatus'] ?? '', 0, 1) ?></span>
                     <span class="small-text"><br>M: <?= safeHtml($row['PaymentMethod']) ?></span>
-                </td>
+                </div>
                 <td>
                     <?= number_format($row['BillAmount'] ?? 0, 2) ?>
                     <?php if (!$hide_net): ?>
@@ -260,17 +249,18 @@ function sortLink($column, $label, $current_sort, $current_order) {
                     <?php if (!$hide_profit): ?>
                         <br><span class="small-text">Pr: <?= number_format($row['Profit'] ?? 0, 2) ?></span>
                     <?php endif; ?>
-                </td>
-                <td><?= safeHtml($row['SalesPersonName']) ?></td>
-                <td><?= safeHtml($row['created_by_name'] ?? 'Unknown') ?></td>
+                </div>
+                <td><?= safeHtml($row['SalesPersonName']) ?></div>
+                <td><?= safeHtml($row['created_by_name'] ?? 'Unknown') ?></div>
                 <td class="action-cell">
                     <a href="edit.php?id=<?= $row['SaleID'] ?>" class="btn edit-btn">Edit</a>
                     <a href="reissue.php?delete=<?= $row['SaleID'] ?>" class="btn delete-btn" onclick="return confirm('Delete this record?')">Del</a>
-                    <form action="invoice_cart2.php" method="POST" style="margin-top: 2px;">
+                    <!-- FIXED: Changed action to extensionless URL -->
+                    <form action="invoice_cart2" method="POST" style="margin-top: 2px;">
                         <input type="hidden" name="sell_id" value="<?= $row['SaleID'] ?>">
                         <button type="submit" class="btn btn-primary">Add to Cart</button>
                     </form>
-                </td>
+                 </div>
             </tr>
         <?php endwhile; ?>
         <?php if (!$hasResults): ?>
@@ -291,5 +281,4 @@ function sortLink($column, $label, $current_sort, $current_order) {
 
 </body>
 </html>
-
 <?php $conn->close(); ?>

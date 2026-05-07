@@ -96,17 +96,17 @@ if (!empty($_SESSION['invoice_cart'])) {
         
         if ($remarks == 'Air Ticket Sale' || $remarks == '' || $remarks === null) {
             $amount = floatval($row['BillAmount']);
-            $type_label = 'Sale';
+            $type_label = 'Air Ticket Sale';
         } elseif ($remarks == 'Void Transaction') {
             // Void uses BillAmount (selling amount)
             $amount = floatval($row['BillAmount']);
             $type_label = 'Void Charge';
         } elseif ($remarks == 'Refund') {
             $amount = -floatval($row['refundtc']);
-            $type_label = 'Refund';
+            $type_label = 'Ticket Refund';
         } elseif ($remarks == 'Reissue') {
             $amount = floatval($row['BillAmount']);
-            $type_label = 'Reissue';
+            $type_label = 'Ticket Reissue';
         } else {
             $amount = floatval($row['BillAmount']);
             $type_label = 'Sale';

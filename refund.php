@@ -1,10 +1,7 @@
 <?php
 // Database connection
-
 include 'db.php';
 include 'auth_check.php';
-// Start session for cart functionality
-// session_start();
 
 // Initialize refund cart if not exists
 if (!isset($_SESSION['refund_cart'])) {
@@ -18,7 +15,6 @@ if (isset($_POST['add_to_cart'])) {
     $result = $conn->query($query);
     
     if ($result->num_rows > 0) {
-        // Add to cart if not already present
         if (!in_array($sale_id, $_SESSION['refund_cart'])) {
             $_SESSION['refund_cart'][] = $sale_id;
             $_SESSION['cart_message'] = "Item added to refund invoice cart!";
@@ -57,7 +53,6 @@ if (isset($_GET['delete'])) {
     $id = intval($_GET['delete']);
     $deleteQuery = "DELETE FROM sales WHERE SaleID=$id";
     if ($conn->query($deleteQuery) === TRUE) {
-        // Also remove from cart if present
         if (isset($_SESSION['refund_cart']) && ($key = array_search($id, $_SESSION['refund_cart'])) !== false) {
             unset($_SESSION['refund_cart'][$key]);
         }
@@ -69,7 +64,6 @@ if (isset($_GET['delete'])) {
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -77,16 +71,9 @@ if (isset($_GET['delete'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Refunded Tickets</title>
     <link rel="icon" href="logo.jpg">
-    
-    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-    
     <style>
         body {
             font-family: 'Roboto', sans-serif;
@@ -97,16 +84,16 @@ if (isset($_GET['delete'])) {
             font-family: Arial, sans-serif;
         }
         body::before {
-    content: "";
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: url("https://static.vecteezy.com/system/resources/previews/026/749/007/large_2x/airplane-in-sky-background-free-photo.jpg") no-repeat center center / cover;
-    opacity: 0.5; /* 50% opacity */
-    z-index: -1; /* Keep it behind content */
-}
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url("https://static.vecteezy.com/system/resources/previews/026/749/007/large_2x/airplane-in-sky-background-free-photo.jpg") no-repeat center center / cover;
+            opacity: 0.5;
+            z-index: -1;
+        }
         .card {
             border-radius: 10px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
@@ -185,11 +172,9 @@ if (isset($_GET['delete'])) {
             border-radius: 8px;
             padding: 8px 12px;
         }
-        /* Dropdown fix */
         .dropdown:hover .dropdown-menu {
             display: block;
         }
-        /* Refund cart button */
         .refund-cart-btn {
             position: fixed;
             bottom: 20px;
@@ -213,7 +198,7 @@ if (isset($_GET['delete'])) {
     </style>
 </head>
 <body>
-    <?php include 'nav.php' ?>
+    <?php include 'nav.php'; ?>
 
     <!-- Toast Notification -->
     <?php if (isset($_SESSION['cart_message'])) : ?>
@@ -325,12 +310,13 @@ if (isset($_GET['delete'])) {
                                             <span class="badge badge-refund rounded-pill">Refunded</span>
                                         </td>
                                         <td class="action-btns">
-                                            <form method="POST" action="invoice_cart2.php">
-        <input type="hidden" name="sell_id" value="<?= $row['SaleID'] ?>">
-        <button type="submit" class="btn btn-sm btn-primary">
-            <i class="fas fa-cart-plus"></i> Add to Invoice
-        </button>
-    </form>
+                                            <!-- FIXED: Changed action to extensionless URL -->
+                                            <form method="POST" action="invoice_cart2">
+                                                <input type="hidden" name="sell_id" value="<?= $row['SaleID'] ?>">
+                                                <button type="submit" class="btn btn-sm btn-primary">
+                                                    <i class="fas fa-cart-plus"></i> Add to Invoice
+                                                </button>
+                                            </form>
                                             <a href="redirect_edit.php?id=<?= $row['SaleID'] ?>" class="btn btn-sm btn-success mt-1">
                                                 <i class="fas fa-edit me-1"></i>Edit
                                             </a>
@@ -368,25 +354,14 @@ if (isset($_GET['delete'])) {
         </div>
     </div>
 
-    <!-- Bootstrap JS Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <!-- Font Awesome JS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
-    
     <script>
-        // Initialize MDB components
         document.addEventListener('DOMContentLoaded', function() {
-            // Auto-hide toast after 5 seconds
             const toastEl = document.querySelector('.toast');
             if (toastEl) {
                 const toast = bootstrap.Toast.getOrCreateInstance(toastEl);
-                setTimeout(() => {
-                    toast.hide();
-                }, 5000);
+                setTimeout(() => { toast.hide(); }, 5000);
             }
-            
-            // Highlight large refund amounts
             const refundAmountCells = document.querySelectorAll('.refund-amount');
             refundAmountCells.forEach(cell => {
                 const amount = parseFloat(cell.textContent.replace(/[^0-9.]/g, ''));
@@ -394,8 +369,6 @@ if (isset($_GET['delete'])) {
                     cell.innerHTML += ' <i class="fas fa-exclamation-triangle"></i>';
                 }
             });
-
-            // Dropdown hover fix
             const dropdowns = document.querySelectorAll('.dropdown');
             dropdowns.forEach(dropdown => {
                 dropdown.addEventListener('mouseenter', function() {
@@ -411,5 +384,4 @@ if (isset($_GET['delete'])) {
     </script>
 </body>
 </html>
-
 <?php $conn->close(); ?>
