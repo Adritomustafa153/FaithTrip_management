@@ -70,7 +70,7 @@ $row = $result->fetch_assoc();
 <!-- insert part is here -->
 <div class="container">
     <h2>Corporate Reissue Form</h2>
-    <form action="reissue_corporate_sell.php" method="POST">
+    <form action="reissue_corporate_sell" method="POST">
         <input type="hidden" name="sale_id" value="<?= $row['SaleID'] ?>">
         
         <!-- Row 1: Agent Name, Search, and Select Agent -->

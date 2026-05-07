@@ -59,7 +59,7 @@ $row = $result->fetch_assoc();
         <h2>Reissue Counter Sell</h2>
     </div>
     <div class="container">
-        <form action="process_reissue_counter.php" method="post">
+        <form action="process_reissue_counter" method="post">
             <input type="hidden" name="sale_id" value="<?= $row['SaleID'] ?>">
 
             <div class="form-row">
