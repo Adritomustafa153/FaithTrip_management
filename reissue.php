@@ -253,7 +253,7 @@ function sortLink($column, $label, $current_sort, $current_order) {
                 <td><?= safeHtml($row['SalesPersonName']) ?></div>
                 <td><?= safeHtml($row['created_by_name'] ?? 'Unknown') ?></div>
                 <td class="action-cell">
-                    <a href="edit.php?id=<?= $row['SaleID'] ?>" class="btn edit-btn">Edit</a>
+                    <a href="edit.php?sale_id=<?= $row['SaleID'] ?>" class="btn edit-btn">Edit</a>
                     <a href="reissue.php?delete=<?= $row['SaleID'] ?>" class="btn delete-btn" onclick="return confirm('Delete this record?')">Del</a>
                     <!-- FIXED: Changed action to extensionless URL -->
                     <form action="invoice_cart2" method="POST" style="margin-top: 2px;">
