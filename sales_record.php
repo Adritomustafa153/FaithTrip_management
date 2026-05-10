@@ -1,6 +1,7 @@
 <?php
 // Database configuration
 include 'db.php';
+require_once 'sales_functions.php';
 
 // Function to calculate sales for a given period
 function calculateSales($conn, $startDate, $endDate) {

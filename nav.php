@@ -20,41 +20,41 @@ function getTodaysFlightsCount($conn) {
 
 $notificationCount = getTodaysFlightsCount($conn);
 
-// ========== IMAGE PATH FOR accounts/uploads/ ==========
+// ========== USER PROFILE IMAGE ==========
+// ========== ROBUST IMAGE PATH ==========
 $img_src = 'https://via.placeholder.com/40x40/cccccc/999999?text=USER';
 
-if (isset($_SESSION['UserID'])) {
+if (isset($_SESSION['user_id'])) {
     $stmt = $conn->prepare("SELECT image FROM user WHERE UserID = ?");
-    $stmt->bind_param("i", $_SESSION['UserID']);
+    $stmt->bind_param("i", $_SESSION['user_id']);
     $stmt->execute();
-    $stmt->store_result();
     $stmt->bind_result($user_img);
     $stmt->fetch();
     $stmt->close();
     
     if (!empty($user_img)) {
-        // Remove any leading ../ or ./
-        $clean = ltrim($user_img, './');
+        // Remove any leading ./ or ../
+        $clean = preg_replace('#^\.\.?/#', '', $user_img);
         
-        // Build base URL up to the accounts folder
-        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
-        $host = $_SERVER['HTTP_HOST'];
+        // Build absolute URL path
+        // Assuming your site URL is http://localhost/faithtrip/accounts/
+        $baseUrl = 'http://' . $_SERVER['HTTP_HOST'] . '/faithtrip/accounts/';
         
-        // Adjust this if your project is not at http://localhost/faithtrip/accounts/
-        $baseFolder = '/faithtrip/accounts';   // <-- Change if needed (e.g., if site at root, use '/accounts')
-        
-        $fullUrl = $protocol . $host . $baseFolder . '/' . $clean;
-        
-        // Optional: check if file exists on server
-        $serverPath = $_SERVER['DOCUMENT_ROOT'] . $baseFolder . '/' . $clean;
-        if (file_exists($serverPath)) {
-            $img_src = $fullUrl;
-        } else {
-            error_log("Avatar not found: " . $serverPath);
+        // If the stored path starts with /uploads, use that directly
+        if (strpos($clean, '/uploads/') === 0) {
+            $img_src = $baseUrl . ltrim($clean, '/');
+        } 
+        // If it's just a filename, assume it's in /uploads/
+        elseif (strpos($clean, 'uploads/') === false && strpos($clean, '/') === false) {
+            $img_src = $baseUrl . 'uploads/' . $clean;
+        }
+        // Otherwise use as is
+        else {
+            $img_src = $baseUrl . $clean;
         }
     }
 }
-// ===================================================
+// ========================================
 
 $totalNotifications = 0;
 if ($notificationCount > 0) $totalNotifications += $notificationCount;

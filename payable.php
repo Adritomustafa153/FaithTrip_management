@@ -101,7 +101,7 @@ if ($show_refunds) {
 
         UNION ALL
 
-        -- Refunds
+        -- Refunds (from source) – FIXED: Use BillAmount as debit (amount received from source)
         SELECT 
             s.Source,
             s.IssueDate AS trans_date,
@@ -110,7 +110,7 @@ if ($show_refunds) {
             s.PNR,
             s.TicketNumber,
             0 AS credit,
-            s.refundtc AS debit,
+            s.BillAmount AS debit,   -- ✅ Changed from s.refundtc to s.BillAmount
             CONCAT('REFUND: ', IFNULL(s.Remarks, '')) AS remarks,
             'refund' AS type,
             s.SaleID AS sale_id,
@@ -122,7 +122,7 @@ if ($show_refunds) {
         FROM sales s
         WHERE s.Remarks = 'Refund' 
             $source_condition $date_condition
-            AND s.refundtc > 0
+            AND s.BillAmount > 0   -- Ensure only positive amounts
 
         UNION ALL
 
@@ -318,9 +318,8 @@ if (isset($_GET['export'])) {
         th:nth-child(12), td:nth-child(12) { width: 100px; text-align: right; }
         th:nth-child(13), td:nth-child(13) { width: 200px; }
         <?php elseif ($show_refunds): ?>
-        /* Refunds view has an extra Actions column */
-        th:nth-child(12), td:nth-child(12) { width: 120px; } /* Actions */
-        th:nth-child(13), td:nth-child(13) { width: 200px; } /* Remarks */
+        th:nth-child(12), td:nth-child(12) { width: 120px; }
+        th:nth-child(13), td:nth-child(13) { width: 200px; }
         <?php else: ?>
         th:nth-child(12), td:nth-child(12) { width: 200px; }
         <?php endif; ?>
@@ -335,7 +334,6 @@ if (isset($_GET['export'])) {
         .balance-positive { color: #28a745; font-weight: bold; }
         .balance-negative { color: #dc3545; font-weight: bold; }
 
-        /* Button styles */
         .btn-pay, .btn-history {
             display: inline-block;
             padding: 4px 8px;
@@ -352,7 +350,6 @@ if (isset($_GET['export'])) {
         .btn-history { background-color: #17a2b8; color: white; }
         .btn-history:hover { background-color: #138496; }
 
-        /* Modal styles */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
         .modal-content { background-color: #fefefe; margin: 10% auto; padding: 20px; border: 1px solid #888; width: 50%; border-radius: 8px; }
         .close, .close-history { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
