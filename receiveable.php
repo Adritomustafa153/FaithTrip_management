@@ -139,7 +139,7 @@ while ($row = mysqli_fetch_assoc($banks_query)) {
 $modal_sections = ['Corporate', 'Counter Sell', 'Agent'];
 
 // ------------------------------------------------------------
-// LEDGER VIEW (includes all sales and payments) - unchanged
+// LEDGER VIEW (includes all sales and payments)
 // ------------------------------------------------------------
 if ($load_ledger) {
     $date_condition = "";
@@ -292,9 +292,9 @@ if ($load_ledger) {
     }
     $total_outstanding = $total_debit - $total_credit;
 } else {
-    // ========== OUTSTANDING VIEW: Exclude refunded original sales, show refund entries with BillAmount ==========
+    // ========== OUTSTANDING VIEW: Include normal, refund, AND REISSUE entries ==========
     
-    // Part 1: Normal sales that are NOT refunded, voided, or reissued, and still have due amount > 0
+    // Part 1: Normal sales (excluding refund/void/reissue)
     $normal_sales_sql = "
         SELECT 
             s.SaleID, s.section, s.PartyName, s.PassengerName, s.airlines, s.TicketRoute, 
@@ -306,7 +306,6 @@ if ($load_ledger) {
         FROM sales s
         LEFT JOIN payments p ON s.SaleID = p.SaleID
         WHERE (s.Remarks IS NULL OR s.Remarks NOT IN ('Refund', 'Void Transaction', 'Voided', 'Reissue', 'Reissued'))
-          -- Exclude sales that have been refunded (by checking existence of a refund record with same PNR and TicketNumber)
           AND NOT EXISTS (
               SELECT 1 FROM sales r 
               WHERE r.Remarks = 'Refund' 
@@ -317,13 +316,13 @@ if ($load_ledger) {
         HAVING DueAmount > 0
     ";
 
-    // Part 2: Refund entries (Remarks = 'Refund') - show BillAmount instead of refundtc
+    // Part 2: Refund entries (Remarks = 'Refund')
     $refund_sales_sql = "
         SELECT 
             s.SaleID, s.section, s.PartyName, 
             CONCAT('REFUND - ', s.TicketNumber) AS PassengerName,
             s.airlines, s.TicketRoute, s.TicketNumber, s.IssueDate, s.PNR, 
-            s.BillAmount AS BillAmount,   -- Changed from s.refundtc to s.BillAmount
+            s.BillAmount AS BillAmount,
             s.Source, 
             COALESCE(SUM(p.Amount), 0) as PaidAmount,
             (s.BillAmount - COALESCE(SUM(p.Amount), 0)) as DueAmount,
@@ -332,13 +331,33 @@ if ($load_ledger) {
         FROM sales s
         LEFT JOIN payments p ON s.SaleID = p.SaleID
         WHERE s.Remarks = 'Refund' 
-          AND s.BillAmount > 0   -- Only if BillAmount is positive (amount owed)
+          AND s.BillAmount > 0
         GROUP BY s.SaleID
         HAVING DueAmount > 0
     ";
 
-    // Combine both parts with UNION
-    $sql = "($normal_sales_sql) UNION ALL ($refund_sales_sql)";
+    // Part 3: Reissue charge entries (Remarks = 'Reissue')
+    $reissue_sales_sql = "
+        SELECT 
+            s.SaleID, s.section, s.PartyName, 
+            CONCAT('REISSUE CHARGE - ', s.TicketNumber) AS PassengerName,
+            s.airlines, s.TicketRoute, s.TicketNumber, s.IssueDate, s.PNR, 
+            s.BillAmount AS BillAmount,
+            s.Source, 
+            COALESCE(SUM(p.Amount), 0) as PaidAmount,
+            (s.BillAmount - COALESCE(SUM(p.Amount), 0)) as DueAmount,
+            s.SalesPersonName, DATEDIFF(CURDATE(), s.IssueDate) AS DaysPassed,
+            'ReissueCharge' as RefundChargeFlag
+        FROM sales s
+        LEFT JOIN payments p ON s.SaleID = p.SaleID
+        WHERE s.Remarks = 'Reissue' 
+          AND s.BillAmount > 0
+        GROUP BY s.SaleID
+        HAVING DueAmount > 0
+    ";
+
+    // Combine all three parts
+    $sql = "($normal_sales_sql) UNION ALL ($refund_sales_sql) UNION ALL ($reissue_sales_sql)";
     
     // Apply filters
     $filter_sql = "";
@@ -389,7 +408,6 @@ if ($load_ledger) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* Same CSS as before – omitted for brevity, include your existing styles */
         :root {
             --primary-color: #3498db;
             --secondary-color: #2c3e50;
@@ -614,10 +632,10 @@ if ($load_ledger) {
                             <td colspan="2"></td>
                             </tr>
                         <?php else: ?>
-                            <tr><td colspan="10" class="text-center">No ledger transactions found.</div>
+                            <tr><td colspan="10" class="text-center">No ledger transactions found.</td></tr>
                             <?php endif; ?>
                     </tbody>
-                </table>
+                追赶
             <?php else: ?>
                 <table class="table table-hover">
                     <thead>
@@ -629,10 +647,11 @@ if ($load_ledger) {
                                 $days = (new DateTime($row['IssueDate']))->diff(new DateTime())->days;
                                 $status_class = ($row['DueAmount'] == $row['BillAmount']) ? 'status-due' : 'status-partial';
                                 $status_text = ($row['DueAmount'] == $row['BillAmount']) ? 'Due' : 'Partially Paid';
-                                // For refund rows, show a badge
                                 $passenger_display = $row['PassengerName'];
                                 if (isset($row['RefundChargeFlag']) && $row['RefundChargeFlag'] == 'RefundCharge') {
                                     $passenger_display = '<span class="badge bg-warning text-dark">Refund Entry</span> ' . htmlspecialchars($row['PassengerName']);
+                                } elseif (isset($row['RefundChargeFlag']) && $row['RefundChargeFlag'] == 'ReissueCharge') {
+                                    $passenger_display = '<span class="badge bg-info text-dark">Reissue Charge</span> ' . htmlspecialchars($row['PassengerName']);
                                 }
                             ?>
                             <tr>
@@ -661,7 +680,7 @@ if ($load_ledger) {
                             <td class="text-end"><?php echo number_format($total_paid, 2); ?></div>
                             <td class="text-end"><?php echo number_format($total_due, 2); ?></div><td colspan="2"></div></tr>
                         <?php else: ?>
-                            <tr><td colspan="15" class="text-center">No records found.</div></tr>
+                            <tr><td colspan="15" class="text-center">No records found.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
