@@ -56,17 +56,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $chk->close();
     }
 
-    // Image upload
-    $imagePath = $user['image'];
+    // ------------------ IMAGE UPLOAD FIX ------------------
+    $imagePath = $user['image']; // keep old by default
     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
         $ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
-        if (in_array($ext, ['jpg','jpeg','png','gif'])) {
-            $target = '../uploads/' . uniqid() . '.' . $ext;
-            if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
-                if ($user['image'] && file_exists($user['image'])) unlink($user['image']);
-                $imagePath = $target;
-            } else $errors[] = "Upload failed";
-        } else $errors[] = "Only JPG, PNG, GIF allowed";
+        if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])) {
+            // Absolute upload directory path (inside faithtrip folder)
+            $uploadDir = __DIR__ . '/uploads/';
+            // Create directory if it doesn't exist
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            // Generate unique filename
+            $filename = uniqid() . '.' . $ext;
+            $absolutePath = $uploadDir . $filename;
+            // Relative path to store in DB (for web access)
+            $relativePath = 'uploads/' . $filename;
+
+            if (move_uploaded_file($_FILES['image']['tmp_name'], $absolutePath)) {
+                // Delete old image if exists and is inside our uploads folder
+                $oldImage = $user['image'];
+                if (!empty($oldImage) && file_exists(__DIR__ . '/' . $oldImage)) {
+                    unlink(__DIR__ . '/' . $oldImage);
+                }
+                $imagePath = $relativePath;
+            } else {
+                $errors[] = "Upload failed. Check directory permissions.";
+            }
+        } else {
+            $errors[] = "Only JPG, PNG, GIF allowed";
+        }
     }
 
     if (empty($errors)) {
