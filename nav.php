@@ -20,41 +20,16 @@ function getTodaysFlightsCount($conn) {
 
 $notificationCount = getTodaysFlightsCount($conn);
 
-// ========== USER PROFILE IMAGE ==========
-// ========== ROBUST IMAGE PATH ==========
-$img_src = 'https://via.placeholder.com/40x40/cccccc/999999?text=USER';
+// ========== FIXED USER PROFILE IMAGE LOGIC ==========
+$user_name = $_SESSION['user_name'] ?? 'User';
+$user_image = $_SESSION['user_image'] ?? '';
+$img_src = 'https://via.placeholder.com/40x40/cccccc/999999?text=USER'; // fallback
 
-if (isset($_SESSION['user_id'])) {
-    $stmt = $conn->prepare("SELECT image FROM user WHERE UserID = ?");
-    $stmt->bind_param("i", $_SESSION['user_id']);
-    $stmt->execute();
-    $stmt->bind_result($user_img);
-    $stmt->fetch();
-    $stmt->close();
-    
-    if (!empty($user_img)) {
-        // Remove any leading ./ or ../
-        $clean = preg_replace('#^\.\.?/#', '', $user_img);
-        
-        // Build absolute URL path
-        // Assuming your site URL is http://localhost/faithtrip/accounts/
-        $baseUrl = 'http://' . $_SERVER['HTTP_HOST'] . '/faithtrip/accounts/';
-        
-        // If the stored path starts with /uploads, use that directly
-        if (strpos($clean, '/uploads/') === 0) {
-            $img_src = $baseUrl . ltrim($clean, '/');
-        } 
-        // If it's just a filename, assume it's in /uploads/
-        elseif (strpos($clean, 'uploads/') === false && strpos($clean, '/') === false) {
-            $img_src = $baseUrl . 'uploads/' . $clean;
-        }
-        // Otherwise use as is
-        else {
-            $img_src = $baseUrl . $clean;
-        }
-    }
+// If user image is stored and file exists on server, use it
+if (!empty($user_image) && file_exists($_SERVER['DOCUMENT_ROOT'] . $user_image)) {
+    $img_src = htmlspecialchars($user_image);
 }
-// ========================================
+// ==================================================
 
 $totalNotifications = 0;
 if ($notificationCount > 0) $totalNotifications += $notificationCount;
@@ -209,7 +184,7 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
       <div class="dropdown">
         <a data-mdb-dropdown-init class="dropdown-toggle d-flex align-items-center hidden-arrow" href="#" id="navbarDropdownMenuAvatar" role="button" aria-expanded="false">
           <img src="<?= htmlspecialchars($img_src) ?>" class="rounded-circle" height="40" width="40" alt="User Profile" loading="lazy" style="object-fit: cover;" 
-               onerror="this.onerror=null; this.src='https://via.placeholder.com/40x40/cccccc/999999?text=USER';">
+               onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=<?= urlencode($user_name) ?>&size=40&background=2a5885&color=fff';">
         </a>
         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdownMenuAvatar">
           <li><a class="dropdown-item" href="profile.php">My profile</a></li>

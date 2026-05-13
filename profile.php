@@ -7,7 +7,7 @@ $conn = getDbConnection();
 $userId = $_SESSION['user_id'];
 
 // Fetch user data
-$stmt = $conn->prepare("SELECT UserID, UserName, email, DateOfBirth, NIDNumber, `Password`,role, image FROM user WHERE UserID = ?");
+$stmt = $conn->prepare("SELECT UserID, UserName, email, DateOfBirth, NIDNumber, `Password`, role, image FROM user WHERE UserID = ?");
 $stmt->bind_param('i', $userId);
 $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();
@@ -104,6 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($stmt->execute()) {
                     $_SESSION['user_name'] = $username;
                     $_SESSION['user_email'] = $email;
+                    $_SESSION['user_image'] = $image_path; // update session image
                     $success_message = "Profile updated successfully!";
                     // Update local user array
                     $user['UserName'] = $username;
@@ -124,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 // ---- Flexible nav.php inclusion ----
 $nav_path = __DIR__ . '/nav.php';
 if (!file_exists($nav_path)) {
-    $nav_path = __DIR__ . '/../nav.php'; // try parent folder
+    $nav_path = __DIR__ . '/../nav.php';
 }
 if (!file_exists($nav_path)) {
     die("nav.php not found. Please ensure nav.php is in the same folder as profile.php or in the parent folder.");
