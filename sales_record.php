@@ -12,13 +12,14 @@ function calculateSales($conn, $startDate, $endDate) {
         'total_due' => 0,
         'total_reissue' => 0,
         'total_refund' => 0,
-        'total_collection' => 0, // NEW: Collection amount
+        'total_collection' => 0,
         'category_sales' => [
             'ticket' => 0,
             'visa' => 0,
             'student_visa' => 0,
             'umrah' => 0,
-            'hotel' => 0
+            'hotel' => 0,
+            'emd' => 0
         ]
     ];
 
@@ -56,7 +57,7 @@ function calculateSales($conn, $startDate, $endDate) {
         $result['total_due'] += $sales_row['total_due'];
         $result['category_sales']['ticket'] = $ticket_sales;
         
-        // Calculate purchase for tickets (NetPayment where Source is not IATA and not refund)
+        // Calculate purchase for tickets
         $ticket_purchase_sql = "SELECT COALESCE(SUM(NetPayment), 0) as total_net 
                                FROM sales 
                                WHERE IssueDate BETWEEN '$startDate' AND '$endDate' 
@@ -70,7 +71,20 @@ function calculateSales($conn, $startDate, $endDate) {
         }
     }
 
-    // NEW: Calculate collection amount from payments table
+    // EMD (Extra Services)
+    $emd_sql = "SELECT COALESCE(SUM(BillAmount), 0) as total_emd
+                FROM sales 
+                WHERE IssueDate BETWEEN '$startDate' AND '$endDate'
+                AND (Remarks IN ('Extra Baggage','Seat Purchase','Meal Purchase','Name Correction','Extra Leg Room')
+                     OR airlines = 'Extra Service'
+                     OR section = 'extra_service')";
+    $emd_result = $conn->query($emd_sql);
+    if ($emd_result && $emd_row = $emd_result->fetch_assoc()) {
+        $result['category_sales']['emd'] = $emd_row['total_emd'];
+        // Note: EMD sales are already included in total_sales via the main query
+    }
+
+    // Calculate collection amount from payments table
     $collection_sql = "SELECT COALESCE(SUM(Amount), 0) as total_collection 
                       FROM payments 
                       WHERE PaymentDate BETWEEN '$startDate' AND '$endDate'";
@@ -101,7 +115,6 @@ function calculateSales($conn, $startDate, $endDate) {
         $result['total_due'] += $hotel_row['total_due'];
         $result['category_sales']['hotel'] = $hotel_sales;
         
-        // Calculate purchase for hotel (net_price where source is not "OWN")
         $hotel_purchase_sql = "SELECT COALESCE(SUM(net_price), 0) as total_net 
                               FROM hotel 
                               WHERE issue_date BETWEEN '$startDate' AND '$endDate' 
@@ -136,7 +149,6 @@ function calculateSales($conn, $startDate, $endDate) {
         $result['total_due'] += $student_row['total_due'];
         $result['category_sales']['student_visa'] = $student_sales;
         
-        // Calculate purchase for student (net where source is not "OWN")
         $student_purchase_sql = "SELECT COALESCE(SUM(net), 0) as total_net 
                                FROM student 
                                WHERE `received date` BETWEEN '$startDate' AND '$endDate' 
@@ -171,7 +183,6 @@ function calculateSales($conn, $startDate, $endDate) {
         $result['total_due'] += $umrah_row['total_due'];
         $result['category_sales']['umrah'] = $umrah_sales;
         
-        // Calculate purchase for umrah (net payment where source is not "OWN")
         $umrah_purchase_sql = "SELECT COALESCE(SUM(`net payment`), 0) as total_net 
                               FROM umrah 
                               WHERE orderdate BETWEEN '$startDate' AND '$endDate' 
@@ -206,7 +217,6 @@ function calculateSales($conn, $startDate, $endDate) {
         $result['total_due'] += $visa_row['total_due'];
         $result['category_sales']['visa'] = $visa_sales;
         
-        // Calculate purchase for visa (Net Payment where source is not "OWN")
         $visa_purchase_sql = "SELECT COALESCE(SUM(`Net Payment`), 0) as total_net 
                              FROM visa 
                              WHERE orderdate BETWEEN '$startDate' AND '$endDate' 
@@ -227,27 +237,23 @@ $current_date = date('Y-m-d');
 $current_month = date('Y-m');
 $current_year = date('Y');
 
-// Calculate daily sales (today)
+// Calculate daily, monthly, yearly
 $daily_start = $current_date;
 $daily_end = $current_date;
 $daily_sales = calculateSales($conn, $daily_start, $daily_end);
 
-// Calculate monthly sales (current month)
 $monthly_start = date('Y-m-01');
 $monthly_end = date('Y-m-t');
 $monthly_sales = calculateSales($conn, $monthly_start, $monthly_end);
 
-// Calculate yearly sales (current year)
 $yearly_start = $current_year . '-01-01';
 $yearly_end = $current_year . '-12-31';
 $yearly_sales = calculateSales($conn, $yearly_start, $yearly_end);
 
-// Format numbers for display
 function formatCurrency($amount) {
     return number_format($amount, 2);
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -366,7 +372,7 @@ function formatCurrency($amount) {
         }
         .category-grid {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: repeat(6, 1fr);
             gap: 15px;
             margin-top: 20px;
         }
@@ -450,57 +456,43 @@ function formatCurrency($amount) {
         
         <div class="summary-grid-extended">
             <div class="summary-card success">
-                <div class="card-icon">
-                    <i class="fas fa-shopping-cart"></i>
-                </div>
+                <div class="card-icon"><i class="fas fa-shopping-cart"></i></div>
                 <h3>Total Sales</h3>
                 <div class="amount">BDT <?php echo formatCurrency($daily_sales['total_sales']); ?></div>
                 <div class="metric-highlight">All service categories</div>
             </div>
             <div class="summary-card collection">
-                <div class="card-icon">
-                    <i class="fas fa-hand-holding-usd"></i>
-                </div>
+                <div class="card-icon"><i class="fas fa-hand-holding-usd"></i></div>
                 <h3>Collection Amount</h3>
                 <div class="amount">BDT <?php echo formatCurrency($daily_sales['total_collection']); ?></div>
                 <div class="metric-highlight">Received payments</div>
             </div>
             <div class="summary-card">
-                <div class="card-icon">
-                    <i class="fas fa-money-bill-wave"></i>
-                </div>
+                <div class="card-icon"><i class="fas fa-money-bill-wave"></i></div>
                 <h3>Total Purchase</h3>
                 <div class="amount">BDT <?php echo formatCurrency($daily_sales['total_purchase']); ?></div>
                 <div class="metric-highlight">Non-IATA sources</div>
             </div>
             <div class="summary-card success">
-                <div class="card-icon">
-                    <i class="fas fa-chart-line"></i>
-                </div>
+                <div class="card-icon"><i class="fas fa-chart-line"></i></div>
                 <h3>Total Profit</h3>
                 <div class="amount">BDT <?php echo formatCurrency($daily_sales['total_profit']); ?></div>
                 <div class="metric-highlight">Net profit after costs</div>
             </div>
             <div class="summary-card warning">
-                <div class="card-icon">
-                    <i class="fas fa-clock"></i>
-                </div>
+                <div class="card-icon"><i class="fas fa-clock"></i></div>
                 <h3>Total Due</h3>
                 <div class="amount">BDT <?php echo formatCurrency($daily_sales['total_due']); ?></div>
                 <div class="metric-highlight">Pending payments</div>
             </div>
             <div class="summary-card info">
-                <div class="card-icon">
-                    <i class="fas fa-sync-alt"></i>
-                </div>
+                <div class="card-icon"><i class="fas fa-sync-alt"></i></div>
                 <h3>Total Reissue</h3>
                 <div class="amount">BDT <?php echo formatCurrency($daily_sales['total_reissue']); ?></div>
                 <div class="metric-highlight">Ticket reissues only</div>
             </div>
             <div class="summary-card negative">
-                <div class="card-icon">
-                    <i class="fas fa-undo-alt"></i>
-                </div>
+                <div class="card-icon"><i class="fas fa-undo-alt"></i></div>
                 <h3>Total Refund</h3>
                 <div class="amount">BDT <?php echo formatCurrency($daily_sales['total_refund']); ?></div>
                 <div class="metric-highlight">All refunded amounts</div>
@@ -511,26 +503,12 @@ function formatCurrency($amount) {
             <h3><i class="fas fa-layer-group"></i> Sales by Category</h3>
         </div>
         <div class="category-grid">
-            <div class="category-item">
-                <div class="label">Ticket Sales</div>
-                <div class="value">BDT <?php echo formatCurrency($daily_sales['category_sales']['ticket']); ?></div>
-            </div>
-            <div class="category-item">
-                <div class="label">Visa Services</div>
-                <div class="value">BDT <?php echo formatCurrency($daily_sales['category_sales']['visa']); ?></div>
-            </div>
-            <div class="category-item">
-                <div class="label">Student Visa</div>
-                <div class="value">BDT <?php echo formatCurrency($daily_sales['category_sales']['student_visa']); ?></div>
-            </div>
-            <div class="category-item">
-                <div class="label">Umrah Packages</div>
-                <div class="value">BDT <?php echo formatCurrency($daily_sales['category_sales']['umrah']); ?></div>
-            </div>
-            <div class="category-item">
-                <div class="label">Hotel Bookings</div>
-                <div class="value">BDT <?php echo formatCurrency($daily_sales['category_sales']['hotel']); ?></div>
-            </div>
+            <div class="category-item"><div class="label">Ticket Sales</div><div class="value">BDT <?php echo formatCurrency($daily_sales['category_sales']['ticket']); ?></div></div>
+            <div class="category-item"><div class="label">Visa Services</div><div class="value">BDT <?php echo formatCurrency($daily_sales['category_sales']['visa']); ?></div></div>
+            <div class="category-item"><div class="label">Student Visa</div><div class="value">BDT <?php echo formatCurrency($daily_sales['category_sales']['student_visa']); ?></div></div>
+            <div class="category-item"><div class="label">Umrah Packages</div><div class="value">BDT <?php echo formatCurrency($daily_sales['category_sales']['umrah']); ?></div></div>
+            <div class="category-item"><div class="label">Hotel Bookings</div><div class="value">BDT <?php echo formatCurrency($daily_sales['category_sales']['hotel']); ?></div></div>
+            <div class="category-item"><div class="label">EMD (Extra Services)</div><div class="value">BDT <?php echo formatCurrency($daily_sales['category_sales']['emd']); ?></div></div>
         </div>
     </div>
 
@@ -541,88 +519,23 @@ function formatCurrency($amount) {
         </div>
         
         <div class="summary-grid-extended">
-            <div class="summary-card success">
-                <div class="card-icon">
-                    <i class="fas fa-shopping-cart"></i>
-                </div>
-                <h3>Total Sales</h3>
-                <div class="amount">BDT <?php echo formatCurrency($monthly_sales['total_sales']); ?></div>
-                <div class="metric-highlight">All service categories</div>
-            </div>
-            <div class="summary-card collection">
-                <div class="card-icon">
-                    <i class="fas fa-hand-holding-usd"></i>
-                </div>
-                <h3>Collection Amount</h3>
-                <div class="amount">BDT <?php echo formatCurrency($monthly_sales['total_collection']); ?></div>
-                <div class="metric-highlight">Received payments</div>
-            </div>
-            <div class="summary-card">
-                <div class="card-icon">
-                    <i class="fas fa-money-bill-wave"></i>
-                </div>
-                <h3>Total Purchase</h3>
-                <div class="amount">BDT <?php echo formatCurrency($monthly_sales['total_purchase']); ?></div>
-                <div class="metric-highlight">Non-IATA sources</div>
-            </div>
-            <div class="summary-card success">
-                <div class="card-icon">
-                    <i class="fas fa-chart-line"></i>
-                </div>
-                <h3>Total Profit</h3>
-                <div class="amount">BDT <?php echo formatCurrency($monthly_sales['total_profit']); ?></div>
-                <div class="metric-highlight">Net profit after costs</div>
-            </div>
-            <div class="summary-card warning">
-                <div class="card-icon">
-                    <i class="fas fa-clock"></i>
-                </div>
-                <h3>Total Due</h3>
-                <div class="amount">BDT <?php echo formatCurrency($monthly_sales['total_due']); ?></div>
-                <div class="metric-highlight">Pending payments</div>
-            </div>
-            <div class="summary-card info">
-                <div class="card-icon">
-                    <i class="fas fa-sync-alt"></i>
-                </div>
-                <h3>Total Reissue</h3>
-                <div class="amount">BDT <?php echo formatCurrency($monthly_sales['total_reissue']); ?></div>
-                <div class="metric-highlight">Ticket reissues only</div>
-            </div>
-            <div class="summary-card negative">
-                <div class="card-icon">
-                    <i class="fas fa-undo-alt"></i>
-                </div>
-                <h3>Total Refund</h3>
-                <div class="amount">BDT <?php echo formatCurrency($monthly_sales['total_refund']); ?></div>
-                <div class="metric-highlight">All refunded amounts</div>
-            </div>
+            <div class="summary-card success"><div class="card-icon"><i class="fas fa-shopping-cart"></i></div><h3>Total Sales</h3><div class="amount">BDT <?php echo formatCurrency($monthly_sales['total_sales']); ?></div><div class="metric-highlight">All service categories</div></div>
+            <div class="summary-card collection"><div class="card-icon"><i class="fas fa-hand-holding-usd"></i></div><h3>Collection Amount</h3><div class="amount">BDT <?php echo formatCurrency($monthly_sales['total_collection']); ?></div><div class="metric-highlight">Received payments</div></div>
+            <div class="summary-card"><div class="card-icon"><i class="fas fa-money-bill-wave"></i></div><h3>Total Purchase</h3><div class="amount">BDT <?php echo formatCurrency($monthly_sales['total_purchase']); ?></div><div class="metric-highlight">Non-IATA sources</div></div>
+            <div class="summary-card success"><div class="card-icon"><i class="fas fa-chart-line"></i></div><h3>Total Profit</h3><div class="amount">BDT <?php echo formatCurrency($monthly_sales['total_profit']); ?></div><div class="metric-highlight">Net profit after costs</div></div>
+            <div class="summary-card warning"><div class="card-icon"><i class="fas fa-clock"></i></div><h3>Total Due</h3><div class="amount">BDT <?php echo formatCurrency($monthly_sales['total_due']); ?></div><div class="metric-highlight">Pending payments</div></div>
+            <div class="summary-card info"><div class="card-icon"><i class="fas fa-sync-alt"></i></div><h3>Total Reissue</h3><div class="amount">BDT <?php echo formatCurrency($monthly_sales['total_reissue']); ?></div><div class="metric-highlight">Ticket reissues only</div></div>
+            <div class="summary-card negative"><div class="card-icon"><i class="fas fa-undo-alt"></i></div><h3>Total Refund</h3><div class="amount">BDT <?php echo formatCurrency($monthly_sales['total_refund']); ?></div><div class="metric-highlight">All refunded amounts</div></div>
         </div>
 
-        <div class="section-title">
-            <h3><i class="fas fa-layer-group"></i> Sales by Category</h3>
-        </div>
+        <div class="section-title"><h3><i class="fas fa-layer-group"></i> Sales by Category</h3></div>
         <div class="category-grid">
-            <div class="category-item">
-                <div class="label">Ticket Sales</div>
-                <div class="value">BDT <?php echo formatCurrency($monthly_sales['category_sales']['ticket']); ?></div>
-            </div>
-            <div class="category-item">
-                <div class="label">Visa Services</div>
-                <div class="value">BDT <?php echo formatCurrency($monthly_sales['category_sales']['visa']); ?></div>
-            </div>
-            <div class="category-item">
-                <div class="label">Student Visa</div>
-                <div class="value">BDT <?php echo formatCurrency($monthly_sales['category_sales']['student_visa']); ?></div>
-            </div>
-            <div class="category-item">
-                <div class="label">Umrah Packages</div>
-                <div class="value">BDT <?php echo formatCurrency($monthly_sales['category_sales']['umrah']); ?></div>
-            </div>
-            <div class="category-item">
-                <div class="label">Hotel Bookings</div>
-                <div class="value">BDT <?php echo formatCurrency($monthly_sales['category_sales']['hotel']); ?></div>
-            </div>
+            <div class="category-item"><div class="label">Ticket Sales</div><div class="value">BDT <?php echo formatCurrency($monthly_sales['category_sales']['ticket']); ?></div></div>
+            <div class="category-item"><div class="label">Visa Services</div><div class="value">BDT <?php echo formatCurrency($monthly_sales['category_sales']['visa']); ?></div></div>
+            <div class="category-item"><div class="label">Student Visa</div><div class="value">BDT <?php echo formatCurrency($monthly_sales['category_sales']['student_visa']); ?></div></div>
+            <div class="category-item"><div class="label">Umrah Packages</div><div class="value">BDT <?php echo formatCurrency($monthly_sales['category_sales']['umrah']); ?></div></div>
+            <div class="category-item"><div class="label">Hotel Bookings</div><div class="value">BDT <?php echo formatCurrency($monthly_sales['category_sales']['hotel']); ?></div></div>
+            <div class="category-item"><div class="label">EMD (Extra Services)</div><div class="value">BDT <?php echo formatCurrency($monthly_sales['category_sales']['emd']); ?></div></div>
         </div>
     </div>
 
@@ -633,94 +546,26 @@ function formatCurrency($amount) {
         </div>
         
         <div class="summary-grid-extended">
-            <div class="summary-card success">
-                <div class="card-icon">
-                    <i class="fas fa-shopping-cart"></i>
-                </div>
-                <h3>Total Sales</h3>
-                <div class="amount">BDT <?php echo formatCurrency($yearly_sales['total_sales']); ?></div>
-                <div class="metric-highlight">All service categories</div>
-            </div>
-            <div class="summary-card collection">
-                <div class="card-icon">
-                    <i class="fas fa-hand-holding-usd"></i>
-                </div>
-                <h3>Collection Amount</h3>
-                <div class="amount">BDT <?php echo formatCurrency($yearly_sales['total_collection']); ?></div>
-                <div class="metric-highlight">Received payments</div>
-            </div>
-            <div class="summary-card">
-                <div class="card-icon">
-                    <i class="fas fa-money-bill-wave"></i>
-                </div>
-                <h3>Total Purchase</h3>
-                <div class="amount">BDT <?php echo formatCurrency($yearly_sales['total_purchase']); ?></div>
-                <div class="metric-highlight">Non-IATA sources</div>
-            </div>
-            <div class="summary-card success">
-                <div class="card-icon">
-                    <i class="fas fa-chart-line"></i>
-                </div>
-                <h3>Total Profit</h3>
-                <div class="amount">BDT <?php echo formatCurrency($yearly_sales['total_profit']); ?></div>
-                <div class="metric-highlight">Net profit after costs</div>
-            </div>
-            <div class="summary-card warning">
-                <div class="card-icon">
-                    <i class="fas fa-clock"></i>
-                </div>
-                <h3>Total Due</h3>
-                <div class="amount">BDT <?php echo formatCurrency($yearly_sales['total_due']); ?></div>
-                <div class="metric-highlight">Pending payments</div>
-            </div>
-            <div class="summary-card info">
-                <div class="card-icon">
-                    <i class="fas fa-sync-alt"></i>
-                </div>
-                <h3>Total Reissue</h3>
-                <div class="amount">BDT <?php echo formatCurrency($yearly_sales['total_reissue']); ?></div>
-                <div class="metric-highlight">Ticket reissues only</div>
-            </div>
-            <div class="summary-card negative">
-                <div class="card-icon">
-                    <i class="fas fa-undo-alt"></i>
-                </div>
-                <h3>Total Refund</h3>
-                <div class="amount">BDT <?php echo formatCurrency($yearly_sales['total_refund']); ?></div>
-                <div class="metric-highlight">All refunded amounts</div>
-            </div>
+            <div class="summary-card success"><div class="card-icon"><i class="fas fa-shopping-cart"></i></div><h3>Total Sales</h3><div class="amount">BDT <?php echo formatCurrency($yearly_sales['total_sales']); ?></div><div class="metric-highlight">All service categories</div></div>
+            <div class="summary-card collection"><div class="card-icon"><i class="fas fa-hand-holding-usd"></i></div><h3>Collection Amount</h3><div class="amount">BDT <?php echo formatCurrency($yearly_sales['total_collection']); ?></div><div class="metric-highlight">Received payments</div></div>
+            <div class="summary-card"><div class="card-icon"><i class="fas fa-money-bill-wave"></i></div><h3>Total Purchase</h3><div class="amount">BDT <?php echo formatCurrency($yearly_sales['total_purchase']); ?></div><div class="metric-highlight">Non-IATA sources</div></div>
+            <div class="summary-card success"><div class="card-icon"><i class="fas fa-chart-line"></i></div><h3>Total Profit</h3><div class="amount">BDT <?php echo formatCurrency($yearly_sales['total_profit']); ?></div><div class="metric-highlight">Net profit after costs</div></div>
+            <div class="summary-card warning"><div class="card-icon"><i class="fas fa-clock"></i></div><h3>Total Due</h3><div class="amount">BDT <?php echo formatCurrency($yearly_sales['total_due']); ?></div><div class="metric-highlight">Pending payments</div></div>
+            <div class="summary-card info"><div class="card-icon"><i class="fas fa-sync-alt"></i></div><h3>Total Reissue</h3><div class="amount">BDT <?php echo formatCurrency($yearly_sales['total_reissue']); ?></div><div class="metric-highlight">Ticket reissues only</div></div>
+            <div class="summary-card negative"><div class="card-icon"><i class="fas fa-undo-alt"></i></div><h3>Total Refund</h3><div class="amount">BDT <?php echo formatCurrency($yearly_sales['total_refund']); ?></div><div class="metric-highlight">All refunded amounts</div></div>
         </div>
 
-        <div class="section-title">
-            <h3><i class="fas fa-layer-group"></i> Sales by Category</h3>
-        </div>
+        <div class="section-title"><h3><i class="fas fa-layer-group"></i> Sales by Category</h3></div>
         <div class="category-grid">
-            <div class="category-item">
-                <div class="label">Ticket Sales</div>
-                <div class="value">BDT <?php echo formatCurrency($yearly_sales['category_sales']['ticket']); ?></div>
-            </div>
-            <div class="category-item">
-                <div class="label">Visa Services</div>
-                <div class="value">BDT <?php echo formatCurrency($yearly_sales['category_sales']['visa']); ?></div>
-            </div>
-            <div class="category-item">
-                <div class="label">Student Visa</div>
-                <div class="value">BDT <?php echo formatCurrency($yearly_sales['category_sales']['student_visa']); ?></div>
-            </div>
-            <div class="category-item">
-                <div class="label">Umrah Packages</div>
-                <div class="value">BDT <?php echo formatCurrency($yearly_sales['category_sales']['umrah']); ?></div>
-            </div>
-            <div class="category-item">
-                <div class="label">Hotel Bookings</div>
-                <div class="value">BDT <?php echo formatCurrency($yearly_sales['category_sales']['hotel']); ?></div>
-            </div>
+            <div class="category-item"><div class="label">Ticket Sales</div><div class="value">BDT <?php echo formatCurrency($yearly_sales['category_sales']['ticket']); ?></div></div>
+            <div class="category-item"><div class="label">Visa Services</div><div class="value">BDT <?php echo formatCurrency($yearly_sales['category_sales']['visa']); ?></div></div>
+            <div class="category-item"><div class="label">Student Visa</div><div class="value">BDT <?php echo formatCurrency($yearly_sales['category_sales']['student_visa']); ?></div></div>
+            <div class="category-item"><div class="label">Umrah Packages</div><div class="value">BDT <?php echo formatCurrency($yearly_sales['category_sales']['umrah']); ?></div></div>
+            <div class="category-item"><div class="label">Hotel Bookings</div><div class="value">BDT <?php echo formatCurrency($yearly_sales['category_sales']['hotel']); ?></div></div>
+            <div class="category-item"><div class="label">EMD (Extra Services)</div><div class="value">BDT <?php echo formatCurrency($yearly_sales['category_sales']['emd']); ?></div></div>
         </div>
     </div>
 
-    <?php
-    // Close database connection
-    $conn->close();
-    ?>
+    <?php $conn->close(); ?>
 </body>
 </html>

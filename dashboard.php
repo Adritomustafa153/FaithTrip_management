@@ -4,7 +4,7 @@ require_once 'auth_check.php';
 
 $filter = $_GET['filter'] ?? 'monthly';
 
-// ======================= COMPREHENSIVE SALES FUNCTION (ALL TABLES) =======================
+// ======================= COMPREHENSIVE SALES FUNCTION =======================
 function calculateComprehensiveSales($conn, $startDate, $endDate, $periodType = 'custom') {
     $endDateNext = date('Y-m-d', strtotime($endDate . ' +1 day'));
 
@@ -17,13 +17,17 @@ function calculateComprehensiveSales($conn, $startDate, $endDate, $periodType = 
         'total_refund' => 0,
         'total_collection' => 0,
         'category_sales' => [
-            'ticket' => 0, 'visa' => 0, 'student_visa' => 0, 'umrah' => 0, 'hotel' => 0
+            'ticket' => 0,
+            'visa' => 0,
+            'student_visa' => 0,
+            'umrah' => 0,
+            'hotel' => 0,
+            'emd' => 0
         ]
     ];
 
     // ---- AIR TICKETS (sales table) ----
     if ($periodType === 'daily') {
-        // Use MySQL's CURDATE() to match the daily counter and avoid timezone issues
         $sales_sql = "SELECT 
                         COALESCE(SUM(CASE WHEN Remarks = 'Refund' THEN 0 WHEN Remarks = 'Reissue' THEN BillAmount ELSE BillAmount END),0) as total_sales,
                         COALESCE(SUM(CASE WHEN Remarks = 'Refund' THEN 0 ELSE NetPayment END),0) as total_net,
@@ -53,7 +57,6 @@ function calculateComprehensiveSales($conn, $startDate, $endDate, $periodType = 
         $result['total_due'] += $row['total_due'];
         $result['category_sales']['ticket'] = $row['total_sales'];
 
-        // Purchase for tickets (non-IATA, not refund) – also use CURDATE() for daily
         if ($periodType === 'daily') {
             $purchase_sql = "SELECT COALESCE(SUM(NetPayment),0) as total_net FROM sales 
                              WHERE DATE(IssueDate) = CURDATE()
@@ -67,19 +70,37 @@ function calculateComprehensiveSales($conn, $startDate, $endDate, $periodType = 
         if ($pres && $prow = $pres->fetch_assoc()) $result['total_purchase'] += $prow['total_net'];
     }
 
-    // ---- COLLECTION from payments table ----
-    // For daily, also use CURDATE() for consistency (optional, but safe)
+    // ---- EMD (Extra Services) ----
     if ($periodType === 'daily') {
-        $col_sql = "SELECT COALESCE(SUM(Amount),0) as total_collection FROM payments 
-                    WHERE DATE(PaymentDate) = CURDATE()";
+        $emd_sql = "SELECT COALESCE(SUM(BillAmount),0) as total_emd
+                    FROM sales 
+                    WHERE DATE(IssueDate) = CURDATE()
+                    AND (Remarks IN ('Extra Baggage','Seat Purchase','Meal Purchase','Name Correction','Extra Leg Room')
+                         OR airlines = 'Extra Service'
+                         OR section = 'extra_service')";
     } else {
-        $col_sql = "SELECT COALESCE(SUM(Amount),0) as total_collection FROM payments 
-                    WHERE PaymentDate >= '$startDate' AND PaymentDate < '$endDateNext'";
+        $emd_sql = "SELECT COALESCE(SUM(BillAmount),0) as total_emd
+                    FROM sales 
+                    WHERE IssueDate >= '$startDate' AND IssueDate < '$endDateNext'
+                    AND (Remarks IN ('Extra Baggage','Seat Purchase','Meal Purchase','Name Correction','Extra Leg Room')
+                         OR airlines = 'Extra Service'
+                         OR section = 'extra_service')";
+    }
+    $emd_res = $conn->query($emd_sql);
+    if ($emd_res && $emd_row = $emd_res->fetch_assoc()) {
+        $result['category_sales']['emd'] = $emd_row['total_emd'];
+    }
+
+    // ---- COLLECTION from payments table ----
+    if ($periodType === 'daily') {
+        $col_sql = "SELECT COALESCE(SUM(Amount),0) as total_collection FROM payments WHERE DATE(PaymentDate) = CURDATE()";
+    } else {
+        $col_sql = "SELECT COALESCE(SUM(Amount),0) as total_collection FROM payments WHERE PaymentDate >= '$startDate' AND PaymentDate < '$endDateNext'";
     }
     $col_res = $conn->query($col_sql);
     if ($col_res && $col_row = $col_res->fetch_assoc()) $result['total_collection'] += $col_row['total_collection'];
 
-    // ---- HOTEL (use same pattern: for daily, use DATE(issue_date) = CURDATE()) ----
+    // ---- HOTEL ----
     if ($periodType === 'daily') {
         $hotel_sql = "SELECT COALESCE(SUM(selling_price),0) as total_sales, COALESCE(SUM(net_price),0) as total_net,
                        COALESCE(SUM(profit),0) as total_profit, COALESCE(SUM(refund_to_client),0) as total_refund,
@@ -113,7 +134,7 @@ function calculateComprehensiveSales($conn, $startDate, $endDate, $periodType = 
         if ($pres && $prow = $pres->fetch_assoc()) $result['total_purchase'] += $prow['total_net'];
     }
 
-    // ---- STUDENT VISA (same pattern) ----
+    // ---- STUDENT VISA ----
     if ($periodType === 'daily') {
         $student_sql = "SELECT COALESCE(SUM(Selling),0) as total_sales, COALESCE(SUM(net),0) as total_net,
                        COALESCE(SUM(profit),0) as total_profit, COALESCE(SUM(refund_to_client),0) as total_refund,
@@ -147,7 +168,7 @@ function calculateComprehensiveSales($conn, $startDate, $endDate, $periodType = 
         if ($pres && $prow = $pres->fetch_assoc()) $result['total_purchase'] += $prow['total_net'];
     }
 
-    // ---- UMRAH (same pattern) ----
+    // ---- UMRAH ----
     if ($periodType === 'daily') {
         $umrah_sql = "SELECT COALESCE(SUM(`selling price`),0) as total_sales, COALESCE(SUM(`net payment`),0) as total_net,
                        COALESCE(SUM(profit),0) as total_profit, COALESCE(SUM(`refund to client`),0) as total_refund,
@@ -181,7 +202,7 @@ function calculateComprehensiveSales($conn, $startDate, $endDate, $periodType = 
         if ($pres && $prow = $pres->fetch_assoc()) $result['total_purchase'] += $prow['total_net'];
     }
 
-    // ---- VISA (same pattern) ----
+    // ---- VISA ----
     if ($periodType === 'daily') {
         $visa_sql = "SELECT COALESCE(SUM(`selling price`),0) as total_sales, COALESCE(SUM(`Net Payment`),0) as total_net,
                        COALESCE(SUM(profit),0) as total_profit, COALESCE(SUM(`refund to client`),0) as total_refund,
@@ -218,7 +239,7 @@ function calculateComprehensiveSales($conn, $startDate, $endDate, $periodType = 
     return $result;
 }
 
-// ======================= EXPENSE & PAYMENT DATA (unchanged) =======================
+// ======================= EXPENSE & PAYMENT DATA =======================
 $dailyExpenseQuery = "SELECT SUM(amount) as expense_amount FROM expenses WHERE DATE(expense_date) = CURDATE()";
 $dailyExpenseResult = mysqli_query($conn, $dailyExpenseQuery);
 $dailyExpenseData = mysqli_fetch_assoc($dailyExpenseResult);
@@ -283,7 +304,7 @@ while ($row = mysqli_fetch_assoc($expenseResult)) {
     $expenseTotals[] = (float)$row['total'];
 }
 
-// ======================= MONTHLY SALES VS PROFIT (ALL TABLES) =======================
+// ======================= MONTHLY SALES VS PROFIT =======================
 $monthlyLabels = []; $monthlySales = []; $monthlyProfit = [];
 for ($m = 1; $m <= 12; $m++) {
     $monthStart = date("Y-$m-01");
@@ -317,7 +338,7 @@ $bookingsNotificationCount = $bookingsNotificationData['notification_count'] ?? 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* ========== MODERN COMPACT DESIGN (unchanged, same as previous) ========== */
+        /* ========== MODERN COMPACT DESIGN ========== */
         @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -619,7 +640,7 @@ $bookingsNotificationCount = $bookingsNotificationData['notification_count'] ?? 
         </div>
     </div>
 
-    <!-- Summary Cards (same as before) -->
+    <!-- Summary Cards -->
     <div class="summary-cards">
         <div class="summary-card card-daily">
             <div class="summary-card-header"><span><i class="fas fa-calendar-day me-2"></i>Daily Report</span><div><button class="btn-view-all" onclick="viewReport('daily', 'sales')">Sales</button><button class="btn-view-all" onclick="viewReport('daily', 'purchase')">Purchase</button><button class="btn-view-all" onclick="viewReport('daily', 'payment')">Payment</button><button class="btn-view-all" onclick="viewReport('daily', 'collection')">Collection</button><button class="btn-view-all" onclick="viewReport('daily', 'expense')">Expense</button></div></div>
@@ -638,7 +659,8 @@ $bookingsNotificationCount = $bookingsNotificationData['notification_count'] ?? 
                 <div class="metric-item"><span>🛂 Visa</span><span class="metric-value">৳<?= number_format($daily['category_sales']['visa'],2) ?></span></div>
                 <div class="metric-item"><span>🎓 Student Visa</span><span class="metric-value">৳<?= number_format($daily['category_sales']['student_visa'],2) ?></span></div>
                 <div class="metric-item"><span>🕋 Umrah</span><span class="metric-value">৳<?= number_format($daily['category_sales']['umrah'],2) ?></span></div>
-                <div class="metric-item"><span>🏨 Hotel</span><span class="metric-value">৳<?= number_format($daily['category_sales']['hotel'],2) ?></span></div></div>
+                <div class="metric-item"><span>🏨 Hotel</span><span class="metric-value">৳<?= number_format($daily['category_sales']['hotel'],2) ?></span></div>
+                <div class="metric-item"><span>📦 EMD (Extra Services)</span><span class="metric-value">৳<?= number_format($daily['category_sales']['emd'],2) ?></span></div></div>
             </div>
         </div>
         <div class="summary-card card-monthly">
@@ -658,7 +680,8 @@ $bookingsNotificationCount = $bookingsNotificationData['notification_count'] ?? 
                 <div class="metric-item"><span>🛂 Visa</span><span class="metric-value">৳<?= number_format($monthly['category_sales']['visa'],2) ?></span></div>
                 <div class="metric-item"><span>🎓 Student Visa</span><span class="metric-value">৳<?= number_format($monthly['category_sales']['student_visa'],2) ?></span></div>
                 <div class="metric-item"><span>🕋 Umrah</span><span class="metric-value">৳<?= number_format($monthly['category_sales']['umrah'],2) ?></span></div>
-                <div class="metric-item"><span>🏨 Hotel</span><span class="metric-value">৳<?= number_format($monthly['category_sales']['hotel'],2) ?></span></div></div>
+                <div class="metric-item"><span>🏨 Hotel</span><span class="metric-value">৳<?= number_format($monthly['category_sales']['hotel'],2) ?></span></div>
+                <div class="metric-item"><span>📦 EMD (Extra Services)</span><span class="metric-value">৳<?= number_format($monthly['category_sales']['emd'],2) ?></span></div></div>
             </div>
         </div>
         <div class="summary-card card-yearly">
@@ -678,7 +701,8 @@ $bookingsNotificationCount = $bookingsNotificationData['notification_count'] ?? 
                 <div class="metric-item"><span>🛂 Visa</span><span class="metric-value">৳<?= number_format($yearly['category_sales']['visa'],2) ?></span></div>
                 <div class="metric-item"><span>🎓 Student Visa</span><span class="metric-value">৳<?= number_format($yearly['category_sales']['student_visa'],2) ?></span></div>
                 <div class="metric-item"><span>🕋 Umrah</span><span class="metric-value">৳<?= number_format($yearly['category_sales']['umrah'],2) ?></span></div>
-                <div class="metric-item"><span>🏨 Hotel</span><span class="metric-value">৳<?= number_format($yearly['category_sales']['hotel'],2) ?></span></div></div>
+                <div class="metric-item"><span>🏨 Hotel</span><span class="metric-value">৳<?= number_format($yearly['category_sales']['hotel'],2) ?></span></div>
+                <div class="metric-item"><span>📦 EMD (Extra Services)</span><span class="metric-value">৳<?= number_format($yearly['category_sales']['emd'],2) ?></span></div></div>
             </div>
         </div>
     </div>

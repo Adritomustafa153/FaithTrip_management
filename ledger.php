@@ -58,7 +58,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_parties') {
                   ORDER BY PartyName";
         $res = mysqli_query($conn, $query);
         while ($row = mysqli_fetch_assoc($res)) {
-            $options .= '<option value="' . htmlspecialchars($row['PartyName']) . '">' . htmlspecialchars($row['PartyName']) . '</option>';
+            $options .= '<option value="' . htmlspecialchars($row['PartyName'] ?? '') . '">' . htmlspecialchars($row['PartyName'] ?? '') . '</option>';
         }
     }
     echo $options;
@@ -103,7 +103,7 @@ function getLedgerTransactions($conn, $party, $section, $startDate, $endDate, $s
     
     $salesQuery = "SELECT s.SaleID, s.IssueDate as transaction_date, s.Remarks, s.BillAmount, s.PaidAmount, s.DueAmount,
                           s.Invoice_number, s.PNR, s.TicketNumber, s.PassengerName, s.airlines, s.TicketRoute,
-                          s.refundtc, s.VoidCharge, s.PaymentMethod, s.PaymentStatus, s.refund_date
+                          s.refundtc, s.VoidCharge, s.PaymentMethod, s.PaymentStatus, s.refund_date, s.section
                    FROM sales s
                    WHERE TRIM(s.PartyName) = '" . mysqli_real_escape_string($conn, $party) . "'
                    AND $sectionCond $dateCondition";
@@ -113,7 +113,19 @@ function getLedgerTransactions($conn, $party, $section, $startDate, $endDate, $s
         while ($row = mysqli_fetch_assoc($salesRes)) {
             $amount = floatval($row['BillAmount']);
             $remarks = strtolower(trim($row['Remarks']));
-            if ($remarks == 'refund') {
+            $airlines = strtolower(trim($row['airlines'] ?? ''));
+            $sectionVal = strtolower(trim($row['section'] ?? ''));
+            
+            // Detect extra services
+            $extraKeywords = ['extra baggage', 'seat purchase', 'meal purchase', 'name correction', 'extra leg room'];
+            $isExtraService = in_array($remarks, $extraKeywords) 
+                              || $airlines == 'extra service' 
+                              || $sectionVal == 'extra_service';
+            
+            if ($isExtraService) {
+                $debit = $amount; $credit = 0; $txnType = 'EMD';
+                $remarkText = "EMD Issued";
+            } elseif ($remarks == 'refund') {
                 $refundAmount = floatval($row['refundtc']);
                 if ($refundAmount == 0) $refundAmount = abs($amount);
                 $debit = 0; $credit = $refundAmount; $txnType = 'Refund';
@@ -151,6 +163,7 @@ function getLedgerTransactions($conn, $party, $section, $startDate, $endDate, $s
         }
     }
     
+    // ... rest of payment query same as before ...
     $paymentsDateCond = "";
     if (!empty($startDate) && !empty($endDate)) {
         $paymentsDateCond = " AND p.PaymentDate BETWEEN '" . mysqli_real_escape_string($conn, $startDate) . "' AND '" . mysqli_real_escape_string($conn, $endDate) . "'";
@@ -162,8 +175,8 @@ function getLedgerTransactions($conn, $party, $section, $startDate, $endDate, $s
     $payRes = mysqli_query($conn, $payQuery);
     if ($payRes) {
         while ($row = mysqli_fetch_assoc($payRes)) {
-            $remarkText = "Payment: " . $row['PaymentMethod'];
-            if ($row['Notes']) $remarkText .= " - " . $row['Notes'];
+            $remarkText = "Payment: " . ($row['PaymentMethod'] ?? 'N/A');
+            if (!empty($row['Notes'])) $remarkText .= " - " . $row['Notes'];
             $remarkText .= " | Date: " . date('d-m-Y', strtotime($row['PaymentDate']));
             $transactions[] = [
                 'date' => $row['PaymentDate'],
@@ -448,6 +461,7 @@ $companyLogo = "logo.jpg";
             #ledgerTable tbody tr { background-color: #eef2ff !important; }
             #ledgerTable tbody tr:nth-child(even) { background-color: #e6edf9 !important; }
         }
+        .emd-text { color: #8b5cf6; font-weight: 500; }
     </style>
 </head>
 <body>
@@ -462,7 +476,7 @@ $companyLogo = "logo.jpg";
                     <select name="section" id="sectionSelect" class="form-select form-select-sm" required>
                         <option value="">Select Section</option>
                         <?php foreach ($sections as $sec): ?>
-                            <option value="<?php echo htmlspecialchars($sec); ?>" <?php echo $selectedSection == $sec ? 'selected' : ''; ?>><?php echo ucfirst(htmlspecialchars($sec)); ?></option>
+                            <option value="<?php echo htmlspecialchars($sec ?? ''); ?>" <?php echo $selectedSection == $sec ? 'selected' : ''; ?>><?php echo ucfirst(htmlspecialchars($sec ?? '')); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -471,17 +485,17 @@ $companyLogo = "logo.jpg";
                     <select name="party" id="partySelect" class="form-select form-select-sm" required>
                         <option value="">Select Party</option>
                         <?php foreach ($parties as $party): ?>
-                            <option value="<?php echo htmlspecialchars($party); ?>" <?php echo $selectedParty == $party ? 'selected' : ''; ?>><?php echo htmlspecialchars($party); ?></option>
+                            <option value="<?php echo htmlspecialchars($party ?? ''); ?>" <?php echo $selectedParty == $party ? 'selected' : ''; ?>><?php echo htmlspecialchars($party ?? ''); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Start Date</label>
-                    <input type="date" name="start_date" class="form-control form-control-sm" value="<?php echo htmlspecialchars($startDate); ?>">
+                    <input type="date" name="start_date" class="form-control form-control-sm" value="<?php echo htmlspecialchars($startDate ?? ''); ?>">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">End Date</label>
-                    <input type="date" name="end_date" class="form-control form-control-sm" value="<?php echo htmlspecialchars($endDate); ?>">
+                    <input type="date" name="end_date" class="form-control form-control-sm" value="<?php echo htmlspecialchars($endDate ?? ''); ?>">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Transaction Type</label>
@@ -498,7 +512,7 @@ $companyLogo = "logo.jpg";
             <div class="row g-1 mt-2">
                 <div class="col-md-3">
                     <label class="form-label">Search</label>
-                    <input type="text" name="search" class="form-control form-control-sm" placeholder="Invoice, PNR, Ticket..." value="<?php echo htmlspecialchars($searchTerm); ?>">
+                    <input type="text" name="search" class="form-control form-control-sm" placeholder="Invoice, PNR, Ticket..." value="<?php echo htmlspecialchars($searchTerm ?? ''); ?>">
                 </div>
                 <div class="col-md-9 d-flex align-items-end justify-content-end">
                     <button type="submit" class="btn btn-primary btn-sm btn-export"><i class="fas fa-search me-1"></i>Load</button>
@@ -539,7 +553,7 @@ $companyLogo = "logo.jpg";
                 <?php if(file_exists($companyLogo)) echo '<img src="'.$companyLogo.'" class="logo-img">'; ?>
             </div>
             <div class="header-center">
-                <h3>Ledger Statement of <?php echo htmlspecialchars($selectedParty ?: '[Select Party]'); ?></h3>
+                <h3>Ledger Statement of <?php echo htmlspecialchars($selectedParty ?? '[Select Party]'); ?></h3>
                 <?php if (!empty($startDate) && !empty($endDate)): ?>
                     <p><strong>Period:</strong> <?php echo date('d M Y',strtotime($startDate)); ?> to <?php echo date('d M Y',strtotime($endDate)); ?></p>
                 <?php else: ?>
@@ -575,15 +589,31 @@ $companyLogo = "logo.jpg";
                         $balance = $openingBalance;
                         foreach ($transactions as $txn): 
                             $balance += $txn['debit'] - $txn['credit'];
-                            $flightInfo = htmlspecialchars($txn['route']) . '<br><small>' . htmlspecialchars($txn['airline']) . ' | PNR: ' . htmlspecialchars($txn['pnr']) . '</small>';
-                            $ticketInfo = 'Ticket: ' . htmlspecialchars($txn['ticket_no']) . '<br>Invoice: ' . htmlspecialchars($txn['invoice']);
+                            // Build flight info with null-safe escaping
+                            $route = htmlspecialchars($txn['route'] ?? '');
+                            $airline = htmlspecialchars($txn['airline'] ?? '');
+                            $pnr = htmlspecialchars($txn['pnr'] ?? '');
+                            $flightInfo = $route . '<br><small>' . $airline;
+                            if (!empty($pnr)) $flightInfo .= ' | PNR: ' . $pnr;
+                            $flightInfo .= '</small>';
+                            if (empty($route) && empty($airline)) $flightInfo = '—';
+                            
+                            // Ticket info with null-safe escaping
+                            $ticketNo = htmlspecialchars($txn['ticket_no'] ?? '');
+                            $invoice = htmlspecialchars($txn['invoice'] ?? '');
+                            $ticketInfo = '';
+                            if (!empty($ticketNo)) $ticketInfo .= 'Ticket: ' . $ticketNo;
+                            if (!empty($invoice)) $ticketInfo .= ($ticketInfo ? '<br>' : '') . 'Invoice: ' . $invoice;
+                            if (empty($ticketInfo)) $ticketInfo = '—';
+                            
                             $remarkClass = '';
-                            switch(strtolower($txn['type'])) {
+                            switch(strtolower($txn['type'] ?? '')) {
                                 case 'sale': $remarkClass = 'sale-text'; break;
                                 case 'payment': $remarkClass = 'payment-text'; break;
                                 case 'refund': $remarkClass = 'refund-text'; break;
                                 case 'reissue': $remarkClass = 'reissue-text'; break;
                                 case 'void': $remarkClass = 'void-text'; break;
+                                case 'Emd': $remarkClass = 'emd-text'; break;
                             }
                     ?>
                     <tr>
@@ -594,7 +624,7 @@ $companyLogo = "logo.jpg";
                         <td class="text-end"><?php echo $txn['debit']>0?number_format($txn['debit'],2):'-'; ?></td>
                         <td class="text-end"><?php echo $txn['credit']>0?number_format($txn['credit'],2):'-'; ?></td>
                         <td class="text-end fw-bold"><?php echo number_format($balance,2); ?></td>
-                        <td class="<?php echo $remarkClass; ?>"><?php echo htmlspecialchars($txn['remarks']); ?></td>
+                        <td class="<?php echo $remarkClass; ?>"><?php echo htmlspecialchars($txn['remarks'] ?? ''); ?></td>
                     </tr>
                     <?php 
                         endforeach;
@@ -681,9 +711,9 @@ new Chart(statusCtx, {
 <?php endif; ?>
 
 function getDynamicFileName(baseName = 'Ledger') {
-    let party = '<?php echo htmlspecialchars($selectedParty); ?>';
-    let startDate = '<?php echo htmlspecialchars($startDate); ?>';
-    let endDate = '<?php echo htmlspecialchars($endDate); ?>';
+    let party = '<?php echo htmlspecialchars($selectedParty ?? ''); ?>';
+    let startDate = '<?php echo htmlspecialchars($startDate ?? ''); ?>';
+    let endDate = '<?php echo htmlspecialchars($endDate ?? ''); ?>';
     let fileName = `${baseName}_of_${party.replace(/[^a-z0-9]/gi, '_')}`;
     if (startDate && endDate) fileName += `_from_${startDate}_to_${endDate}`;
     else fileName += `_all_records`;
@@ -729,7 +759,5 @@ function downloadPDF() {
     html2pdf().set(opt).from(element).save();
 }
 </script>
-<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="js/mdb.umd.min.js"></script> -->
 </body>
 </html>
