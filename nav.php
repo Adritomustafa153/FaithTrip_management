@@ -95,6 +95,8 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
           <a data-mdb-dropdown-init class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button" aria-expanded="false">Sales Record</a>
           <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
             <li><a class="dropdown-item" href="summary.php">Sale Summary</a></li>
+            <li><a class="dropdown-item" href="ledger.php">Sales & Party Ledgers</a></li>
+            <li><a class="dropdown-item" href="supplier_ledger.php">Supplier Ledgers</a></li>
             <li><a class="dropdown-item" href="invoice_list.php">Ticket Sales</a></li>
             <li><a class="dropdown-item" href="reissue.php">Ticket Reissue</a></li>
             <li><a class="dropdown-item" href="refund.php">Ticket Refund</a></li>

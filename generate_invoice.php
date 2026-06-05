@@ -90,7 +90,23 @@ if (!empty($_SESSION['invoice_cart'])) {
     $result = $pdo->query($query);
     
     while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
-        $remarks = $row['Remarks'] ?? '';
+        // ========== BULLETPROOF EXTRA SERVICE DETECTION ==========
+        $remarks = trim($row['Remarks'] ?? '');
+        $airlines = trim($row['airlines'] ?? '');
+        $section = trim($row['section'] ?? '');
+        
+        // If any of these conditions match, it's an extra service
+        $isExtraService = false;
+        $extraKeywords = ['Extra Baggage', 'Seat Purchase', 'Meal Purchase', 'Name Correction', 'Extra Leg Room'];
+        if (in_array($remarks, $extraKeywords)) $isExtraService = true;
+        if ($airlines == 'Extra Service') $isExtraService = true;
+        if ($section == 'extra_service') $isExtraService = true;
+        // Also check if Remarks contains any keyword (case-insensitive fallback)
+        foreach ($extraKeywords as $kw) {
+            if (stripos($remarks, $kw) !== false) $isExtraService = true;
+        }
+        // =========================================================
+        
         $amount = 0;
         $type_label = '';
         
@@ -98,7 +114,6 @@ if (!empty($_SESSION['invoice_cart'])) {
             $amount = floatval($row['BillAmount']);
             $type_label = 'Air Ticket Sale';
         } elseif ($remarks == 'Void Transaction') {
-            // Void uses BillAmount (selling amount)
             $amount = floatval($row['BillAmount']);
             $type_label = 'Void Charge';
         } elseif ($remarks == 'Refund') {
@@ -107,11 +122,13 @@ if (!empty($_SESSION['invoice_cart'])) {
         } elseif ($remarks == 'Reissue') {
             $amount = floatval($row['BillAmount']);
             $type_label = 'Ticket Reissue';
-        } 
-        elseif ($remarks == 'Cancellation Charge') {
+        } elseif ($remarks == 'Cancellation Charge') {
             $amount = floatval($row['BillAmount']);
             $type_label = 'Ticket Cancellation Charge';
-        }else {
+        } elseif ($isExtraService) {
+            $amount = floatval($row['BillAmount']);
+            $type_label = $remarks ?: 'Extra Service';
+        } else {
             $amount = floatval($row['BillAmount']);
             $type_label = 'Sale';
         }
@@ -119,7 +136,8 @@ if (!empty($_SESSION['invoice_cart'])) {
         $line_items[] = [
             'data'   => $row,
             'amount' => $amount,
-            'type_label' => $type_label
+            'type_label' => $type_label,
+            'is_extra' => $isExtraService
         ];
         $subtotal += $amount;
         $sales[] = $row;
@@ -134,13 +152,13 @@ if (empty($sales)) {
 $ait = $addAIT ? $subtotal * 0.003 : 0;
 $gt = $subtotal + $ait;
 
-// First sale data for header
+// First sale data for header (use fallback if first item is service)
 $firstSale = $sales[0];
-$pnr = $firstSale['PNR'];
-$partyName = $firstSale['PartyName'];
-$issueDate = $firstSale['IssueDate'];
-$flightDate = $firstSale['FlightDate'];
-$returnDate = $firstSale['ReturnDate'];
+$pnr = $firstSale['PNR'] ?? 'N/A';
+$partyName = $firstSale['PartyName'] ?? $client_name;
+$issueDate = $firstSale['IssueDate'] ?? date('Y-m-d');
+$flightDate = $firstSale['FlightDate'] ?? 'N/A';
+$returnDate = $firstSale['ReturnDate'] ?? 'N/A';
 $sellingPrice = $gt;
 
 // Update AIT in sales
@@ -175,10 +193,10 @@ $pdf->SetTextColor(0, 0, 0);
 // Company Info
 $companyInfo = <<<EOF
 <table style="font-family: helvetica; font-size: 10pt; text-align: right;" border="0" cellpadding="2">
-  <tr><td colspan="2" style="font-size: 14pt;"><h3>Faith Travels and Tours LTD</h3></td></tr>
-  <tr><td colspan="2">Abedin Tower (Level 5), Road 17,<br>35 Kamal Ataturk Avenue, Banani, Dhaka 1213</td></tr>
-  <tr><td colspan="2">info@faithtrip.net, director@faithtrip.net</td></tr>
-  <tr><td colspan="2">+8801896459490, +8801896459495</td></tr>
+    <tr><td colspan="2" style="font-size: 14pt;"><h3>Faith Travels and Tours LTD</h3></td></tr>
+    <tr><td colspan="2">Abedin Tower (Level 5), Road 17,<br>35 Kamal Ataturk Avenue, Banani, Dhaka 1213</td></tr>
+    <tr><td colspan="2">info@faithtrip.net, director@faithtrip.net</td></tr>
+    <tr><td colspan="2">+8801896459490, +8801896459495</td></tr>
 </table>
 EOF;
 
@@ -197,14 +215,14 @@ $pdf->SetY(40);
 $pdf->Ln(20);
 $pdf->writeHTML($clientInfo, true, false, true, false, '');
 
-// Build items table with Type column before Amount
+// Build items table
 $html = '<style>tr {border-bottom: 1px solid #ccc;} th {background-color:rgb(0, 98, 202); color: white;}</style>';
 $html .= '<table cellpadding="4" cellspacing="0" width="100%" style="border-collapse:collapse;">
 <thead>
 <tr>
     <th width="5%">SL</th>
     <th width="20%">Travelers</th>
-    <th width="22%">Flight Info</th>
+    <th width="22%">Flight Info / Service</th>
     <th width="22%">Ticket Info</th>
     <th width="15%">Type</th>
     <th width="16%">Amount (BDT)</th>
@@ -216,6 +234,7 @@ foreach ($line_items as $item) {
     $row = $item['data'];
     $amount = $item['amount'];
     $type_label = $item['type_label'];
+    $isExtra = $item['is_extra'];
     
     $display_amount = number_format(abs($amount), 2);
     $sign = $amount >= 0 ? '+' : '-';
@@ -224,8 +243,22 @@ foreach ($line_items as $item) {
     $html .= '<tr>';
     $html .= '<td width="5%">' . $serial++ . '</td>';
     $html .= '<td width="20%">' . htmlspecialchars($row['PassengerName']) . '</td>';
-    $html .= '<td width="22%">Route: <b>' . htmlspecialchars($row['TicketRoute']) . '</b><br>Airlines: <b>' . htmlspecialchars($row['airlines']) . '</b><br>Departure: <b>' . htmlspecialchars($row['FlightDate']) . '</b><br>Return: <b>' . htmlspecialchars($row['ReturnDate']) . '</b></td>';
-    $html .= '<td width="22%">Ticket No: <b>' . htmlspecialchars($row['TicketNumber']) . '</b><br>PNR: <b>' . htmlspecialchars($row['PNR']) . '</b><br>Issued: <b>' . htmlspecialchars($row['IssueDate']) . '</b><br>Seat Class: <b>' . htmlspecialchars($row['Class']) . '</b></td>';
+    
+    // Flight Info / Service column
+    if ($isExtra) {
+        $service_desc = !empty($row['TicketRoute']) ? $row['TicketRoute'] : ($row['Remarks'] ?? 'Extra Service');
+        $html .= '<td width="22%">Service: <b>' . htmlspecialchars($service_desc) . '</b></td>';
+    } else {
+        $html .= '<td width="22%">Route: <b>' . htmlspecialchars($row['TicketRoute']) . '</b><br>Airlines: <b>' . htmlspecialchars($row['airlines']) . '</b><br>Departure: <b>' . htmlspecialchars($row['FlightDate']) . '</b><br>Return: <b>' . htmlspecialchars($row['ReturnDate']) . '</b></td>';
+    }
+    
+    // Ticket Info column
+    if ($isExtra) {
+        $html .= '<td width="22%">---</td>';
+    } else {
+        $html .= '<td width="22%">Ticket No: <b>' . htmlspecialchars($row['TicketNumber']) . '</b><br>PNR: <b>' . htmlspecialchars($row['PNR']) . '</b><br>Issued: <b>' . htmlspecialchars($row['IssueDate']) . '</b><br>Seat Class: <b>' . htmlspecialchars($row['Class']) . '</b></td>';
+    }
+    
     $html .= '<td width="15%"><b>' . htmlspecialchars($type_label) . '</b></td>';
     $html .= '<td width="16%" ' . $amount_class . '>' . $sign . ' ' . $display_amount . '</td>';
     $html .= '</tr>';
@@ -257,7 +290,7 @@ $notes = <<<EOD
 EOD;
 $pdf->writeHTMLCell(0, 0, '', '', $notes, 0, 1, 0, true, 'L', true);
 
-// ------------------- BANK DETAILS (NO ICONS) -------------------
+// Bank details
 $pdf->Ln(8);
 $pdf->SetFont('helvetica', 'B', 11);
 $pdf->Write(0, "Bank Account Details for Payment:", '', 0, 'L', true);
@@ -266,50 +299,14 @@ $pdf->SetFont('helvetica', '', 9);
 
 $bankDetailsHTML = '
 <style>
-.bank-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 9pt;
-}
-.bank-table td {
-    border: 1px solid #ddd;
-    padding: 6px;
-    vertical-align: top;
-}
+.bank-table { width:100%; border-collapse:collapse; font-size:9pt; }
+.bank-table td { border:1px solid #ddd; padding:6px; vertical-align:top; }
 </style>
 <table class="bank-table">
-    <tr>
-        <td width="50%">
-            <strong>City Bank Limited</strong><br>
-            A/C Title: FAITH TRAVELS & TOURS LTD.<br>
-            A/C No.: 1254079547001<br>
-            Branch: Gulshan Avenue<br>
-            Routing No.: 225261732
-        </td>
-        <td width="50%">
-            <strong>BRAC Bank Limited</strong><br>
-            A/C Title: FAITH TRAVELS & TOURS LTD.<br>
-            A/C No.: 2068855480001<br>
-            Branch: Banani<br>
-            Routing No.: 060260435
-        </td>
-    </tr>
-    <tr>
-        <td width="50%">
-            <strong>Dutch Bangla Bank Limited</strong><br>
-            A/C Title: FAITH TRAVELS AND TOURS LTD.<br>
-            A/C No.: 1031100056392<br>
-            Branch: Banani<br>
-            Routing No.: 090260434
-        </td>
-        <td width="50%">
-            <strong>Islami Bank Bangladesh Limited</strong><br>
-            A/C Title: FAITH TRAVELS AND TOURS LTD<br>
-            A/C No.: 20503910100069217<br>
-            Branch: Banani<br>
-            Routing No.: 125260433
-        </td>
-    </tr>
+<tr><td width="50%"><strong>City Bank Limited</strong><br>A/C Title: FAITH TRAVELS & TOURS LTD.<br>A/C No.: 1254079547001<br>Branch: Gulshan Avenue<br>Routing No.: 225261732</td>
+<td width="50%"><strong>BRAC Bank Limited</strong><br>A/C Title: FAITH TRAVELS & TOURS LTD.<br>A/C No.: 2068855480001<br>Branch: Banani<br>Routing No.: 060260435</td></tr>
+<tr><td width="50%"><strong>Dutch Bangla Bank Limited</strong><br>A/C Title: FAITH TRAVELS AND TOURS LTD.<br>A/C No.: 1031100056392<br>Branch: Banani<br>Routing No.: 090260434</td>
+<td width="50%"><strong>Islami Bank Bangladesh Limited</strong><br>A/C Title: FAITH TRAVELS AND TOURS LTD<br>A/C No.: 20503910100069217<br>Branch: Banani<br>Routing No.: 125260433</td></tr>
 </table>
 ';
 
@@ -332,7 +329,7 @@ $filePath = __DIR__ . "/invoices/" . $fileName;
 ob_end_clean();
 $pdf->Output($filePath, 'F');
 
-//Email Sending
+// Email sending
 $mail = new PHPMailer\PHPMailer\PHPMailer();
 $mail->isSMTP();
 $mail->Host = 'smtp.gmail.com';
