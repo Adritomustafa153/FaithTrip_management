@@ -100,6 +100,7 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
             <li><a class="dropdown-item" href="invoice_list.php">Ticket Sales</a></li>
             <li><a class="dropdown-item" href="reissue.php">Ticket Reissue</a></li>
             <li><a class="dropdown-item" href="refund.php">Ticket Refund</a></li>
+            <li><a class="dropdown-item" href="emd_list.php">EMD Services</a></li>
             <li><a class="dropdown-item" href="hotel_sales.php">Hotel</a></li>
             <li><a class="dropdown-item" href="visa_list.php">Visa Processing</a></li>
             <li><a class="dropdown-item" href="">Tour Package</a></li>
