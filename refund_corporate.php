@@ -2,9 +2,13 @@
 include 'auth_check.php';
 include 'db.php';
 
+// Fetch salespersons from sales_person table
+$salespersons_query = "SELECT id, name FROM sales_person ORDER BY name";
+$salespersons_result = mysqli_query($conn, $salespersons_query);
+
 function isTicketRefunded($conn, $ticket_number) {
     $query = "SELECT COUNT(*) AS count FROM sales 
-              WHERE TicketNumber = ? AND Remarks = 'Refund'";
+              WHERE TicketNumber = ? AND Remarks IN ('Refund', 'Source Refund')";
     $stmt = $conn->prepare($query);
     $stmt->bind_param("s", $ticket_number);
     $stmt->execute();
@@ -15,7 +19,7 @@ function isTicketRefunded($conn, $ticket_number) {
 
 function hasRefundedTicketsInPNR($conn, $pnr) {
     $query = "SELECT COUNT(*) AS count FROM sales 
-              WHERE PNR = ? AND Remarks = 'Refund'";
+              WHERE PNR = ? AND Remarks IN ('Refund', 'Source Refund')";
     $stmt = $conn->prepare($query);
     $stmt->bind_param("s", $pnr);
     $stmt->execute();
@@ -49,7 +53,7 @@ if (isset($_GET['search_term']) && !empty($_GET['search_term'])) {
     $search_term = $conn->real_escape_string($_GET['search_term']);
     $where = " WHERE (PassengerName LIKE '%$search_term%' OR 
              TicketNumber LIKE '%$search_term%' OR 
-             PNR LIKE '%$search_term%') AND Remarks != 'Refund'";
+             PNR LIKE '%$search_term%') AND Remarks NOT IN ('Refund', 'Source Refund')";
     
     $refund_check_query = "SELECT COUNT(*) AS refund_count, MAX(refund_date) AS last_refund_date, 
                           MAX(refundtc) AS refund_amount FROM sales 
@@ -74,35 +78,65 @@ $search_result = mysqli_query($conn, $search_query);
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
     $refund_charge = floatval($_POST['refund_charge']);
     $service_charge = floatval($_POST['service_charge']);
+    $is_involuntary = isset($_POST['involuntary']) && $_POST['involuntary'] == '1';
+    
+    if ($is_involuntary) {
+        $refund_charge = 0;
+        $service_charge = 0;
+    }
+    
     $total_charges = $refund_charge + $service_charge;
     $source = $conn->real_escape_string($_POST['source']);
     $refund_date = $conn->real_escape_string($_POST['refund_date']);
+    $sales_person_id = intval($_POST['sales_person_id']);
+    
+    // Get salesperson name from sales_person table
+    $sp_query = "SELECT name FROM sales_person WHERE id = $sales_person_id";
+    $sp_result = mysqli_query($conn, $sp_query);
+    $sp_row = mysqli_fetch_assoc($sp_result);
+    $sales_person_name = $sp_row ? $sp_row['name'] : $sale_data['SalesPersonName'];
 
     $payment_status = $sale_data['PaymentStatus'];
     $paid_amount = floatval($sale_data['PaidAmount'] ?? 0);
     $bill_amount = floatval($sale_data['BillAmount']);
+    $original_net = floatval($sale_data['NetPayment']);
 
-    $refund_to_client = 0;
+    $client_refund = 0;
     $extra_charge = 0;
 
-    if ($payment_status == 'Paid') {
-        $refund_to_client = $bill_amount - $total_charges;
-        if ($refund_to_client < 0) $refund_to_client = 0;
-    } 
-    elseif ($payment_status == 'Partially Paid') {
-        $refund_to_client = $paid_amount - $total_charges;
-        if ($refund_to_client < 0) {
-            $extra_charge = abs($refund_to_client);
-            $refund_to_client = 0;
+    // Calculate refund amounts based on involuntary flag and payment status
+    if ($is_involuntary) {
+        // Involuntary refund: client gets back what they actually paid
+        if ($payment_status == 'Paid') {
+            $client_refund = $bill_amount;
+        } elseif ($payment_status == 'Partially Paid') {
+            $client_refund = $paid_amount;
+        } else {
+            $client_refund = 0;
+        }
+        $extra_charge = 0;
+    } else {
+        // Voluntary refund with charges
+        if ($payment_status == 'Paid') {
+            $client_refund = $bill_amount - $total_charges;
+            if ($client_refund < 0) $client_refund = 0;
+        } 
+        elseif ($payment_status == 'Partially Paid') {
+            $client_refund = $paid_amount - $total_charges;
+            if ($client_refund < 0) {
+                $extra_charge = abs($client_refund);
+                $client_refund = 0;
+            }
+        }
+        else { // Due
+            $extra_charge = $total_charges;
+            $client_refund = 0;
         }
     }
-    else {
-        $extra_charge = $total_charges;
-        $refund_to_client = 0;
-    }
 
-    if ($refund_to_client > 0) {
-        $insert_refund = "INSERT INTO sales (
+    // 1. CLIENT REFUND RECORD (only if client gets money)
+    if ($client_refund > 0) {
+        $insert_client_refund = "INSERT INTO sales (
                     section, PartyName, PassengerName, airlines, TicketRoute, 
                     TicketNumber, Class, IssueDate, FlightDate, ReturnDate, 
                     PNR, BillAmount, NetPayment, Profit, PaymentStatus, 
@@ -111,17 +145,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                     section, PartyName, PassengerName, airlines, TicketRoute, 
                     TicketNumber, Class, CURDATE(), FlightDate, ReturnDate, 
                     PNR, ?, ?, ?, 'Paid', 
-                    PaymentMethod, SalesPersonName, 'Refund', ?, ?, ?
+                    PaymentMethod, ?, 'Refund', ?, ?, ?
                 FROM sales WHERE SaleID = ?";
-        $stmt = $conn->prepare($insert_refund);
-        $profit = $service_charge;
-        $net_payment = $refund_charge;
-        $stmt->bind_param("dddsssi", $total_charges, $net_payment, $profit, $source, $refund_date, $refund_to_client, $sale_id);
-        $stmt->execute();
+        $stmt1 = $conn->prepare($insert_client_refund);
+        $stmt1->bind_param("dddsdssi", $total_charges, $refund_charge, $service_charge, $sales_person_name, $source, $refund_date, $client_refund, $sale_id);
+        $stmt1->execute();
     }
 
+    // 2. SOURCE REFUND RECORD (money you receive from source)
+    $source_refund_amount = $is_involuntary ? $original_net : ($original_net - $refund_charge);
+    if ($source_refund_amount > 0) {
+        $insert_source_refund = "INSERT INTO sales (
+                    section, PartyName, PassengerName, airlines, TicketRoute, 
+                    TicketNumber, Class, IssueDate, FlightDate, ReturnDate, 
+                    PNR, BillAmount, NetPayment, Profit, PaymentStatus, 
+                    PaymentMethod, SalesPersonName, Remarks, Source, refund_date, refundtc
+                ) SELECT 
+                    section, PartyName, PassengerName, airlines, TicketRoute, 
+                    TicketNumber, Class, CURDATE(), FlightDate, ReturnDate, 
+                    PNR, ?, ?, ?, 'Paid', 
+                    PaymentMethod, ?, 'Source Refund', ?, ?, 0
+                FROM sales WHERE SaleID = ?";
+        $stmt2 = $conn->prepare($insert_source_refund);
+        $stmt2->bind_param("dddsdss", $source_refund_amount, $refund_charge, $service_charge, $sales_person_name, $source, $refund_date, $sale_id);
+        $stmt2->execute();
+    }
+
+    // 3. CANCELLATION CHARGE RECORD (client owes money)
     if ($extra_charge > 0) {
-        $insert_charge = "INSERT INTO sales (
+        $insert_cancel = "INSERT INTO sales (
                     section, PartyName, PassengerName, airlines, TicketRoute, 
                     TicketNumber, Class, IssueDate, FlightDate, ReturnDate, 
                     PNR, BillAmount, NetPayment, Profit, PaymentStatus, 
@@ -130,14 +182,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                     section, PartyName, PassengerName, airlines, TicketRoute, 
                     TicketNumber, Class, CURDATE(), FlightDate, ReturnDate, 
                     PNR, ?, ?, 0, 'Due', 
-                    PaymentMethod, SalesPersonName, 'Cancellation Charge', ?, ?, 0
+                    PaymentMethod, ?, 'Cancellation Charge', ?, ?, 0
                 FROM sales WHERE SaleID = ?";
-        $stmt2 = $conn->prepare($insert_charge);
-        $stmt2->bind_param("ddssi", $extra_charge, $extra_charge, $source, $refund_date, $sale_id);
-        $stmt2->execute();
+        $stmt3 = $conn->prepare($insert_cancel);
+        $stmt3->bind_param("ddsdss", $extra_charge, $extra_charge, $sales_person_name, $source, $refund_date, $sale_id);
+        $stmt3->execute();
     }
 
-    if (($refund_to_client > 0 && isset($stmt)) || ($extra_charge > 0 && isset($stmt2))) {
+    // Success check
+    if ((isset($stmt1) && $stmt1->affected_rows > 0) || 
+        (isset($stmt2) && $stmt2->affected_rows > 0) || 
+        (isset($stmt3) && $stmt3->affected_rows > 0)) {
         echo '<!DOCTYPE html>
         <html>
         <head>
@@ -168,7 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
         </html>';
         exit();
     } else {
-        echo "<script>alert('Error processing refund.');</script>";
+        echo "<script>alert('Error processing refund. No records were inserted.');</script>";
     }
 }
 ?>
@@ -181,7 +236,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <style>
-        /* same CSS as in refund_agent.php */
         body { font-family: Arial, sans-serif; margin: 20px; background-color: #f8f9fa; }
         .container { background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0px 4px 15px rgba(0,0,0,0.1); margin-top: 20px; position: relative; }
         h2 { color: #2c3e50; margin-bottom: 25px; text-align: center; font-weight: 600; }
@@ -200,6 +254,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
         .alert-success { animation: fadeIn 0.5s; }
         .pnr-notice { background-color: #d1ecf1; padding: 10px; border-radius: 5px; margin-bottom: 10px; border-left: 4px solid #17a2b8; font-size: 14px; }
         .form-disabled { opacity: 0.7; }
+        .involuntary-check { margin: 10px 0; }
+        .involuntary-check label { font-weight: normal; display: inline; margin-left: 5px; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @media (max-width: 768px) { .container { padding: 15px; } .form-row > div { margin-bottom: 15px; } }
     </style>
@@ -297,6 +353,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                     </div>
                 </div>
                 <?php endif; ?>
+                <div class="row mt-2">
+                    <div class="col-md-4">
+                        <label>Original Net Payment (Cost):</label>
+                        <input type="text" id="original_net" class="form-control readonly" value="<?= number_format($sale_data['NetPayment'], 2) ?>" readonly>
+                    </div>
+                </div>
             </div>
 
             <div class="refund-section">
@@ -321,8 +383,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                         </select>
                     </div>
                     <div class="col-md-4">
-                        <label for="salesperson">Salesperson:</label>
-                        <input type="text" name="salesperson" class="form-control readonly" value="<?= htmlspecialchars($sale_data['SalesPersonName']) ?>" readonly>
+                        <label for="sales_person_id">Sales Person:</label>
+                        <select name="sales_person_id" id="sales_person_id" class="form-control" required <?= $is_refunded ? 'disabled' : '' ?>>
+                            <option value="">Select Sales Person</option>
+                            <?php 
+                            mysqli_data_seek($salespersons_result, 0);
+                            while($sp = mysqli_fetch_assoc($salespersons_result)): ?>
+                                <option value="<?= $sp['id'] ?>" <?= ($sp['name'] == $sale_data['SalesPersonName']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($sp['name']) ?>
+                                </option>
+                            <?php endwhile; ?>
+                        </select>
                     </div>
                     <div class="col-md-4">
                         <label for="refund_date">Refund Date:</label>
@@ -332,20 +403,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                 </div>
                 <div class="row mt-3">
                     <div class="col-md-3">
-                        <label for="refund_charge">Refund Charge:</label>
+                        <label for="refund_charge">Refund Charge (Source Charge):</label>
                         <input type="number" name="refund_charge" id="refund_charge" class="form-control" required min="0" step="0.01" value="0" <?= $is_refunded ? 'disabled' : '' ?>>
                     </div>
                     <div class="col-md-3">
-                        <label for="service_charge">Service Charge:</label>
+                        <label for="service_charge">Service Charge (Your Profit):</label>
                         <input type="number" name="service_charge" id="service_charge" class="form-control" required min="0" step="0.01" value="0" <?= $is_refunded ? 'disabled' : '' ?>>
                     </div>
                     <div class="col-md-3">
-                        <label for="total_refund">Total Refund Charges:</label>
-                        <input type="number" name="total_refund" id="total_refund" class="form-control readonly" readonly>
+                        <label>Total Refund Charges:</label>
+                        <input type="number" id="total_refund" class="form-control readonly" readonly>
                     </div>
                     <div class="col-md-3">
-                        <label for="refund_amount">Amount to Refund (to Client):</label>
-                        <input type="number" name="refund_amount" id="refund_amount" class="form-control readonly" readonly>
+                        <label>Amount to Refund (to Client):</label>
+                        <input type="number" id="refund_amount" class="form-control readonly" readonly>
+                    </div>
+                </div>
+                <div class="row mt-2 involuntary-check">
+                    <div class="col-md-12">
+                        <input type="checkbox" name="involuntary" id="involuntary" value="1" <?= $is_refunded ? 'disabled' : '' ?>>
+                        <label for="involuntary">Involuntary Refund (Airline Cancellation – Full refund, no charges)</label>
                     </div>
                 </div>
                 <div class="row mt-2">
@@ -419,7 +496,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script>
-        // Same JavaScript as in refund_agent.php; only paymentStatus variables are the same
         $(document).ready(function() {
             flatpickr("#refund_date", { dateFormat: "Y-m-d", defaultDate: "today" });
 
@@ -431,35 +507,61 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                 let refundCharge = parseFloat($('#refund_charge').val()) || 0;
                 let serviceCharge = parseFloat($('#service_charge').val()) || 0;
                 let totalCharges = refundCharge + serviceCharge;
-                let refundToClient = 0;
+                let isInvoluntary = $('#involuntary').is(':checked');
+                let clientRefund = 0;
                 let infoText = "";
 
-                if (paymentStatus === 'Paid') {
-                    refundToClient = sellingPrice - totalCharges;
-                    if (refundToClient < 0) refundToClient = 0;
-                    infoText = `Client has paid full amount (${sellingPrice.toFixed(2)} BDT).<br>Refund to client = Selling Price - Total Charges = ${refundToClient.toFixed(2)} BDT.`;
-                } 
-                else if (paymentStatus === 'Partially Paid') {
-                    refundToClient = paidAmount - totalCharges;
-                    if (refundToClient < 0) {
-                        let extraCharge = Math.abs(refundToClient);
-                        infoText = `Client paid only ${paidAmount.toFixed(2)} BDT. Total Charges (${totalCharges.toFixed(2)}) exceed paid amount.<br>No refund; client owes ${extraCharge.toFixed(2)} BDT as Cancellation Charge.`;
-                        refundToClient = 0;
+                if (isInvoluntary) {
+                    if (paymentStatus === 'Paid') {
+                        clientRefund = sellingPrice;
+                        infoText = `Involuntary Refund (Airline Cancellation).<br>Client paid full amount: ${sellingPrice.toFixed(2)} BDT – Full refund to client.`;
+                    } else if (paymentStatus === 'Partially Paid') {
+                        clientRefund = paidAmount;
+                        infoText = `Involuntary Refund (Airline Cancellation).<br>Client paid only ${paidAmount.toFixed(2)} BDT – Refund of paid amount only.`;
                     } else {
-                        infoText = `Client paid ${paidAmount.toFixed(2)} BDT. Refund to client = Paid Amount - Total Charges = ${refundToClient.toFixed(2)} BDT.`;
+                        clientRefund = 0;
+                        infoText = `Involuntary Refund but client paid nothing – No refund to client.`;
                     }
-                } 
-                else {
-                    refundToClient = 0;
-                    infoText = `Payment status is Due. Client has not paid anything.<br>No refund to client. Total Charges (${totalCharges.toFixed(2)} BDT) will be added as a Cancellation Charge.`;
+                    $('#refund_charge').val(0);
+                    $('#service_charge').val(0);
+                    totalCharges = 0;
+                } else {
+                    if (paymentStatus === 'Paid') {
+                        clientRefund = sellingPrice - totalCharges;
+                        if (clientRefund < 0) clientRefund = 0;
+                        infoText = `Client has paid full amount (${sellingPrice.toFixed(2)} BDT).<br>Refund to client = Selling Price - Total Charges = ${clientRefund.toFixed(2)} BDT.`;
+                    } 
+                    else if (paymentStatus === 'Partially Paid') {
+                        clientRefund = paidAmount - totalCharges;
+                        if (clientRefund < 0) {
+                            let extraCharge = Math.abs(clientRefund);
+                            infoText = `Client paid only ${paidAmount.toFixed(2)} BDT. Total Charges (${totalCharges.toFixed(2)}) exceed paid amount.<br>No refund; client owes ${extraCharge.toFixed(2)} BDT as Cancellation Charge.`;
+                            clientRefund = 0;
+                        } else {
+                            infoText = `Client paid ${paidAmount.toFixed(2)} BDT. Refund to client = Paid Amount - Total Charges = ${clientRefund.toFixed(2)} BDT.`;
+                        }
+                    } 
+                    else {
+                        clientRefund = 0;
+                        infoText = `Payment status is Due. Client has not paid anything.<br>No refund to client. Total Charges (${totalCharges.toFixed(2)} BDT) will be added as a Cancellation Charge.`;
+                    }
                 }
 
                 $('#total_refund').val(totalCharges.toFixed(2));
-                $('#refund_amount').val(refundToClient.toFixed(2));
+                $('#refund_amount').val(clientRefund.toFixed(2));
                 $('#payment_status_info').html(`<div class="alert alert-info">${infoText}</div>`);
             }
 
-            $('#refund_charge, #service_charge').on('input', calculateRefund);
+            $('#refund_charge, #service_charge, #involuntary').on('input change', function() {
+                if ($('#involuntary').is(':checked')) {
+                    $('#refund_charge').prop('readonly', true);
+                    $('#service_charge').prop('readonly', true);
+                } else {
+                    $('#refund_charge').prop('readonly', false);
+                    $('#service_charge').prop('readonly', false);
+                }
+                calculateRefund();
+            });
             calculateRefund();
 
             $('#refundForm').submit(function(e) {
@@ -471,6 +573,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                 
                 if ($('#source').val() === '') {
                     alert('Please select a source/agency.');
+                    e.preventDefault();
+                    return false;
+                }
+                if ($('#sales_person_id').val() === '') {
+                    alert('Please select a sales person.');
                     e.preventDefault();
                     return false;
                 }

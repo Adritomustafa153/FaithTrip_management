@@ -4,7 +4,7 @@ require_once 'auth_check.php';
 
 $filter = $_GET['filter'] ?? 'monthly';
 
-// ======================= COMPREHENSIVE SALES FUNCTION =======================
+// ======================= COMPREHENSIVE SALES FUNCTION (Corrected for refunds) =======================
 function calculateComprehensiveSales($conn, $startDate, $endDate, $periodType = 'custom') {
     $endDateNext = date('Y-m-d', strtotime($endDate . ' +1 day'));
 
@@ -26,25 +26,53 @@ function calculateComprehensiveSales($conn, $startDate, $endDate, $periodType = 
         ]
     ];
 
-    // ---- AIR TICKETS (sales table) ----
+    // ---- AIR TICKETS (sales table) - subtract refunds, exclude internal adjustments ----
     if ($periodType === 'daily') {
         $sales_sql = "SELECT 
-                        COALESCE(SUM(CASE WHEN Remarks = 'Refund' THEN 0 WHEN Remarks = 'Reissue' THEN BillAmount ELSE BillAmount END),0) as total_sales,
-                        COALESCE(SUM(CASE WHEN Remarks = 'Refund' THEN 0 ELSE NetPayment END),0) as total_net,
-                        COALESCE(SUM(CASE WHEN Remarks = 'Refund' THEN 0 ELSE Profit END),0) as total_profit,
-                        COALESCE(SUM(CASE WHEN Remarks = 'Refund' THEN BillAmount ELSE 0 END),0) as total_refund,
-                        COALESCE(SUM(CASE WHEN Remarks = 'Reissue' THEN BillAmount ELSE 0 END),0) as total_reissue,
-                        COALESCE(SUM(CASE WHEN PaymentStatus IN ('Due','Partially Paid') THEN DueAmount ELSE 0 END),0) as total_due
+                        COALESCE(SUM(CASE 
+                            WHEN Remarks = 'Refund' THEN -refundtc
+                            WHEN Remarks IN ('Source Refund', 'Cancellation Charge') THEN 0
+                            WHEN Remarks = 'Reissue' THEN BillAmount 
+                            ELSE BillAmount 
+                        END), 0) as total_sales,
+                        COALESCE(SUM(CASE 
+                            WHEN Remarks IN ('Refund', 'Source Refund', 'Cancellation Charge') THEN 0 
+                            ELSE NetPayment 
+                        END), 0) as total_net,
+                        COALESCE(SUM(CASE 
+                            WHEN Remarks IN ('Refund', 'Source Refund', 'Cancellation Charge') THEN 0 
+                            ELSE Profit 
+                        END), 0) as total_profit,
+                        COALESCE(SUM(CASE WHEN Remarks = 'Refund' THEN refundtc ELSE 0 END), 0) as total_refund,
+                        COALESCE(SUM(CASE WHEN Remarks = 'Reissue' THEN BillAmount ELSE 0 END), 0) as total_reissue,
+                        COALESCE(SUM(CASE 
+                            WHEN PaymentStatus IN ('Due','Partially Paid') THEN DueAmount 
+                            ELSE 0 
+                        END), 0) as total_due
                     FROM sales 
                     WHERE DATE(IssueDate) = CURDATE()";
     } else {
         $sales_sql = "SELECT 
-                        COALESCE(SUM(CASE WHEN Remarks = 'Refund' THEN 0 WHEN Remarks = 'Reissue' THEN BillAmount ELSE BillAmount END),0) as total_sales,
-                        COALESCE(SUM(CASE WHEN Remarks = 'Refund' THEN 0 ELSE NetPayment END),0) as total_net,
-                        COALESCE(SUM(CASE WHEN Remarks = 'Refund' THEN 0 ELSE Profit END),0) as total_profit,
-                        COALESCE(SUM(CASE WHEN Remarks = 'Refund' THEN BillAmount ELSE 0 END),0) as total_refund,
-                        COALESCE(SUM(CASE WHEN Remarks = 'Reissue' THEN BillAmount ELSE 0 END),0) as total_reissue,
-                        COALESCE(SUM(CASE WHEN PaymentStatus IN ('Due','Partially Paid') THEN DueAmount ELSE 0 END),0) as total_due
+                        COALESCE(SUM(CASE 
+                            WHEN Remarks = 'Refund' THEN -refundtc
+                            WHEN Remarks IN ('Source Refund', 'Cancellation Charge') THEN 0
+                            WHEN Remarks = 'Reissue' THEN BillAmount 
+                            ELSE BillAmount 
+                        END), 0) as total_sales,
+                        COALESCE(SUM(CASE 
+                            WHEN Remarks IN ('Refund', 'Source Refund', 'Cancellation Charge') THEN 0 
+                            ELSE NetPayment 
+                        END), 0) as total_net,
+                        COALESCE(SUM(CASE 
+                            WHEN Remarks IN ('Refund', 'Source Refund', 'Cancellation Charge') THEN 0 
+                            ELSE Profit 
+                        END), 0) as total_profit,
+                        COALESCE(SUM(CASE WHEN Remarks = 'Refund' THEN refundtc ELSE 0 END), 0) as total_refund,
+                        COALESCE(SUM(CASE WHEN Remarks = 'Reissue' THEN BillAmount ELSE 0 END), 0) as total_reissue,
+                        COALESCE(SUM(CASE 
+                            WHEN PaymentStatus IN ('Due','Partially Paid') THEN DueAmount 
+                            ELSE 0 
+                        END), 0) as total_due
                     FROM sales 
                     WHERE IssueDate >= '$startDate' AND IssueDate < '$endDateNext'";
     }
@@ -57,20 +85,23 @@ function calculateComprehensiveSales($conn, $startDate, $endDate, $periodType = 
         $result['total_due'] += $row['total_due'];
         $result['category_sales']['ticket'] = $row['total_sales'];
 
+        // Purchase (non‑IATA, not internal adjustments)
         if ($periodType === 'daily') {
             $purchase_sql = "SELECT COALESCE(SUM(NetPayment),0) as total_net FROM sales 
                              WHERE DATE(IssueDate) = CURDATE()
-                             AND Source != 'IATA' AND Source IS NOT NULL AND Source != '' AND Remarks != 'Refund'";
+                             AND Source != 'IATA' AND Source IS NOT NULL AND Source != '' 
+                             AND Remarks NOT IN ('Refund', 'Source Refund', 'Cancellation Charge')";
         } else {
             $purchase_sql = "SELECT COALESCE(SUM(NetPayment),0) as total_net FROM sales 
                              WHERE IssueDate >= '$startDate' AND IssueDate < '$endDateNext'
-                             AND Source != 'IATA' AND Source IS NOT NULL AND Source != '' AND Remarks != 'Refund'";
+                             AND Source != 'IATA' AND Source IS NOT NULL AND Source != '' 
+                             AND Remarks NOT IN ('Refund', 'Source Refund', 'Cancellation Charge')";
         }
         $pres = $conn->query($purchase_sql);
         if ($pres && $prow = $pres->fetch_assoc()) $result['total_purchase'] += $prow['total_net'];
     }
 
-    // ---- EMD (Extra Services) ----
+    // ---- EMD (Extra Services) - unchanged ----
     if ($periodType === 'daily') {
         $emd_sql = "SELECT COALESCE(SUM(BillAmount),0) as total_emd
                     FROM sales 
@@ -100,7 +131,7 @@ function calculateComprehensiveSales($conn, $startDate, $endDate, $periodType = 
     $col_res = $conn->query($col_sql);
     if ($col_res && $col_row = $col_res->fetch_assoc()) $result['total_collection'] += $col_row['total_collection'];
 
-    // ---- HOTEL ----
+    // ---- HOTEL (already subtracts refunds) ----
     if ($periodType === 'daily') {
         $hotel_sql = "SELECT COALESCE(SUM(selling_price),0) as total_sales, COALESCE(SUM(net_price),0) as total_net,
                        COALESCE(SUM(profit),0) as total_profit, COALESCE(SUM(refund_to_client),0) as total_refund,
@@ -134,7 +165,7 @@ function calculateComprehensiveSales($conn, $startDate, $endDate, $periodType = 
         if ($pres && $prow = $pres->fetch_assoc()) $result['total_purchase'] += $prow['total_net'];
     }
 
-    // ---- STUDENT VISA ----
+    // ---- STUDENT VISA (already subtracts refunds) ----
     if ($periodType === 'daily') {
         $student_sql = "SELECT COALESCE(SUM(Selling),0) as total_sales, COALESCE(SUM(net),0) as total_net,
                        COALESCE(SUM(profit),0) as total_profit, COALESCE(SUM(refund_to_client),0) as total_refund,
@@ -168,7 +199,7 @@ function calculateComprehensiveSales($conn, $startDate, $endDate, $periodType = 
         if ($pres && $prow = $pres->fetch_assoc()) $result['total_purchase'] += $prow['total_net'];
     }
 
-    // ---- UMRAH ----
+    // ---- UMRAH (already subtracts refunds) ----
     if ($periodType === 'daily') {
         $umrah_sql = "SELECT COALESCE(SUM(`selling price`),0) as total_sales, COALESCE(SUM(`net payment`),0) as total_net,
                        COALESCE(SUM(profit),0) as total_profit, COALESCE(SUM(`refund to client`),0) as total_refund,
@@ -202,7 +233,7 @@ function calculateComprehensiveSales($conn, $startDate, $endDate, $periodType = 
         if ($pres && $prow = $pres->fetch_assoc()) $result['total_purchase'] += $prow['total_net'];
     }
 
-    // ---- VISA ----
+    // ---- VISA (already subtracts refunds) ----
     if ($periodType === 'daily') {
         $visa_sql = "SELECT COALESCE(SUM(`selling price`),0) as total_sales, COALESCE(SUM(`Net Payment`),0) as total_net,
                        COALESCE(SUM(profit),0) as total_profit, COALESCE(SUM(`refund to client`),0) as total_refund,
@@ -262,7 +293,7 @@ $yearlyPaymentResult = mysqli_query($conn, $yearlyPaymentQuery);
 $yearlyPaymentData = mysqli_fetch_assoc($yearlyPaymentResult);
 
 // ======================= DAILY SALES COUNTER =======================
-$dailySalesCountQuery = "SELECT COUNT(*) as ticket_count FROM sales WHERE DATE(IssueDate) = CURDATE()";
+$dailySalesCountQuery = "SELECT COUNT(*) as ticket_count FROM sales WHERE DATE(IssueDate) = CURDATE() AND Remarks NOT IN ('Refund', 'Source Refund', 'Cancellation Charge')";
 $dailySalesCountResult = mysqli_query($conn, $dailySalesCountQuery);
 $dailySalesCountData = mysqli_fetch_assoc($dailySalesCountResult);
 $dailySalesCount = $dailySalesCountData['ticket_count'] ?? 0;
@@ -274,18 +305,53 @@ $daily = calculateComprehensiveSales($conn, $current_date, $current_date, 'daily
 $monthly = calculateComprehensiveSales($conn, date('Y-m-01'), date('Y-m-t'));
 $yearly = calculateComprehensiveSales($conn, "$current_year-01-01", "$current_year-12-31");
 
-// ======================= PIE CHART (Sales by Section) =======================
+// ======================= PIE CHART (Sales by Section, adjusted for refunds) =======================
 if ($filter === 'daily') {
-    $salesQuery = "SELECT section, SUM(BillAmount) AS total FROM sales WHERE DATE(IssueDate) = CURDATE() GROUP BY section";
+    $salesQuery = "SELECT 
+                        s.section, 
+                        COALESCE(SUM(CASE 
+                            WHEN s.Remarks = 'Refund' THEN -s.refundtc 
+                            WHEN s.Remarks IN ('Source Refund', 'Cancellation Charge') THEN 0 
+                            ELSE s.BillAmount 
+                        END), 0) AS total 
+                    FROM sales s 
+                    WHERE DATE(s.IssueDate) = CURDATE() 
+                    GROUP BY s.section";
     $pieChartTitle = "Sales by Section (Daily)";
 } elseif ($filter === 'yearly') {
-    $salesQuery = "SELECT section, SUM(BillAmount) AS total FROM sales WHERE YEAR(IssueDate) = YEAR(CURDATE()) GROUP BY section";
+    $salesQuery = "SELECT 
+                        s.section, 
+                        COALESCE(SUM(CASE 
+                            WHEN s.Remarks = 'Refund' THEN -s.refundtc 
+                            WHEN s.Remarks IN ('Source Refund', 'Cancellation Charge') THEN 0 
+                            ELSE s.BillAmount 
+                        END), 0) AS total 
+                    FROM sales s 
+                    WHERE YEAR(s.IssueDate) = YEAR(CURDATE()) 
+                    GROUP BY s.section";
     $pieChartTitle = "Sales by Section (Yearly)";
 } elseif ($filter === 'total') {
-    $salesQuery = "SELECT section, SUM(BillAmount) AS total FROM sales GROUP BY section";
+    $salesQuery = "SELECT 
+                        s.section, 
+                        COALESCE(SUM(CASE 
+                            WHEN s.Remarks = 'Refund' THEN -s.refundtc 
+                            WHEN s.Remarks IN ('Source Refund', 'Cancellation Charge') THEN 0 
+                            ELSE s.BillAmount 
+                        END), 0) AS total 
+                    FROM sales s 
+                    GROUP BY s.section";
     $pieChartTitle = "Sales by Section (Total)";
 } else {
-    $salesQuery = "SELECT section, SUM(BillAmount) AS total FROM sales WHERE MONTH(IssueDate) = MONTH(CURDATE()) AND YEAR(IssueDate) = YEAR(CURDATE()) GROUP BY section";
+    $salesQuery = "SELECT 
+                        s.section, 
+                        COALESCE(SUM(CASE 
+                            WHEN s.Remarks = 'Refund' THEN -s.refundtc 
+                            WHEN s.Remarks IN ('Source Refund', 'Cancellation Charge') THEN 0 
+                            ELSE s.BillAmount 
+                        END), 0) AS total 
+                    FROM sales s 
+                    WHERE MONTH(s.IssueDate) = MONTH(CURDATE()) AND YEAR(s.IssueDate) = YEAR(CURDATE()) 
+                    GROUP BY s.section";
     $pieChartTitle = "Sales by Section (Monthly)";
 }
 $salesResult = mysqli_query($conn, $salesQuery);
@@ -753,6 +819,7 @@ $bookingsNotificationCount = $bookingsNotificationData['notification_count'] ?? 
         document.getElementById('calculateBtn').addEventListener('click',calculateFare);
         document.getElementById('clearBtn').addEventListener('click',clearCalculator);
         document.querySelectorAll('#fareCalculatorForm input').forEach(i=>i.addEventListener('input',calculateFare));
+        // Ensure charts render after page load
         new Chart(document.getElementById('salesPieChart'),{type:'pie',data:{labels:['Agent','Counter','Corporate'],datasets:[{data:[<?= $salesData['Agent'] ?>,<?= $salesData['Counter'] ?>,<?= $salesData['Corporate'] ?>],backgroundColor:['#10b981','#3b82f6','#f59e0b']}]},options:{responsive:true,plugins:{legend:{position:'bottom'}}}});
         new Chart(document.getElementById('expenseBarChart'),{type:'bar',data:{labels:<?= json_encode($expenseMonths) ?>,datasets:[{label:'Expenses',data:<?= json_encode($expenseTotals) ?>,backgroundColor:'#3b82f6'}]},options:{responsive:true,scales:{y:{beginAtZero:true,ticks:{callback:v=>'৳'+v}}}}});
         new Chart(document.getElementById('salesProfitChart'),{type:'bar',data:{labels:<?= json_encode($monthlyLabels) ?>,datasets:[{label:'Total Sales (All Services)',data:<?= json_encode($monthlySales) ?>,backgroundColor:'#10b981'},{label:'Total Profit',data:<?= json_encode($monthlyProfit) ?>,backgroundColor:'#3b82f6'}]},options:{responsive:true,scales:{y:{beginAtZero:true,ticks:{callback:v=>'৳'+v}}},plugins:{legend:{position:'bottom'}}}});

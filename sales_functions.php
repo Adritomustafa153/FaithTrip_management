@@ -1,6 +1,5 @@
 <?php
-// sales_functions.php – Single source of truth for sales calculations
-// Fixed to handle DATETIME columns correctly for daily reports
+// sales_functions.php – Correctly subtracts refunds from total sales
 
 function calculateSales($conn, $startDate, $endDate) {
     $result = [
@@ -20,25 +19,30 @@ function calculateSales($conn, $startDate, $endDate) {
         ]
     ];
 
-    // Helper to get next day for exclusive upper bound
     $endDateNext = date('Y-m-d', strtotime($endDate . ' +1 day'));
 
     // ---------- SALES table (Air Tickets) ----------
+    // For total_sales: 
+    //   - Regular sales: +BillAmount
+    //   - Reissue: +BillAmount
+    //   - Refund: -refundtc (subtract the amount returned to client)
+    //   - Source Refund, Cancellation Charge: 0 (internal adjustments)
     $sales_sql = "SELECT 
                     COALESCE(SUM(CASE 
-                        WHEN Remarks = 'Refund' THEN 0 
+                        WHEN Remarks = 'Refund' THEN -refundtc
+                        WHEN Remarks IN ('Source Refund', 'Cancellation Charge') THEN 0
                         WHEN Remarks = 'Reissue' THEN BillAmount 
                         ELSE BillAmount 
                     END), 0) as total_sales,
                     COALESCE(SUM(CASE 
-                        WHEN Remarks = 'Refund' THEN 0 
+                        WHEN Remarks IN ('Refund', 'Source Refund', 'Cancellation Charge') THEN 0 
                         ELSE NetPayment 
                     END), 0) as total_net,
                     COALESCE(SUM(CASE 
-                        WHEN Remarks = 'Refund' THEN 0 
+                        WHEN Remarks IN ('Refund', 'Source Refund', 'Cancellation Charge') THEN 0 
                         ELSE Profit 
                     END), 0) as total_profit,
-                    COALESCE(SUM(CASE WHEN Remarks = 'Refund' THEN BillAmount ELSE 0 END), 0) as total_refund,
+                    COALESCE(SUM(CASE WHEN Remarks = 'Refund' THEN refundtc ELSE 0 END), 0) as total_refund,
                     COALESCE(SUM(CASE WHEN Remarks = 'Reissue' THEN BillAmount ELSE 0 END), 0) as total_reissue,
                     COALESCE(SUM(CASE 
                         WHEN PaymentStatus IN ('Due', 'Partially Paid') THEN DueAmount 
@@ -57,14 +61,14 @@ function calculateSales($conn, $startDate, $endDate) {
         $result['total_due'] += $sales_row['total_due'];
         $result['category_sales']['ticket'] = $ticket_sales;
         
-        // Purchase for tickets (non‑IATA, not refund)
+        // Purchase calculation (exclude internal adjustments)
         $ticket_purchase_sql = "SELECT COALESCE(SUM(NetPayment), 0) as total_net 
                                FROM sales 
                                WHERE IssueDate >= '$startDate' AND IssueDate < '$endDateNext'
                                AND Source != 'IATA' 
                                AND Source IS NOT NULL 
                                AND Source != ''
-                               AND Remarks != 'Refund'";
+                               AND Remarks NOT IN ('Refund', 'Source Refund', 'Cancellation Charge')";
         $purchase_result = $conn->query($ticket_purchase_sql);
         if ($purchase_result && $purchase_row = $purchase_result->fetch_assoc()) {
             $result['total_purchase'] += $purchase_row['total_net'];
@@ -80,7 +84,7 @@ function calculateSales($conn, $startDate, $endDate) {
         $result['total_collection'] += $collection_row['total_collection'];
     }
 
-    // ---------- HOTEL table ----------
+    // ---------- HOTEL table (unchanged) ----------
     $hotel_sql = "SELECT 
                     COALESCE(SUM(selling_price), 0) as total_sales,
                     COALESCE(SUM(net_price), 0) as total_net,
@@ -114,7 +118,7 @@ function calculateSales($conn, $startDate, $endDate) {
         }
     }
 
-    // ---------- STUDENT table ----------
+    // ---------- STUDENT table (unchanged) ----------
     $student_sql = "SELECT 
                     COALESCE(SUM(Selling), 0) as total_sales,
                     COALESCE(SUM(net), 0) as total_net,
@@ -148,7 +152,7 @@ function calculateSales($conn, $startDate, $endDate) {
         }
     }
 
-    // ---------- UMRAH table ----------
+    // ---------- UMRAH table (unchanged) ----------
     $umrah_sql = "SELECT 
                     COALESCE(SUM(`selling price`), 0) as total_sales,
                     COALESCE(SUM(`net payment`), 0) as total_net,
@@ -182,7 +186,7 @@ function calculateSales($conn, $startDate, $endDate) {
         }
     }
 
-    // ---------- VISA table ----------
+    // ---------- VISA table (unchanged) ----------
     $visa_sql = "SELECT 
                     COALESCE(SUM(`selling price`), 0) as total_sales,
                     COALESCE(SUM(`Net Payment`), 0) as total_net,
