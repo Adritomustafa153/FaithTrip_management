@@ -6,9 +6,10 @@ include 'db.php';
 $salespersons_query = "SELECT id, name FROM sales_person ORDER BY name";
 $salespersons_result = mysqli_query($conn, $salespersons_query);
 
+// Function to check if a ticket is already refunded
 function isTicketRefunded($conn, $ticket_number) {
     $query = "SELECT COUNT(*) AS count FROM sales 
-              WHERE TicketNumber = ? AND Remarks IN ('Refund', 'Source Refund')";
+              WHERE TicketNumber = ? AND Remarks IN ('Refund', 'Source Refund', 'Refunded')";
     $stmt = $conn->prepare($query);
     $stmt->bind_param("s", $ticket_number);
     $stmt->execute();
@@ -17,108 +18,81 @@ function isTicketRefunded($conn, $ticket_number) {
     return $data['count'] > 0;
 }
 
-function hasRefundedTicketsInPNR($conn, $pnr) {
-    $query = "SELECT COUNT(*) AS count FROM sales 
-              WHERE PNR = ? AND Remarks IN ('Refund', 'Source Refund')";
-    $stmt = $conn->prepare($query);
-    $stmt->bind_param("s", $pnr);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $data = $result->fetch_assoc();
-    return $data['count'] > 0;
-}
-
+// Get sources dropdown
 $sources_query = "SELECT agency_name FROM sources";
 $sources_result = mysqli_query($conn, $sources_query);
 
 $sale_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-
 $sale_query = "SELECT * FROM sales WHERE SaleID = $sale_id";
 $sale_result = mysqli_query($conn, $sale_query);
 $sale_data = $sale_result->fetch_assoc();
 
-$has_refund = false;
-$refund_message = "";
 $is_refunded = false;
 $pnr_has_refunds = false;
-
 if ($sale_data) {
-    $is_refunded = ($sale_data['Remarks'] == 'Refund') || 
+    $is_refunded = ($sale_data['Remarks'] == 'Refund' || $sale_data['Remarks'] == 'Refunded') || 
                   isTicketRefunded($conn, $sale_data['TicketNumber']);
-    $pnr_has_refunds = hasRefundedTicketsInPNR($conn, $sale_data['PNR']);
+    // Check if any other ticket in same PNR is refunded (just for info)
+    $pnr_check = "SELECT COUNT(*) as cnt FROM sales WHERE PNR = ? AND Remarks IN ('Refund', 'Refunded') AND SaleID != ?";
+    $stmt = $conn->prepare($pnr_check);
+    $stmt->bind_param("si", $sale_data['PNR'], $sale_id);
+    $stmt->execute();
+    $pnr_has_refunds = $stmt->get_result()->fetch_assoc()['cnt'] > 0;
 }
 
-$where = "";
-if (isset($_GET['search_term']) && !empty($_GET['search_term'])) {
-    $search_term = $conn->real_escape_string($_GET['search_term']);
-    $where = " WHERE (PassengerName LIKE '%$search_term%' OR 
-             TicketNumber LIKE '%$search_term%' OR 
-             PNR LIKE '%$search_term%') AND Remarks NOT IN ('Refund', 'Source Refund')";
-    
-    $refund_check_query = "SELECT COUNT(*) AS refund_count, MAX(refund_date) AS last_refund_date, 
-                          MAX(refundtc) AS refund_amount FROM sales 
-                          WHERE TicketNumber LIKE '%$search_term%' 
-                          AND Remarks = 'Refund'";
-    $refund_check_result = mysqli_query($conn, $refund_check_query);
-    if ($refund_check_result) {
-        $refund_data = $refund_check_result->fetch_assoc();
-        $has_refund = $refund_data['refund_count'] > 0;
-        if ($has_refund) {
-            $refund_message = "This ticket was refunded on " . date('M d, Y', strtotime($refund_data['last_refund_date'])) . 
-                             " with amount " . number_format($refund_data['refund_amount'], 2);
-        }
+// Handle search
+$search_term = isset($_GET['search_term']) ? trim($_GET['search_term']) : '';
+$search_results = [];
+if (!empty($search_term)) {
+    $term = $conn->real_escape_string($search_term);
+    $search_sql = "SELECT SaleID, PassengerName, TicketNumber, PNR, PartyName 
+                   FROM sales 
+                   WHERE (PassengerName LIKE '%$term%' OR TicketNumber LIKE '%$term%' OR PNR LIKE '%$term%')
+                   AND Remarks NOT IN ('Refund', 'Source Refund', 'Refunded')
+                   ORDER BY SaleID DESC LIMIT 10";
+    $search_res = mysqli_query($conn, $search_sql);
+    while ($row = mysqli_fetch_assoc($search_res)) {
+        $search_results[] = $row;
     }
 }
 
-$search_query = "SELECT s.*, 'Sell' AS Status
-                FROM sales s $where 
-                ORDER BY s.SaleID DESC LIMIT 10";
-$search_result = mysqli_query($conn, $search_query);
-
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
+// Process refund
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded && $sale_data) {
     $refund_charge = floatval($_POST['refund_charge']);
     $service_charge = floatval($_POST['service_charge']);
     $is_involuntary = isset($_POST['involuntary']) && $_POST['involuntary'] == '1';
     
+    // Override for involuntary
     if ($is_involuntary) {
         $refund_charge = 0;
         $service_charge = 0;
     }
-    
     $total_charges = $refund_charge + $service_charge;
     $source = $conn->real_escape_string($_POST['source']);
     $refund_date = $conn->real_escape_string($_POST['refund_date']);
     $sales_person_id = intval($_POST['sales_person_id']);
     
-    // Get salesperson name from sales_person table
-    $sp_query = "SELECT name FROM sales_person WHERE id = $sales_person_id";
-    $sp_result = mysqli_query($conn, $sp_query);
-    $sp_row = mysqli_fetch_assoc($sp_result);
+    // Get salesperson name
+    $sp_row = mysqli_fetch_assoc(mysqli_query($conn, "SELECT name FROM sales_person WHERE id = $sales_person_id"));
     $sales_person_name = $sp_row ? $sp_row['name'] : $sale_data['SalesPersonName'];
-
+    
     $payment_status = $sale_data['PaymentStatus'];
     $paid_amount = floatval($sale_data['PaidAmount'] ?? 0);
-    $bill_amount = floatval($sale_data['BillAmount']);
+    $selling_price = floatval($sale_data['BillAmount']);
     $original_net = floatval($sale_data['NetPayment']);
-
+    
     $client_refund = 0;
     $extra_charge = 0;
-
-    // Calculate refund amounts based on involuntary flag and payment status
+    
+    // ================== REFUND CALCULATION ==================
     if ($is_involuntary) {
-        // Involuntary refund: client gets back what they actually paid
-        if ($payment_status == 'Paid') {
-            $client_refund = $bill_amount;
-        } elseif ($payment_status == 'Partially Paid') {
-            $client_refund = $paid_amount;
-        } else {
-            $client_refund = 0;
-        }
+        // Involuntary: client gets full selling price
+        $client_refund = $selling_price;
         $extra_charge = 0;
     } else {
-        // Voluntary refund with charges
+        // Voluntary
         if ($payment_status == 'Paid') {
-            $client_refund = $bill_amount - $total_charges;
+            $client_refund = $selling_price - $total_charges;
             if ($client_refund < 0) $client_refund = 0;
         } 
         elseif ($payment_status == 'Partially Paid') {
@@ -133,10 +107,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
             $client_refund = 0;
         }
     }
-
-    // 1. CLIENT REFUND RECORD (only if client gets money)
+    
+    // ================== UPDATE ORIGINAL SALE ==================
+    $update_original = "UPDATE sales SET Remarks = 'Refunded' WHERE SaleID = ?";
+    $stmt_up = $conn->prepare($update_original);
+    $stmt_up->bind_param("i", $sale_id);
+    $stmt_up->execute();
+    
+    // ================== CLIENT REFUND RECORD ==================
     if ($client_refund > 0) {
-        $insert_client_refund = "INSERT INTO sales (
+        $refund_bill_amount = $client_refund;   // For involuntary, this equals selling price
+        $refund_net_payment = $is_involuntary ? 0 : $refund_charge;
+        $refund_profit = $is_involuntary ? 0 : $service_charge;
+        
+        $sql1 = "INSERT INTO sales (
                     section, PartyName, PassengerName, airlines, TicketRoute, 
                     TicketNumber, Class, IssueDate, FlightDate, ReturnDate, 
                     PNR, BillAmount, NetPayment, Profit, PaymentStatus, 
@@ -147,15 +131,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                     PNR, ?, ?, ?, 'Paid', 
                     PaymentMethod, ?, 'Refund', ?, ?, ?
                 FROM sales WHERE SaleID = ?";
-        $stmt1 = $conn->prepare($insert_client_refund);
-        $stmt1->bind_param("dddsdssi", $total_charges, $refund_charge, $service_charge, $sales_person_name, $source, $refund_date, $client_refund, $sale_id);
+        $stmt1 = $conn->prepare($sql1);
+        $stmt1->bind_param("dddsdssi", $refund_bill_amount, $refund_net_payment, $refund_profit, $sales_person_name, $source, $refund_date, $client_refund, $sale_id);
         $stmt1->execute();
     }
-
-    // 2. SOURCE REFUND RECORD (money you receive from source)
+    
+    // ================== SOURCE REFUND RECORD ==================
     $source_refund_amount = $is_involuntary ? $original_net : ($original_net - $refund_charge);
     if ($source_refund_amount > 0) {
-        $insert_source_refund = "INSERT INTO sales (
+        $sql2 = "INSERT INTO sales (
                     section, PartyName, PassengerName, airlines, TicketRoute, 
                     TicketNumber, Class, IssueDate, FlightDate, ReturnDate, 
                     PNR, BillAmount, NetPayment, Profit, PaymentStatus, 
@@ -166,14 +150,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                     PNR, ?, ?, ?, 'Paid', 
                     PaymentMethod, ?, 'Source Refund', ?, ?, 0
                 FROM sales WHERE SaleID = ?";
-        $stmt2 = $conn->prepare($insert_source_refund);
+        $stmt2 = $conn->prepare($sql2);
         $stmt2->bind_param("dddsdss", $source_refund_amount, $refund_charge, $service_charge, $sales_person_name, $source, $refund_date, $sale_id);
         $stmt2->execute();
     }
-
-    // 3. CANCELLATION CHARGE RECORD (client owes money)
+    
+    // ================== CANCELLATION CHARGE RECORD ==================
     if ($extra_charge > 0) {
-        $insert_cancel = "INSERT INTO sales (
+        $sql3 = "INSERT INTO sales (
                     section, PartyName, PassengerName, airlines, TicketRoute, 
                     TicketNumber, Class, IssueDate, FlightDate, ReturnDate, 
                     PNR, BillAmount, NetPayment, Profit, PaymentStatus, 
@@ -184,47 +168,61 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                     PNR, ?, ?, 0, 'Due', 
                     PaymentMethod, ?, 'Cancellation Charge', ?, ?, 0
                 FROM sales WHERE SaleID = ?";
-        $stmt3 = $conn->prepare($insert_cancel);
+        $stmt3 = $conn->prepare($sql3);
         $stmt3->bind_param("ddsdss", $extra_charge, $extra_charge, $sales_person_name, $source, $refund_date, $sale_id);
         $stmt3->execute();
     }
-
-    // Success check
-    if ((isset($stmt1) && $stmt1->affected_rows > 0) || 
-        (isset($stmt2) && $stmt2->affected_rows > 0) || 
-        (isset($stmt3) && $stmt3->affected_rows > 0)) {
-        echo '<!DOCTYPE html>
-        <html>
-        <head>
-            <title>Processing Refund</title>
-            <style>
-                body { margin:0; font-family:Arial; }
-                .loading-container {
-                    position:fixed; top:0; left:0; width:100%; height:100%;
-                    background:rgba(255,255,255,0.9); display:flex;
-                    flex-direction:column; justify-content:center; align-items:center;
-                    z-index:9999;
-                }
-                .loading-gif { width:100px; height:100px; }
-                .loading-text { margin-top:20px; font-size:18px; }
-            </style>
-        </head>
-        <body>
-            <div class="loading-container">
-                <img src="rfnd.gif" class="loading-gif" alt="Processing...">
-                <p class="loading-text">Processing refund, please wait...</p>
-            </div>
-            <script>
-                setTimeout(function() {
-                    window.location.href = "refund_corporate.php?success=1";
-                }, 3000);
-            </script>
-        </body>
-        </html>';
-        exit();
-    } else {
-        echo "<script>alert('Error processing refund. No records were inserted.');</script>";
-    }
+    
+    // Show loading page with GIF and redirect after 3 seconds
+    echo '<!DOCTYPE html>
+    <html>
+    <head>
+        <title>Processing Refund</title>
+        <style>
+            body {
+                margin: 0;
+                padding: 0;
+                font-family: Arial, sans-serif;
+                background: #f5f5f5;
+            }
+            .loading-container {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(255,255,255,0.95);
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                z-index: 9999;
+            }
+            .loading-gif {
+                width: 100px;
+                height: 100px;
+                margin-bottom: 20px;
+            }
+            .loading-text {
+                font-size: 18px;
+                color: #333;
+                font-weight: 500;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="loading-container">
+            <img src="rfnd.gif" class="loading-gif" alt="Processing...">
+            <p class="loading-text">Processing refund, please wait...</p>
+        </div>
+        <script>
+            setTimeout(function() {
+                window.location.href = "refund_corporate.php?success=1";
+            }, 3000);
+        </script>
+    </body>
+    </html>';
+    exit();
 }
 ?>
 <!DOCTYPE html>
@@ -236,6 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <style>
+        /* same CSS as before – keep unchanged */
         body { font-family: Arial, sans-serif; margin: 20px; background-color: #f8f9fa; }
         .container { background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0px 4px 15px rgba(0,0,0,0.1); margin-top: 20px; position: relative; }
         h2 { color: #2c3e50; margin-bottom: 25px; text-align: center; font-weight: 600; }
@@ -278,8 +277,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                     <label for="search_term">Search (Passenger, Ticket No, or PNR):</label>
                     <input type="text" id="search_term" name="search_term" class="form-control" 
                            placeholder="Search by Passenger Name, Ticket Number, or PNR"
-                           value="<?= isset($_GET['search_term']) ? htmlspecialchars($_GET['search_term']) : '' ?>">
-                    <div class="search-results" id="searchResults"></div>
+                           value="<?= htmlspecialchars($search_term) ?>">
+                    <div id="searchResults" class="search-results"></div>
                 </div>
                 <div class="col-md-2">
                     <label>&nbsp;</label>
@@ -288,11 +287,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
             </div>
         </form>
 
+        <?php if (!empty($search_results) && empty($sale_data)): ?>
+            <div class="mt-4">
+                <h5>Search Results – Select a ticket to refund:</h5>
+                <table class="table table-bordered">
+                    <thead><tr><th>Passenger</th><th>Ticket No</th><th>PNR</th><th>Action</th></tr></thead>
+                    <tbody>
+                        <?php foreach ($search_results as $row): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($row['PassengerName']) ?></td>
+                                <td><?= htmlspecialchars($row['TicketNumber']) ?></td>
+                                <td><?= htmlspecialchars($row['PNR']) ?></td>
+                                <td><a href="?id=<?= $row['SaleID'] ?>&search_term=<?= urlencode($search_term) ?>" class="btn btn-sm btn-primary">Select</a></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+
         <?php if ($sale_data): ?>
         <?php if ($pnr_has_refunds): ?>
             <div class="pnr-notice">
                 <strong>Note:</strong> Other tickets in PNR <?= htmlspecialchars($sale_data['PNR']) ?> have been refunded, 
-                but this specific ticket (<?= htmlspecialchars($sale_data['TicketNumber']) ?>) is still available for refund.
+                but this ticket (<?= htmlspecialchars($sale_data['TicketNumber']) ?>) is still available for refund.
             </div>
         <?php endif; ?>
         
@@ -301,7 +319,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                 <h4>Original Sale Information</h4>
                 <div class="row">
                     <div class="col-md-4">
-                        <label>Selling Section:</label>
+                        <label>Party Name:</label>
                         <input type="text" class="form-control readonly" value="<?= htmlspecialchars($sale_data['PartyName']) ?>" readonly>
                     </div>
                     <div class="col-md-4">
@@ -438,57 +456,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                 </div>
             </div>
         </form>
-        <?php else: ?>
-            <div class="alert alert-danger">
-                <?php if ($sale_id > 0): ?>
-                    No valid sale record found for refund.
-                <?php else: ?>
-                    Please select a sale record to process refund.
-                <?php endif; ?>
-            </div>
-            
-            <?php if (isset($_GET['search_term']) && ($search_result->num_rows > 0 || $has_refund)): ?>
-                <div class="mt-4">
-                    <?php if ($has_refund): ?>
-                        <div class="alert alert-warning">
-                            <strong>Refund Notice:</strong> <?= $refund_message ?>
-                        </div>
-                    <?php endif; ?>
-                    
-                    <?php if ($search_result->num_rows > 0): ?>
-                        <h5>Available Sales Records:</h5>
-                        <table class="table table-bordered">
-                            <thead>
-                                <tr><th>Passenger</th><th>Ticket No</th><th>PNR</th><th>Status</th><th>Action</th></tr>
-                            </thead>
-                            <tbody>
-                                <?php while ($row = $search_result->fetch_assoc()): 
-                                    $is_already_refunded = isTicketRefunded($conn, $row['TicketNumber']);
-                                    $pnr_has_refunds = hasRefundedTicketsInPNR($conn, $row['PNR']);
-                                ?>
-                                    <tr>
-                                        <td><?= htmlspecialchars($row['PassengerName']) ?></td>
-                                        <td><?= htmlspecialchars($row['TicketNumber']) ?></td>
-                                        <td><?= htmlspecialchars($row['PNR']) ?></td>
-                                        <td class="status-sell"><?= htmlspecialchars($row['Status']) ?></td>
-                                        <td>
-                                            <?php if ($is_already_refunded): ?>
-                                                <button class="btn btn-sm btn-secondary btn-disabled" disabled>Already Refunded</button>
-                                            <?php elseif ($pnr_has_refunds): ?>
-                                                <a href="?id=<?= $row['SaleID'] ?>&search_term=<?= urlencode($_GET['search_term']) ?>" class="btn btn-sm btn-warning">Select (PNR has refunds)</a>
-                                            <?php else: ?>
-                                                <a href="?id=<?= $row['SaleID'] ?>&search_term=<?= urlencode($_GET['search_term']) ?>" class="btn btn-sm btn-primary">Select for Refund</a>
-                                            <?php endif; ?>
-                                        </td>
-                                    </tr>
-                                <?php endwhile; ?>
-                            </tbody>
-                        </table>
-                    <?php else: ?>
-                        <div class="alert alert-info">No available sales records found for this search.</div>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
+        <?php elseif (!$is_refunded && empty($search_term)): ?>
+            <div class="alert alert-info">Please search for a ticket using the search box above.</div>
         <?php endif; ?>
     </div>
 
@@ -512,16 +481,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$is_refunded) {
                 let infoText = "";
 
                 if (isInvoluntary) {
-                    if (paymentStatus === 'Paid') {
-                        clientRefund = sellingPrice;
-                        infoText = `Involuntary Refund (Airline Cancellation).<br>Client paid full amount: ${sellingPrice.toFixed(2)} BDT – Full refund to client.`;
-                    } else if (paymentStatus === 'Partially Paid') {
-                        clientRefund = paidAmount;
-                        infoText = `Involuntary Refund (Airline Cancellation).<br>Client paid only ${paidAmount.toFixed(2)} BDT – Refund of paid amount only.`;
-                    } else {
-                        clientRefund = 0;
-                        infoText = `Involuntary Refund but client paid nothing – No refund to client.`;
-                    }
+                    clientRefund = sellingPrice;
+                    infoText = `Involuntary Refund (Airline Cancellation).<br>Client paid full amount: ${sellingPrice.toFixed(2)} BDT – Full refund to client.`;
                     $('#refund_charge').val(0);
                     $('#service_charge').val(0);
                     totalCharges = 0;

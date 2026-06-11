@@ -3,6 +3,10 @@
 include 'db.php';
 include 'auth_check.php';
 
+// Ensure sales table has PaidAmount and DueAmount columns
+$conn->query("ALTER TABLE sales ADD COLUMN IF NOT EXISTS PaidAmount DECIMAL(10,2) DEFAULT 0 AFTER PaymentStatus");
+$conn->query("ALTER TABLE sales ADD COLUMN IF NOT EXISTS DueAmount DECIMAL(10,2) DEFAULT 0 AFTER PaidAmount");
+
 // Ensure payments table has PartyName column and SaleID allows NULL
 $check_party_column = $conn->query("SHOW COLUMNS FROM payments LIKE 'PartyName'");
 if ($check_party_column->num_rows == 0) {
@@ -49,7 +53,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_sale_details') {
     exit;
 }
 
-// Handle Add Payment AJAX request
+// Handle Add Payment AJAX request (UPDATED)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_payment') {
     $sale_id = !empty($_POST['sale_id']) ? intval($_POST['sale_id']) : null;
     $section = $conn->real_escape_string($_POST['section']);
@@ -62,31 +66,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     
     mysqli_begin_transaction($conn);
     try {
+        // Insert payment
         $insert_payment = "INSERT INTO payments (SaleID, PartyName, PaymentDate, Amount, PaymentMethod, BankName, Notes, PaymentType) 
                            VALUES (" . ($sale_id ? $sale_id : "NULL") . ", '$party_name', '$payment_date', $amount, '$payment_method', " . ($bank_id ? "(SELECT Bank_Name FROM banks WHERE id = $bank_id)" : "NULL") . ", '$remarks', 'Partial')";
         if (!$conn->query($insert_payment)) {
             throw new Exception("Failed to insert payment: " . $conn->error);
         }
         
+        // Update sales table if this payment is linked to a sale
         if ($sale_id) {
-            $sale_query = $conn->query("SELECT BillAmount, PaymentStatus, COALESCE(SUM(p.Amount), 0) as PaidAmount 
-                                        FROM sales s 
-                                        LEFT JOIN payments p ON s.SaleID = p.SaleID 
-                                        WHERE s.SaleID = $sale_id 
-                                        GROUP BY s.SaleID");
-            $sale = $sale_query->fetch_assoc();
-            if ($sale) {
-                $current_paid = $sale['PaidAmount'];
-                $new_paid = $current_paid + $amount;
-                $bill_amount = $sale['BillAmount'];
-                $payment_status = ($new_paid >= $bill_amount) ? 'Paid' : 'Partially Paid';
-                $update_sale = "UPDATE sales SET PaymentStatus = '$payment_status' WHERE SaleID = $sale_id";
-                if (!$conn->query($update_sale)) {
-                    throw new Exception("Failed to update sale status: " . $conn->error);
-                }
+            // Calculate total paid amount for this sale
+            $paid_total_query = $conn->query("SELECT COALESCE(SUM(Amount),0) as PaidAmount FROM payments WHERE SaleID = $sale_id");
+            $paid_total = $paid_total_query->fetch_assoc()['PaidAmount'];
+            $sale_query = $conn->query("SELECT BillAmount FROM sales WHERE SaleID = $sale_id");
+            $bill_amount = $sale_query->fetch_assoc()['BillAmount'];
+            $due_amount = max(0, $bill_amount - $paid_total);
+            $payment_status = ($paid_total >= $bill_amount) ? 'Paid' : ($paid_total > 0 ? 'Partially Paid' : 'Due');
+            
+            // Update sales table with new PaidAmount, DueAmount, PaymentStatus
+            $update_sale = "UPDATE sales SET PaidAmount = $paid_total, DueAmount = $due_amount, PaymentStatus = '$payment_status' WHERE SaleID = $sale_id";
+            if (!$conn->query($update_sale)) {
+                throw new Exception("Failed to update sale: " . $conn->error);
             }
         }
         
+        // Update bank balance if applicable
         if (($payment_method == 'Bank Transfer' || $payment_method == 'Clearing Cheque') && $bank_id) {
             $update_bank = "UPDATE banks SET Balance = Balance + $amount WHERE id = $bank_id";
             if (!$conn->query($update_bank)) {
@@ -292,94 +296,73 @@ if ($load_ledger) {
     }
     $total_outstanding = $total_debit - $total_credit;
 } else {
-    // ========== OUTSTANDING VIEW: Include normal, refund, AND REISSUE entries ==========
-    
-    // Part 1: Normal sales (excluding refund/void/reissue)
+    // ========== OUTSTANDING VIEW (uses PaidAmount from sales table) ==========
+    $filter_conditions = "";
+    if (!empty($section_filter)) {
+        $filter_conditions .= " AND s.section = '" . $conn->real_escape_string($section_filter) . "'";
+    }
+    if (!empty($party_filter)) {
+        $filter_conditions .= " AND s.PartyName = '" . $conn->real_escape_string($party_filter) . "'";
+    }
+    if (!empty($from_date) && !empty($to_date)) {
+        $filter_conditions .= " AND s.IssueDate BETWEEN '" . $conn->real_escape_string($from_date) . "' AND '" . $conn->real_escape_string($to_date) . "'";
+    }
+    if (!empty($pnr_search)) {
+        $filter_conditions .= " AND s.PNR LIKE '%" . $conn->real_escape_string($pnr_search) . "%'";
+    }
+
+    // Normal sales (including partially paid) – exclude refund/void/reissue/refunded
     $normal_sales_sql = "
         SELECT 
             s.SaleID, s.section, s.PartyName, s.PassengerName, s.airlines, s.TicketRoute, 
-            s.TicketNumber, s.IssueDate, s.PNR, s.BillAmount, s.Source, 
-            COALESCE(SUM(p.Amount), 0) as PaidAmount,
-            (s.BillAmount - COALESCE(SUM(p.Amount), 0)) as DueAmount,
-            s.SalesPersonName, DATEDIFF(CURDATE(), s.IssueDate) AS DaysPassed,
+            s.TicketNumber, s.IssueDate, s.PNR, s.BillAmount, s.Source, s.SalesPersonName,
+            DATEDIFF(CURDATE(), s.IssueDate) AS DaysPassed,
+            COALESCE(s.PaidAmount, 0) as PaidAmount,
+            COALESCE(s.DueAmount, 0) as DueAmount,
             '' as RefundChargeFlag
         FROM sales s
-        LEFT JOIN payments p ON s.SaleID = p.SaleID
-        WHERE (s.Remarks IS NULL OR s.Remarks NOT IN ('Refund', 'Void Transaction', 'Voided', 'Reissue', 'Reissued'))
-          AND NOT EXISTS (
-              SELECT 1 FROM sales r 
-              WHERE r.Remarks = 'Refund' 
-                AND r.PNR = s.PNR 
-                AND r.TicketNumber = s.TicketNumber
-          )
-        GROUP BY s.SaleID
+        WHERE s.Remarks NOT IN ('Refund', 'Source Refund', 'Void Transaction', 'Voided', 'Reissue', 'Reissued', 'Refunded')
+          $filter_conditions
         HAVING DueAmount > 0
     ";
 
-    // Part 2: Refund entries (Remarks = 'Refund')
+    // Refund entries (only those that still have due amount > 0)
     $refund_sales_sql = "
         SELECT 
             s.SaleID, s.section, s.PartyName, 
             CONCAT('REFUND - ', s.TicketNumber) AS PassengerName,
             s.airlines, s.TicketRoute, s.TicketNumber, s.IssueDate, s.PNR, 
             s.BillAmount AS BillAmount,
-            s.Source, 
-            COALESCE(SUM(p.Amount), 0) as PaidAmount,
-            (s.BillAmount - COALESCE(SUM(p.Amount), 0)) as DueAmount,
-            s.SalesPersonName, DATEDIFF(CURDATE(), s.IssueDate) AS DaysPassed,
+            s.Source, s.SalesPersonName,
+            DATEDIFF(CURDATE(), s.IssueDate) AS DaysPassed,
+            COALESCE(s.PaidAmount, 0) as PaidAmount,
+            COALESCE(s.DueAmount, 0) as DueAmount,
             'RefundCharge' as RefundChargeFlag
         FROM sales s
-        LEFT JOIN payments p ON s.SaleID = p.SaleID
-        WHERE s.Remarks = 'Refund' 
-          AND s.BillAmount > 0
-        GROUP BY s.SaleID
+        WHERE s.Remarks = 'Refund' AND s.BillAmount > 0
+          $filter_conditions
         HAVING DueAmount > 0
     ";
 
-    // Part 3: Reissue charge entries (Remarks = 'Reissue')
+    // Reissue charge entries
     $reissue_sales_sql = "
         SELECT 
             s.SaleID, s.section, s.PartyName, 
             CONCAT('REISSUE CHARGE - ', s.TicketNumber) AS PassengerName,
             s.airlines, s.TicketRoute, s.TicketNumber, s.IssueDate, s.PNR, 
             s.BillAmount AS BillAmount,
-            s.Source, 
-            COALESCE(SUM(p.Amount), 0) as PaidAmount,
-            (s.BillAmount - COALESCE(SUM(p.Amount), 0)) as DueAmount,
-            s.SalesPersonName, DATEDIFF(CURDATE(), s.IssueDate) AS DaysPassed,
+            s.Source, s.SalesPersonName,
+            DATEDIFF(CURDATE(), s.IssueDate) AS DaysPassed,
+            COALESCE(s.PaidAmount, 0) as PaidAmount,
+            COALESCE(s.DueAmount, 0) as DueAmount,
             'ReissueCharge' as RefundChargeFlag
         FROM sales s
-        LEFT JOIN payments p ON s.SaleID = p.SaleID
-        WHERE s.Remarks = 'Reissue' 
-          AND s.BillAmount > 0
-        GROUP BY s.SaleID
+        WHERE s.Remarks = 'Reissue' AND s.BillAmount > 0
+          $filter_conditions
         HAVING DueAmount > 0
     ";
 
-    // Combine all three parts
-    $sql = "($normal_sales_sql) UNION ALL ($refund_sales_sql) UNION ALL ($reissue_sales_sql)";
-    
-    // Apply filters
-    $filter_sql = "";
-    if (!empty($section_filter)) {
-        $filter_sql .= " AND section = '" . $conn->real_escape_string($section_filter) . "'";
-    }
-    if (!empty($party_filter)) {
-        $filter_sql .= " AND PartyName = '" . $conn->real_escape_string($party_filter) . "'";
-    }
-    if (!empty($from_date) && !empty($to_date)) {
-        $filter_sql .= " AND IssueDate BETWEEN '" . $conn->real_escape_string($from_date) . "' AND '" . $conn->real_escape_string($to_date) . "'";
-    }
-    if (!empty($pnr_search)) {
-        $filter_sql .= " AND PNR LIKE '%" . $conn->real_escape_string($pnr_search) . "%'";
-    }
-    
-    // Wrap the union query to apply filters on the combined result
-    if (!empty($filter_sql)) {
-        $sql = "SELECT * FROM ($sql) AS combined WHERE 1=1 $filter_sql";
-    }
-    $sql .= " ORDER BY IssueDate DESC";
-    
+    $sql = "($normal_sales_sql) UNION ALL ($refund_sales_sql) UNION ALL ($reissue_sales_sql) ORDER BY IssueDate DESC";
     $result = $conn->query($sql);
     if (!$result) {
         die("Query Error: " . $conn->error);
@@ -639,14 +622,17 @@ if ($load_ledger) {
             <?php else: ?>
                 <table class="table table-hover">
                     <thead>
-                        <tr><th>Section</th><th>Party Name</th><th>Passenger</th><th>Airline</th><th>Route</th><th>Ticket No</th><th>Issue Date</th><th>Days</th><th>PNR</th><th>Bill Amt</th><th>Status</th><th>Paid</th><th>Due</th><th>Sales Person</th><th>Action</th></tr>
+                        <tr>
+                            <th>Section</th><th>Party Name</th><th>Passenger</th><th>Airline</th><th>Route</th>
+                            <th>Ticket No</th><th>Issue Date</th><th>Days</th><th>PNR</th><th>Bill Amt</th>
+                            <th>Status</th><th>Paid</th><th>Due</th><th>Sales Person</th><th>Action</th>
+                        </tr>
                     </thead>
                     <tbody>
                         <?php if ($result && $result->num_rows > 0): ?>
                             <?php while($row = $result->fetch_assoc()): 
-                                $days = (new DateTime($row['IssueDate']))->diff(new DateTime())->days;
-                                $status_class = ($row['DueAmount'] == $row['BillAmount']) ? 'status-due' : 'status-partial';
-                                $status_text = ($row['DueAmount'] == $row['BillAmount']) ? 'Due' : 'Partially Paid';
+                                $status_text = ($row['DueAmount'] == $row['BillAmount']) ? 'Due' : (($row['PaidAmount'] > 0 && $row['DueAmount'] > 0) ? 'Partially Paid' : 'Paid');
+                                $status_class = ($status_text == 'Due') ? 'status-due' : (($status_text == 'Partially Paid') ? 'status-partial' : '');
                                 $passenger_display = $row['PassengerName'];
                                 if (isset($row['RefundChargeFlag']) && $row['RefundChargeFlag'] == 'RefundCharge') {
                                     $passenger_display = '<span class="badge bg-warning text-dark">Refund Entry</span> ' . htmlspecialchars($row['PassengerName']);
@@ -657,18 +643,18 @@ if ($load_ledger) {
                             <tr>
                                 <td><?php echo htmlspecialchars($row['section']); ?></td>
                                 <td><?php echo htmlspecialchars($row['PartyName']); ?></td>
-                                <td><?php echo $passenger_display; ?></div>
-                                <td><?php echo htmlspecialchars($row['airlines']); ?></div>
-                                <td><?php echo htmlspecialchars($row['TicketRoute']); ?></div>
-                                <td><?php echo htmlspecialchars($row['TicketNumber']); ?></div>
-                                <td><?php echo htmlspecialchars($row['IssueDate']); ?></div>
-                                <td><?php echo $days; ?> days</div>
-                                <td><?php echo htmlspecialchars($row['PNR']); ?></div>
-                                <td class="text-end"><?php echo number_format($row['BillAmount'], 2); ?></div>
-                                <td class="<?php echo $status_class; ?>"><?php echo $status_text; ?></div>
-                                <td class="text-end"><?php echo number_format($row['PaidAmount'], 2); ?></div>
-                                <td class="text-end"><?php echo number_format($row['DueAmount'], 2); ?></div>
-                                <td><?php echo htmlspecialchars($row['SalesPersonName']); ?></div>
+                                <td><?php echo $passenger_display; ?></td>
+                                <td><?php echo htmlspecialchars($row['airlines']); ?></td>
+                                <td><?php echo htmlspecialchars($row['TicketRoute']); ?></td>
+                                <td><?php echo htmlspecialchars($row['TicketNumber']); ?></td>
+                                <td><?php echo htmlspecialchars($row['IssueDate']); ?></td>
+                                <td><?php echo $row['DaysPassed']; ?> days</div></td>
+                                <td><?php echo htmlspecialchars($row['PNR']); ?></div></td>
+                                <td class="text-end"><?php echo number_format($row['BillAmount'], 2); ?></div></td>
+                                <td class="<?php echo $status_class; ?>"><?php echo $status_text; ?></div></td>
+                                <td class="text-end"><?php echo number_format($row['PaidAmount'], 2); ?></div></td>
+                                <td class="text-end"><?php echo number_format($row['DueAmount'], 2); ?></div></td>
+                                <td><?php echo htmlspecialchars($row['SalesPersonName']); ?></div></td>
                                 <td>
                                     <button class="btn btn-success btn-sm pay-btn" data-id="<?php echo $row['SaleID']; ?>" data-amount="<?php echo $row['DueAmount']; ?>"><i class="fas fa-money-bill-wave"></i> Pay</button>
                                     <a href="payment_history.php?id=<?php echo $row['SaleID']; ?>" class="btn btn-info btn-sm"><i class="fas fa-history"></i> History</a>
@@ -676,11 +662,11 @@ if ($load_ledger) {
                              </tr>
                             <?php endwhile; ?>
                             <tr class="total-row"><td colspan="9" class="text-end">Total:</div>
-                            <td class="text-end"><?php echo number_format($total_bill, 2); ?></div><td></div>
+                            <td class="text-end"><?php echo number_format($total_bill, 2); ?></div><tr></div>
                             <td class="text-end"><?php echo number_format($total_paid, 2); ?></div>
                             <td class="text-end"><?php echo number_format($total_due, 2); ?></div><td colspan="2"></div></tr>
                         <?php else: ?>
-                            <tr><td colspan="15" class="text-center">No records found.</td></tr>
+                            <tr><td colspan="15" class="text-center">No records found. These records may be fully paid or refunded. Try changing filters or load ledger view.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>

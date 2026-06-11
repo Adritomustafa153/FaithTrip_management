@@ -88,7 +88,7 @@ if ($selectedSection) {
     while ($row = mysqli_fetch_assoc($partiesRes)) $parties[] = $row['PartyName'];
 }
 
-// Helper functions (unchanged logic, but remarks include action dates)
+// Helper functions (updated for refund handling)
 function getLedgerTransactions($conn, $party, $section, $startDate, $endDate, $searchTerm, $txnTypeFilter, &$debugSql = '') {
     $transactions = [];
     $party = trim($party);
@@ -101,12 +101,14 @@ function getLedgerTransactions($conn, $party, $section, $startDate, $endDate, $s
         $dateCondition = " AND s.IssueDate BETWEEN '" . mysqli_real_escape_string($conn, $startDate) . "' AND '" . mysqli_real_escape_string($conn, $endDate) . "'";
     }
     
+    // Include normal sales and refunds, exclude Source Refund (internal)
     $salesQuery = "SELECT s.SaleID, s.IssueDate as transaction_date, s.Remarks, s.BillAmount, s.PaidAmount, s.DueAmount,
                           s.Invoice_number, s.PNR, s.TicketNumber, s.PassengerName, s.airlines, s.TicketRoute,
                           s.refundtc, s.VoidCharge, s.PaymentMethod, s.PaymentStatus, s.refund_date, s.section
                    FROM sales s
                    WHERE TRIM(s.PartyName) = '" . mysqli_real_escape_string($conn, $party) . "'
-                   AND $sectionCond $dateCondition";
+                   AND $sectionCond $dateCondition
+                   AND s.Remarks NOT IN ('Source Refund')";
     $debugSql = $salesQuery;
     $salesRes = mysqli_query($conn, $salesQuery);
     if ($salesRes) {
@@ -128,8 +130,10 @@ function getLedgerTransactions($conn, $party, $section, $startDate, $endDate, $s
             } elseif ($remarks == 'refund') {
                 $refundAmount = floatval($row['refundtc']);
                 if ($refundAmount == 0) $refundAmount = abs($amount);
-                $debit = 0; $credit = $refundAmount; $txnType = 'Refund';
-                $remarkText = "Refund: " . number_format($refundAmount,2);
+                $debit = 0; 
+                $credit = $refundAmount; 
+                $txnType = 'Refund';
+                $remarkText = "TKT refund";
                 if (!empty($row['refund_date']) && $row['refund_date'] != '0000-00-00') {
                     $remarkText .= " | Date: " . date('d-m-Y', strtotime($row['refund_date']));
                 }
@@ -140,7 +144,11 @@ function getLedgerTransactions($conn, $party, $section, $startDate, $endDate, $s
             } elseif ($remarks == 'reissue') {
                 $debit = $amount; $credit = 0; $txnType = 'Reissue';
                 $remarkText = "Reissued | Date: " . date('d-m-Y', strtotime($row['transaction_date']));
+            } elseif ($remarks == 'cancellation charge') {
+                $debit = $amount; $credit = 0; $txnType = 'Cancellation';
+                $remarkText = "Cancellation Charge";
             } else {
+                // Normal sale (including 'Air Ticket Sale' or NULL)
                 $debit = $amount; $credit = 0; $txnType = 'Sale';
                 $remarkText = "";
                 if ($row['PaymentStatus'] == 'Paid' || $row['PaymentStatus'] == 'Partially Paid') {
@@ -163,7 +171,7 @@ function getLedgerTransactions($conn, $party, $section, $startDate, $endDate, $s
         }
     }
     
-    // ... rest of payment query same as before ...
+    // Payments query
     $paymentsDateCond = "";
     if (!empty($startDate) && !empty($endDate)) {
         $paymentsDateCond = " AND p.PaymentDate BETWEEN '" . mysqli_real_escape_string($conn, $startDate) . "' AND '" . mysqli_real_escape_string($conn, $endDate) . "'";
@@ -224,7 +232,7 @@ function getOpeningBalance($conn, $party, $section, $startDate) {
     $sectionLower = strtolower(trim($section));
     if ($sectionLower == 'counter sell') $sectionCond = "LOWER(section) IN ('counter','counter sell','countersell')";
     else $sectionCond = "LOWER(section) = '" . mysqli_real_escape_string($conn, $sectionLower) . "'";
-    $query = "SELECT SUM(CASE WHEN LOWER(TRIM(Remarks)) NOT IN ('refund','void transaction') THEN BillAmount ELSE 0 END) as total_sales,
+    $query = "SELECT SUM(CASE WHEN LOWER(TRIM(Remarks)) NOT IN ('refund','void transaction','cancellation charge') THEN BillAmount ELSE 0 END) as total_sales,
                      SUM(PaidAmount) as total_paid
               FROM sales 
               WHERE TRIM(PartyName) = '" . mysqli_real_escape_string($conn, trim($party)) . "'
@@ -241,7 +249,7 @@ function getPartySummary($conn, $party, $section) {
     if ($sectionLower == 'counter sell') $sectionCond = "LOWER(section) IN ('counter','counter sell','countersell')";
     else $sectionCond = "LOWER(section) = '" . mysqli_real_escape_string($conn, $sectionLower) . "'";
     $query = "SELECT 
-                SUM(CASE WHEN LOWER(TRIM(Remarks)) NOT IN ('refund','void transaction') THEN BillAmount ELSE 0 END) as total_sales,
+                SUM(CASE WHEN LOWER(TRIM(Remarks)) NOT IN ('refund','void transaction','cancellation charge') THEN BillAmount ELSE 0 END) as total_sales,
                 SUM(PaidAmount) as total_paid,
                 SUM(DueAmount) as total_due,
                 SUM(Profit) as total_profit,
@@ -262,7 +270,7 @@ function getMonthlySalesData($conn, $party, $section, $year) {
               FROM sales 
               WHERE TRIM(PartyName) = '" . mysqli_real_escape_string($conn, trim($party)) . "'
               AND $sectionCond AND YEAR(IssueDate) = $year
-              AND LOWER(TRIM(Remarks)) NOT IN ('refund','void transaction')
+              AND LOWER(TRIM(Remarks)) NOT IN ('refund','void transaction','cancellation charge')
               GROUP BY MONTH(IssueDate)";
     $res = mysqli_query($conn, $query);
     if ($res) {
@@ -429,6 +437,7 @@ $companyLogo = "logo.jpg";
         .refund-text { color: #b33c1f; font-weight: 500; }
         .reissue-text { color: #b86f0c; font-weight: 500; }
         .void-text { color: #6f42c1; font-weight: 500; }
+        .cancellation-text { color: #dc3545; font-weight: 500; }
         
         /* Hide DataTables UI elements */
         .dataTables_length, .dataTables_filter, .dataTables_info, .dataTables_paginate { display: none !important; }
@@ -589,7 +598,6 @@ $companyLogo = "logo.jpg";
                         $balance = $openingBalance;
                         foreach ($transactions as $txn): 
                             $balance += $txn['debit'] - $txn['credit'];
-                            // Build flight info with null-safe escaping
                             $route = htmlspecialchars($txn['route'] ?? '');
                             $airline = htmlspecialchars($txn['airline'] ?? '');
                             $pnr = htmlspecialchars($txn['pnr'] ?? '');
@@ -598,7 +606,6 @@ $companyLogo = "logo.jpg";
                             $flightInfo .= '</small>';
                             if (empty($route) && empty($airline)) $flightInfo = '—';
                             
-                            // Ticket info with null-safe escaping
                             $ticketNo = htmlspecialchars($txn['ticket_no'] ?? '');
                             $invoice = htmlspecialchars($txn['invoice'] ?? '');
                             $ticketInfo = '';
@@ -613,7 +620,8 @@ $companyLogo = "logo.jpg";
                                 case 'refund': $remarkClass = 'refund-text'; break;
                                 case 'reissue': $remarkClass = 'reissue-text'; break;
                                 case 'void': $remarkClass = 'void-text'; break;
-                                case 'Emd': $remarkClass = 'emd-text'; break;
+                                case 'emd': $remarkClass = 'emd-text'; break;
+                                case 'cancellation': $remarkClass = 'cancellation-text'; break;
                             }
                     ?>
                     <tr>
@@ -750,7 +758,7 @@ function downloadPDF() {
     var element = document.getElementById('reportContent');
     if (!element) return;
     var opt = {
-        margin:        [0.5, 0.5, 0.5, 0.5], // top, right, bottom, left (inches)
+        margin:        [0.5, 0.5, 0.5, 0.5],
         filename:      getDynamicFileName() + '.pdf',
         image:         { type: 'jpeg', quality: 0.98 },
         html2canvas:   { scale: 2, letterRendering: true, useCORS: true, logging: false },
