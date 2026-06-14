@@ -69,8 +69,8 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
             <li><a class="dropdown-item" href="corporate_auto_insert.php">Corporate</a></li>
             <li><a class="dropdown-item" href="counter_auto_insert.php">Counter Sell</a></li>
             <li><a class="dropdown-item" href="visa_insert.php">Visa Agents</a></li>
-            <li><a class="dropdown-item" href="">Visa Corporate</a></li>
-            <li><a class="dropdown-item" href="">Visa Counter Sell</a></li>
+            <li><a class="dropdown-item" href="visa_insert">Visa Corporate</a></li>
+            <li><a class="dropdown-item" href="visa_insert">Visa Counter Sell</a></li>
           </ul>
         </li>
         <li class="nav-item dropdown">
@@ -80,8 +80,8 @@ if ($iataReminder['show_reminder']) $totalNotifications += 1;
             <li><a class="dropdown-item" href="corporate_manual_insert.php">Ticket Corporate</a></li>
             <li><a class="dropdown-item" href="counter_sell_manual_insert.php">Ticket Counter Sell</a></li>
             <li><a class="dropdown-item" href="visa_insert.php">Visa Agents</a></li>
-            <li><a class="dropdown-item" href="">Visa Corporate</a></li>
-            <li><a class="dropdown-item" href="">Visa Counter Sell</a></li>
+            <li><a class="dropdown-item" href="visa_insert">Visa Corporate</a></li>
+            <li><a class="dropdown-item" href="visa_insert">Visa Counter Sell</a></li>
           </ul>
         </li>
         <li class="nav-item"><a class="nav-link" href="combined_cart_search.php">Generate Invoice</a></li>
